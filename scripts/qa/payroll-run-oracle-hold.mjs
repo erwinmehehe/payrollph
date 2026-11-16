@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { payrollRenewalProofBuilder } from './payroll-run-credit-renewal-verify.mjs';
+import { verifyWageRegistrySourceHold } from "./wage-registry-source-hold.mjs";
 
 export const ORACLE_BASE = "e2999240e5ee2d820841de5e10193ce9cbc39e6a";
 export const ORACLE_HELD_METHODS = Object.freeze([
@@ -55,6 +56,15 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
       priorProof: old.testedBy, coverageCredits: 0, evidenceLabel: "SOLO_VERIFIED_DEV_RECOVERY",
       execution: "NOT_RUN", independentSecurityReview: "PENDING", productionCertified: false,
     };
+    if(row.status==='GAP' && row.reviewedUncertified?.kind==='wage-registry-dependency-source-withdrawal') {
+      // A source change invalidates the 2026-11-11 renewal. Retain the exact
+      // membership-oracle withdrawal and historical payroll proof separately.
+      // This is a strictly zero-credit HOLD, never a new security acceptance.
+      assert.ok(verifyWageRegistrySourceHold(manifest, path, old.name, read));
+      assert.deepEqual(row.historicalOracleSourceWithdrawal, exactWithdrawal);
+      allowed.add(old.name + " " + path);
+      continue;
+    }
     if(row.status==='COVERED'){
       // A truthy receipt or removed hold never suffices. All actual job results,
       // executed application/assertion inputs and the original withdrawal must
@@ -94,7 +104,8 @@ export function isVerifiedOracleRenewal(manifest,path,verb){
 /** Historical receipt checks may be replaced only by a fully verified source
  * withdrawal OR the distinct new executed renewal, never a truthy receipt. */
 export function isVerifiedOracleSupersession(manifest,path,verb){
-  return isVerifiedOracleHold(manifest,path,verb)||isVerifiedOracleRenewal(manifest,path,verb);
+  return verifyWageRegistrySourceHold(manifest,path,verb) ||
+    isVerifiedOracleHold(manifest,path,verb) || isVerifiedOracleRenewal(manifest,path,verb);
 }
 export function verifiedOracleRenewalKeys(manifest){
   verifyOracleSourceHolds(manifest);

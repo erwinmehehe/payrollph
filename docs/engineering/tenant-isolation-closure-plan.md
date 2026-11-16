@@ -1,10 +1,12 @@
+> **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD (NO NEW CREDITS):** 498 API methods = **386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP**. Exactly 75 previously provisionally credited methods are now **GAP / HELD / testedBy:null**: 23 direct/payroll-run, 47 transitive wage imports and 5 broad source-sealed Enterprise/Studio/Spend receipts. Prior receipts remain HISTORICAL ONLY, sealed for review; no credits may be restored without fresh exact-source PG16 HTTP proof and independent security review. No production, payment, filing, provider or payroll release acceptance. All dated summaries below are historical.
+
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
 > **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 0 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 461 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP. Eleven actions, eight executed proof jobs and all six source families; 0 separate page/action gaps remain. No production or external-provider acceptance.
 
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 461 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
 > **PR #1952 OIDC CALLBACK SOURCE PROOF — NOT ACCEPTED:** 498 API methods = 439 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP; 16 page/action GAPs. [Synthetic HTTPS IdP / PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274) supports one distinct provisional callback GET. Merged #1956 keeps 19 separate payroll-run methods on source hold. SSO start/resolve and all other unproved surfaces stay GAP. Independent security, identity, payroll/privacy and production acceptance remain PENDING.
 
@@ -244,20 +246,20 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 24 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 33 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 1 | **DL-01** | 26 | 14 | 2 | 0 | 10 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 24 | 0 | 0 | 2 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 21 | 0 | 0 | 12 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 28 | 1 | 0 | 4 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 9 | 0 | 0 | 18 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 4 | **PII-02** | 38 | 34 | 2 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 16 | 11 | 6 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 6 | **EDG-01** | 33 | 15 | 11 | 6 | 1 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 23 | 1 | 5 | 4 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **377 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED + 8 PUBLIC-BY-DESIGN**. 0 batches remain INCOMPLETE; DL-01, DL-02, MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-01, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **62 COVERED + 8 PUBLIC-BY-DESIGN + 22 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -849,6 +851,33 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 - `POST /api/webhooks/resend` — [source](../../src/app/api/webhooks/resend/route.ts#L10)
 - `POST /api/webhooks/xendit-payout` — [source](../../src/app/api/webhooks/xendit-payout/route.ts#L16)
 - `POST /api/webhooks/xendit/subscriptions` — [source](../../src/app/api/webhooks/xendit/subscriptions/route.ts#L31)
+
+### Supplemental wage-source method holds outside the frozen 406-method queue
+
+These 22 additional methods were previously source-credited but are now individually **GAP / HELD / zero credits** after the changed NWPC wage dependency. Their prior receipts remain historical, not current-source coverage. Fresh exact-source fictional PG16 own/foreign/unchanged-victim execution and independent security review are required before any credit is restored.
+
+- HELD `GET /api/compliance/bank-validations/[id]/file` — fresh exact-source PG16 HTTP required
+- HELD `PATCH /api/compliance/bank-validations/[id]` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/bank-validations` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/bank-validations` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/bir-1601c-remittances` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/bir-1601c-remittances` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/calendar` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/remittance-month-close` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/remittance-month-close` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/statutory-remittance-corrections` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/statutory-remittance-corrections` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/dashboard` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/employees` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/first-payroll/preview` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/hcm/governance-readiness` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/assurance` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/release-checklist` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/payroll-runs` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — fresh exact-source PG16 HTTP required
 
 ## Page and server-action closure (20 independently requested wrong-employer surfaces)
 

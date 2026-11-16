@@ -8,6 +8,9 @@ import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import test from "node:test";
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import {verifyAllWageRegistrySourceHolds} from "../scripts/qa/wage-registry-source-hold.mjs";
+import {verifyAllTransitiveWageHolds} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
+import {verifyAllSealedWageHolds} from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 const plan = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
@@ -113,13 +116,27 @@ test("closure plan schedules every original GAP exactly once in priority order",
   assert.equal(scheduled.size, 406, "Frozen 2026-10-21 closure queue is 406 distinct method gaps");
   assert.deepEqual(sizes, [26, 26, 33, 33, 27, 39, 38, 39, 39, 40, 33, 33]);
   const oracleHolds = verifyOracleSourceHolds(manifest);
-  const supplemental = new Set([...plan.matchAll(/^- HELD `(GET|POST) \/api\/([^`]+)` — fresh exact-source PG16 HTTP required$/gm)]
+  // Direct holds use "path VERB"; transitive and sealed archives already use
+  // "VERB path". Normalize only the direct set, without broadening the allowlist.
+  const directWageHolds = verifyAllWageRegistrySourceHolds(manifest).map(key => {
+    const at = key.lastIndexOf(" ");
+    return key.slice(at + 1) + " " + key.slice(0, at);
+  });
+  const wageHolds = new Set([
+    ...directWageHolds,
+    ...verifyAllTransitiveWageHolds(manifest),
+    ...verifyAllSealedWageHolds(manifest),
+  ]);
+  assert.equal(wageHolds.size, 75, "Complete 75-method source withdrawal required");
+  const supplemental = new Set([...plan.matchAll(/^- HELD `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — fresh exact-source PG16 HTTP required$/gm)]
     .map(match => match[1] + " " + match[2]));
   for (const key of supplemental) {
     const [verb, route] = key.split(" "), path = "src/app/api/" + route + "/route.ts";
-    assert.ok(oracleHolds.has(verb + " " + path), "supplemental queue must have exact reviewed source withdrawal: " + key);
+    assert.ok(oracleHolds.has(verb + " " + path) || wageHolds.has(verb + " " + path),
+      "supplemental queue must have exact source-verified zero-credit withdrawal: " + key);
     assert.ok(!scheduled.has(key), "a frozen method must not be counted twice");
   }
+  assert.equal(supplemental.size, 22, "All 22 new out-of-queue wage method holds must be scheduled");
   for (const [key, value] of current) {
     if (value.status === "GAP") assert.ok(scheduled.has(key) || supplemental.has(key), "Unsheduled new/remaining GAP: " + key);
   }

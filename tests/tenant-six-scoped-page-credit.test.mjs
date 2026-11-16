@@ -110,7 +110,12 @@ test("SSO zero-credit replay may downgrade exactly 19 API methods, never page ev
   const fixture = zeroCreditSsoProofFixture(live);
   assert.deepEqual(fromManifest(live), {covered: 20, gap: 0});
   assert.equal(live.scopedPages.filter(p=>p.status==="PUBLIC-BY-DESIGN").length,1);
-  assert.equal(fixture.metrics.gap, live.metrics.gap + 19);
+  // #1989 already withdrew all nineteen wage-dependent payroll renewals in
+  // the COMMITTED ledger. Replaying the disposable fixture cannot remove
+  // them twice, convert any hold to a credit, or mutate a page.
+  assert.equal(fixture.metrics.gap, live.metrics.gap);
+  assert.equal(fixture.metrics.coveredAfter, live.metrics.coveredAfter);
+  assert.deepEqual(fixture, live);
   assert.deepEqual(fixture.scopedPages, live.scopedPages);
   const samlMetadataPath = "src/app/api/auth/saml/metadata/[providerId]/route.ts";
   assert.equal(manifest.allApiRouteFiles[samlMetadataPath].methods[0].status,

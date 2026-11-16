@@ -6,6 +6,7 @@ import { EVIDENCE, verifyFiveMethodCredits } from "../scripts/qa/tenant-five-met
 import { tallyTenantManifest } from "./helpers/tenant-counts.mjs";
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
+import { verifyAllTransitiveWageHolds, TRANSITIVE_HOLD_KIND } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 
 const readManifest = () => {
   const live = JSON.parse(readFileSync(
@@ -32,7 +33,18 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   const yearEnd = manifest.allApiRouteFiles["src/app/api/year-end/route.ts"];
   assert.equal(yearEnd.gitBlobSha, "f040f5bbbc3df275d32d23f1728b1b0345f77814",
     "Atomic year-end changed source must not borrow the old PG16 receipts");
-  if (isYearEndHeld(manifest)) {
+  if (yearEnd.methods.every(method => method.reviewedUncertified?.kind === TRANSITIVE_HOLD_KIND)) {
+    assert.equal(verifyAllTransitiveWageHolds(manifest).size, 47,
+      "New wage imports withdraw all 47 historically credited methods");
+    for (const method of yearEnd.methods) {
+      assert.equal(method.status, "GAP");
+      assert.equal(method.testedBy, null);
+      assert.equal(method.reviewedUncertified.coverageCredits, 0);
+      assert.equal(method.reviewedUncertified.independentSecurityReview, "PENDING");
+    }
+    assert.throws(() => verifyYearEndCredits(manifest), /current-source proof required/,
+      "Old 1804 proof cannot certify current wage-dependent year-end calculations");
+  } else if (isYearEndHeld(manifest)) {
     assert.equal(verifyYearEndHold(manifest), 0, "A withdrawn year-end credit is held at zero until a fresh exact-head PG16 proof renews it");
     for (const method of yearEnd.methods) { assert.equal(method.status, "GAP"); assert.equal(method.testedBy, null); }
   } else {

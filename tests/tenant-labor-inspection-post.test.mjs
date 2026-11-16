@@ -1,3 +1,4 @@
+import {historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -78,7 +79,7 @@ test("one real POST, two-actor PG16 HTTP proof and audit rollback are still zero
   assert.ok(workflow.includes('PAYMONGO_DISBURSEMENTS_ENABLED: "false"'));
   assert.ok(workflow.includes('MULTI_ENTITY_ENABLED: "false"'));
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
-  const entry = manifest.allApiRouteFiles["src/app/api/compliance/labor-inspection/route.ts"];
+  const entry = historicalWageCatalog(manifest).allApiRouteFiles["src/app/api/compliance/labor-inspection/route.ts"];
   assert.deepEqual(entry.methods.map(m => [m.name, m.status]),
     [["GET", "COVERED"], ["POST", "COVERED"]]);
   const proof = entry.methods.find(m => m.name === "POST")?.testedBy;

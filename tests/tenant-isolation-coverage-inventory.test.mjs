@@ -6,6 +6,9 @@ import {verifySamlPublicClassification} from '../scripts/qa/tenant-saml-metadata
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyWageRegistrySourceHold, verifyAllWageRegistrySourceHolds, historicWageRegistryProofView, PRIOR_WAGE_BLOB_SHA, NEW_WAGE_BLOB_SHA } from "../scripts/qa/wage-registry-source-hold.mjs";
+import {verifyAllTransitiveWageHolds,TRANSITIVE_HOLD_KIND,readTransitiveWageHoldArchive} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
+import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 import {assertHistoricalHttpWorkflowCheckout,historicalHttpWorkflowCheckoutSource} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -74,6 +77,8 @@ const liveManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-covera
 assert.equal(verifySixPageCredits(liveManifest), selectedTargets().length,
   "All six current-source receipts must pass before historical full-surface checks");
 const manifest = historicSixPageView(liveManifest);
+// Verify the exact 23+47+5 immutable, zero-credit wage-source holds.
+const archivedWageManifest = historicWageRegistryProofView(manifest);
 verifyMergedProofCredits(manifest);
 verifyReconciledFamilyCredits(manifest);
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
@@ -123,10 +128,35 @@ function restoreIssuedDemandPostPilotOrder(source) {
   return source.slice(0, accessStart) + pilotGuard + roleGuard + source.slice(mfaStart);
 }
 
+
+/** Preserve old 208-input receipt without claiming new wage-source execution. */
+function historicallySealedDocumentCallerReceipt(reference) {
+  const file = "scripts/qa/tenant-document-caller-reproof-receipt.json";
+  const raw = readFileSync(file, "utf8");
+  assert.equal(createHash("sha256").update(raw).digest("hex"),
+    "aee9a88d62b4fa68efd1ab61eb66343218a77532467a9cc28654f19bb833d91e",
+    "Historical document caller receipt changed");
+  const receipt = JSON.parse(raw);
+  assert.deepEqual(reference, {
+    receiptFile: file, head: receipt.head, run: receipt.run, job: receipt.job, credits: 0,
+  });
+  assert.equal(receipt.pins["src/lib/wage-orders.ts"], PRIOR_WAGE_BLOB_SHA);
+  assert.equal(gitBlobSha(readFileSync("src/lib/wage-orders.ts")), NEW_WAGE_BLOB_SHA);
+  const exactHeldCount = Object.values(manifest.allApiRouteFiles).flatMap(file => file.methods)
+    .filter(method => method.reviewedUncertified?.kind?.startsWith("wage-registry")).length;
+  assert.equal(archivedWageManifest.metrics.coveredAfter - manifest.metrics.coveredAfter, exactHeldCount,
+    "The archived ledger can project only methods with verified source-sealed holds");
+  assert.throws(() => verifyDocumentCallerReproof(reference),
+    /Executed caller input changed: src\/lib\/wage-orders\.ts/,
+    "The old job must NOT pass source-current document-caller proof");
+  return receipt;
+}
+
 function readableLines(path) {
   return readFileSync(path, "utf8").split("\n");
 }
 function isVerifiedRunWithdrawal(path, verb, data = manifest) {
+  if (verifyWageRegistrySourceHold(data, path, verb)) return true;
   if(isVerifiedOracleRenewal(data,path,verb))return true; // New executed cohort replaces the historical receipt check.
   const row=data.allApiRouteFiles[path]?.methods.find(item=>item.name===verb);
   if(row?.status!=="GAP" || row.reviewedUncertified?.kind!=="payroll-run-membership-oracle-source-withdrawal") return false;
@@ -277,6 +307,24 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status==="GAP" && method.reviewedUncertified?.kind===SEALED_WAGE_HOLD_KIND){
+    const checked=verifyAllSealedWageHolds(manifest);
+    const at=key.lastIndexOf(" "),path=key.slice(0,at),verb=key.slice(at+1);
+    assert.ok(checked.has(verb+" "+path),"Source-seal credit has not been reviewed for withdrawal");
+    return true;
+  }
+  if(method.status==="GAP" && method.reviewedUncertified?.kind===TRANSITIVE_HOLD_KIND){
+    const exact=verifyAllTransitiveWageHolds(manifest);
+    const i=key.lastIndexOf(" "), path=key.slice(0,i),verb=key.slice(i+1);
+    assert.ok(exact.has(verb+" "+path),"Unreviewed additional wage dependency cannot be downgraded");
+    return true;
+  }
+  if (method.status === "GAP" && method.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal") {
+    const at=key.lastIndexOf(" "),path=key.slice(0,at),verb=key.slice(at+1);
+    assert.ok(verifyWageRegistrySourceHold(manifest,path,verb),
+      "No stale wage-order proof may retain COVERED status");
+    return true;
+  }
   if(key===OIDC_START+' GET'&&method.status==='COVERED'){
     assert.equal(verifyOidcBatchMethod(manifest,OIDC_START),1);
     assert.equal(currentBlob,method.testedBy.routeBlobSha);return true;
@@ -4241,6 +4289,17 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   }
 }
 
+test("wage-order dependency withdrawal requires all 23 historical tenant proofs held", () => {
+  assert.equal(verifyAllWageRegistrySourceHolds(manifest).length, 23);
+  assert.equal(verifyAllTransitiveWageHolds(manifest).size, 47);
+  assert.equal(readTransitiveWageHoldArchive().methods.length,47);
+  assert.equal(verifyAllSealedWageHolds(manifest).size,5);
+  const totals = manifest.metrics;
+  assert.equal(totals.coveredAfter + totals.publicByDesign + totals.privilegedOperationsTokenOnly + totals.gap,
+    totals.methods);
+  assert.ok(manifest.acceptanceStatus.startsWith(`NOT ACCEPTED: ${totals.gap} API methods`));
+});
+
 test("whole API manifest inventories exactly every route, exported method, and original blob", () => {
   assert.equal(manifest.baseCommit, BASE);
   assert.equal(baseline.baseCommit, BASE);
@@ -4344,7 +4403,7 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     ["first-payroll/progress", ["GET", "PATCH"]],
     ["legal-entities", ["POST", "PATCH"]],
   ]) {
-    const record = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"];
+    const record = archivedWageManifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"];
     for (const name of methods) {
       const method = record.methods.find((item) => item.name === name);
       assert.equal(method?.status, "COVERED");
@@ -4504,7 +4563,7 @@ test("DL-02 proofs distinguish cross-tenant denials from employee membership rev
   ]);
   let revokedCount = 0;
   let count = 0;
-  for (const [path, record] of Object.entries(manifest.allApiRouteFiles)) {
+  for (const [path, record] of Object.entries(archivedWageManifest.allApiRouteFiles)) {
     for (const method of record.methods) {
       if (method.testedBy?.file !== file) continue;
       count += 1;
@@ -4523,8 +4582,15 @@ test("DL-02 proofs distinguish cross-tenant denials from employee membership rev
         revokedCount++;
         assert.equal(method.testedBy.denialKind, "same-session-revoked-membership",
           key + ": label same-session revocation instead of claiming a forged victim ID");
-        assert.match(method.reason, /same signed-in session receives 403 after that employee's active employer membership is revoked/,
-          key + ": the reason must describe the real route-specific denial");
+        const liveRow = manifest.allApiRouteFiles[path].methods.find(row => row.name === method.name);
+        if (liveRow.status === "GAP") {
+          assert.match(liveRow.reason, /HELD \/ ZERO CREDITS:/,
+            key + ": source-withdrawn method must remain an explicit security gap");
+          assert.match(method.reason, /HISTORICAL VIEW ONLY:/);
+        } else {
+          assert.match(method.reason, /same signed-in session receives 403 after that employee's active employer membership is revoked/,
+            key + ": the reason must describe the real route-specific denial");
+        }
         assert.match(deniedSpan, /Former employee/,
           key + ": the negative HTTP request must be the revoked employee's own session");
       } else {
@@ -4579,10 +4645,25 @@ test("new dashboard, employee-directory and payroll-list coverage cites executab
     ["payroll-runs", "const ownRunList = expectStatus", "expectStatus(await request"],
   ]) {
     const key = "src/app/api/" + route + "/route.ts";
-    const method = manifest.allApiRouteFiles[key]?.methods.find((item) => item.name === "GET");
-    if(isVerifiedRunWithdrawal(key,"GET")) continue;
+    const method = archivedWageManifest.allApiRouteFiles[key]?.methods.find((item) => item.name === "GET");
+    // Still verify old own/victim evidence anchors after checking current holds.
     assert.equal(method?.status, "COVERED", key + ": proof must remain classified");
     const proof = method.testedBy;
+    // Payroll-list GET was independently renewed using a separate exact-source
+    // PG16 receipt before the wage-source change. It is now GAP/HELD, and the
+    // archived proof is not the obsolete second-pass harness.
+    if (route === "payroll-runs" && proof?.kind === "payroll-run-source-renewal-real-http-pg16") {
+      const current = manifest.allApiRouteFiles[key].methods.find(item => item.name === "GET");
+      assert.equal(current.status, "GAP", "New wage source must keep payroll GET uncredited");
+      assert.equal(current.testedBy, null);
+      assert.ok(isVerifiedRunWithdrawal(key, "GET"), "Exact source hold required");
+      assert.equal(proof.method, "GET payroll-runs");
+      assert.equal(proof.receiptFile, "scripts/qa/payroll-run-credit-renewal-fresh-receipt.json");
+      assert.equal(proof.receiptSha256,
+        "4d5c0aed6da12760c9fba7e97bbce51bd28af0de09a507943d12ea7783f131a9");
+      assert.equal(proof.productionCertified, false);
+      continue;
+    }
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs", key + ": not a real HTTP harness");
     const positive = evidenceLine(proof.file, proof.ownPositiveLine, key + " own-positive");
     const negative = evidenceLine(proof.file, proof.foreignDenialLine, key + " foreign-denial");
@@ -4647,8 +4728,8 @@ test("extended three-employer reads and asset writes have checkable method-speci
     ["documents", "GET", 200, "ownDocumentsResult"],
   ]) {
     const key = "src/app/api/" + route + "/route.ts";
-    const entry = manifest.allApiRouteFiles[key].methods.find((item) => item.name === method);
-    assert.equal(entry?.status, "COVERED", key + " " + method + ": requires positive/negative evidence");
+    const entry = archivedWageManifest.allApiRouteFiles[key].methods.find((item) => item.name === method);
+    assert.equal(entry?.status, "COVERED", key + " " + method + ": historical own/victim evidence required");
     const proof = entry.testedBy;
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs",
       key + " " + method + ": fixture must be real disposable-PostgreSQL HTTP");
@@ -4891,7 +4972,7 @@ test("all credited proof links point to the claimed route and every recertified 
         continue; // Exactly three independently source-pinned methods.
       }
       if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
-        assert.equal(verifyPromotionCredits(manifest), 16);
+        assert.equal(verifyPromotionCredits(archivedWageManifest), 16); // Existing historical receipts, no renewed method credits
         continue;
       }
       if (proof?.verifiedMainCommit === "dd890dd65f14a3a508ef5df7227fd84655c21fcd") {
@@ -4941,7 +5022,7 @@ test("all credited proof links point to the claimed route and every recertified 
         assert.equal(proof.routeBlobSha, "99e3fa0e48f6a8dde88b9505f49524898cdf957a");
         assert.equal(proof.proofBlobSha, "45cc7499ec33cc44d6ec7b826c075262411ed657");
         assert.equal(proof.runnerBlobSha, "3765c1923e137f68b75fd545348868672f3f2f5d");
-        const callerReceipt = verifyDocumentCallerReproof(proof.callerReproof);
+        const callerReceipt = historicallySealedDocumentCallerReceipt(proof.callerReproof);
         const suite = readFileSync(proof.file, "utf8");
         const suiteLines = suite.split("\n");
         const runnerFile = "scripts/qa/tenant-document-caller-reproof-http.mjs";
@@ -7827,7 +7908,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(route, /if \(!access\?\.companyWide\)/);
         // Preserve the old unaccepted page record, but bind the current caller
         // to the newly executed two-attacker receipt. The page remains GAP.
-        const callerReceipt = verifyDocumentCallerReproof(entry.callerReproof);
+        const callerReceipt = historicallySealedDocumentCallerReceipt(entry.callerReproof);
         const callerFile = "scripts/qa/tenant-document-caller-reproof-http.mjs";
         const runner = readFileSync(callerFile, "utf8");
         assert.equal(gitBlobSha(Buffer.from(runner)), callerReceipt.pins[callerFile]);
@@ -8652,9 +8733,9 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
     proofPullRequest, proofHeadSha, workflowRunId, own, foreign, forged, unchanged,
     ownText, foreignText, forgedText, unchangedText] of specs) {
     const path = "src/app/api/" + route + "/route.ts";
-    const record = manifest.allApiRouteFiles[path];
+    const record = archivedWageManifest.allApiRouteFiles[path];
     const method = record?.methods.find(m => m.name === "POST");
-    assert.equal(method?.status, "COVERED", route + " must have one real executed POST");
+    assert.equal(method?.status, "COVERED", route + " must retain a historically executed POST");
     assert.equal(method?.reviewedUncertified, undefined, route + " cannot retain an uncredited hold");
     assert.equal(record?.gitBlobSha, routeBlobSha, route + " pinned route SHA");
     const proof = method.testedBy;
@@ -9348,7 +9429,7 @@ test("multi-entity transfers credit (POST and PATCH) requires the exact passing 
 
 test("BIR annual employer candidate POST credit requires the exact passing run, byte-pinned inputs, no filing and every cited proof line", () => {
   const harnessFile = "scripts/qa/tenant-bir1604c-candidate-post-http.mjs";
-  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const historical = archivedWageManifest; // Verified old source; live BIR POST remains GAP.
   const harness = readFileSync(harnessFile, "utf8");
   const workflowFile = ".github/workflows/bir-1604c-candidate-qa.yml";
   const workflow = readFileSync(workflowFile, "utf8");
@@ -9361,7 +9442,7 @@ test("BIR annual employer candidate POST credit requires the exact passing run, 
   const cites = (number, fragment, label) => assert.ok((lines[number - 1] ?? "").includes(fragment), label);
   const routePath = "src/app/api/bir/annual-employer/candidate/route.ts";
   const route = readFileSync(routePath, "utf8");
-  const api = manifest.allApiRouteFiles[routePath];
+  const api = historical.allApiRouteFiles[routePath];
   assert.equal(api.gitBlobSha, "431fcc6375fb6d1a8a318bd70fb77ef47f40941a", "the proof was written against this exact route");
   assert.equal(gitBlobSha(Buffer.from(route)), api.gitBlobSha);
   const method = api.methods.find(entry => entry.name === "POST");

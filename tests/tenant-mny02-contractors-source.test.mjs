@@ -1,3 +1,4 @@
+import {historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 /**
  * Source-only review gate for six MNY-02 contractor/EWT API methods.
@@ -127,7 +128,7 @@ test("each method has unique real-positive, foreign-denial, forged-selector and 
   if(!isVerifiedOracleRenewal(manifest,'src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts','GET'))
     assert.equal(preRun?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs");
   }
-  const actionMethods = manifest.allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
+  const actionMethods = historicalWageCatalog(manifest).allApiRouteFiles["src/app/api/compliance/remittance-actions/route.ts"]?.methods ?? [];
   assert.deepEqual(actionMethods.map(method => method.name), ["GET", "POST"]);
   assert.ok(actionMethods.every(method => method.status === "COVERED" &&
     method.testedBy?.file === "scripts/qa/remittance-action-entity-http.mjs"),

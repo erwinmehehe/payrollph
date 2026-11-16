@@ -111,10 +111,12 @@ test("fail closed on false/foreign page credits and mutation of receipt/provenan
       /CAREERS_PUBLIC_REFUSED|FOUR_PAGE_REFUSED|FIVE_PAGE_CREDIT_REFUSED|expected|Expected|strict|GAP|21/i);
   }
 });
-test("SSO second-pass fixture may withdraw only nineteen sealed payroll methods, not page proof credits", () => {
+test("SSO second-pass fixture preserves nineteen existing wage holds and never changes page proof credits", () => {
   const fixture = zeroCreditSsoProofFixture(live);
   assert.deepEqual(counts(fixture), counts(live));
-  assert.equal(fixture.metrics.gap, live.metrics.gap + 19);
+  assert.equal(fixture.metrics.gap, live.metrics.gap);
+  assert.equal(fixture.metrics.coveredAfter, live.metrics.coveredAfter);
+  assert.deepEqual(fixture, live, "Source-held renewals cannot be downgraded twice or re-credited");
   const prior = {
     CI: process.env.CI,
     GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,

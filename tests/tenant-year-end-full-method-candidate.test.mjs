@@ -1,4 +1,4 @@
-import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
+import { isYearEndHeld, isWageYearEndHeld, verifyWageYearEndHold, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -28,7 +28,7 @@ const gitBlob = path => {
 test("source-pinned current year-end GET+POST proof receives only provisional #1804 credits", () => {
   const manifest = JSON.parse(source(MANIFEST));
   const entry = manifest.allApiRouteFiles[ROUTE];
-  const held = isYearEndHeld(manifest);
+  const held = isYearEndHeld(manifest)||isWageYearEndHeld(manifest);
   for (const [path, sha] of Object.entries(PINNED)) {
     // A withdrawn credit (annualization source moved) is verified by its exact hold instead of the old pin.
     if (held && path === "src/lib/year-end.ts") continue;
@@ -36,7 +36,7 @@ test("source-pinned current year-end GET+POST proof receives only provisional #1
   }
   assert.equal(entry.gitBlobSha, PINNED[ROUTE]);
   if (held) {
-    assert.equal(verifyYearEndHold(manifest), 0);
+    assert.equal(isWageYearEndHeld(manifest)?verifyWageYearEndHold(manifest):verifyYearEndHold(manifest),0);
     assert.deepEqual(entry.methods.map(({ name, status }) => [name, status]), [["GET", "GAP"], ["POST", "GAP"]]);
     return;
   }

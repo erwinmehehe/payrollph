@@ -8,6 +8,10 @@ on:
       - docs/engineering/tenant-isolation-coverage-inventory*.md
       - docs/qa/tenant-six-method-proof-review-2026-11-02.md
       - tests/tenant-six-method-proof-review.test.mjs
+      - tests/helpers/wage-source-holds.mjs
+      - tests/wage-registry*.test.mjs
+      - scripts/qa/wage-registry*.mjs
+      - scripts/qa/wage-registry*-archive.json
       - .github/workflows/tenant-six-method-proof-review.yml
   workflow_dispatch:
 permissions:
@@ -41,6 +45,12 @@ jobs:
       - name: Fetch source ledger baseline (no external applications or databases)
         run: git fetch --no-tags origin main
       - name: Reject unearned credits and stale source-line anchors
-        run: node --test tests/tenant-six-method-proof-review.test.mjs
+        run: |
+          node --test tests/tenant-six-method-proof-review.test.mjs \
+            tests/wage-registry-source-hold.test.mjs \
+            tests/wage-registry-transitive-source-hold.test.mjs \
+            tests/wage-registry-sealed-receipt-source-hold.test.mjs \
+            tests/wage-registry-credit-holds.test.mjs \
+            tests/wage-order-transitive-import-inventory.test.mjs
       - name: Read-only exact-line manifest repin against latest origin/main
         run: node scripts/qa/tenant-manifest-repin.mjs --base origin/main

@@ -1,3 +1,4 @@
+import {assertWageLedgerDelta,assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
 import {assertMkt01Receipt} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs';
 import {xenditPostCreditDelta} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
@@ -36,6 +37,7 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   const m = manifest();
   assert.equal(verifyWorkspaceReadinessCredit(m), 1);
   assertLiveTenantCounts(assert, m);
+  if(assertWageLedgerDelta(assert,m))return;
   // The four new page-only receipts verify independently of the six merged
   // receipts. Keep the original six-page and 10/11 historical views sealed.
   assert.equal(verifyFourPageCredits(m), selectedFour().length);
@@ -122,9 +124,9 @@ test("the readiness receipt does not credit sibling or unrelated GAP families", 
       const held=m.allApiRouteFiles[route].methods.find(x=>x.name===verb);
       assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);continue;
     }
-    if(route===STUDIO_POST_PATH){assert.equal(verifyStudioPostCredit(m),1);continue;}
+    if(route===STUDIO_POST_PATH){assertCreditOrWageHold(assert,m,route,verb,verifyStudioPostCredit);continue;}
     if(route==='src/app/api/billing/route.ts'){assert.equal(verifyCheckoutCredit(m),1);continue;}
-    if(route===APPROVALS_PATH){assert.equal(verifyApprovalsCredit(m),1);continue;}
+    if(route===APPROVALS_PATH){assertCreditOrWageHold(assert,m,route,verb,verifyApprovalsCredit);continue;}
     if(route==='src/app/api/payroll-runs/[id]/exports/route.ts'){const x=m.allApiRouteFiles[route].methods.find(y=>y.name==='POST');assert.equal(x.status,'COVERED');assert.equal(x.testedBy.file,'scripts/qa/tenant-payroll-exports-post-http.mjs');continue;}
     const method = m.allApiRouteFiles[route].methods.find(x => x.name === verb);
     assert.equal(method.status, "GAP", route);

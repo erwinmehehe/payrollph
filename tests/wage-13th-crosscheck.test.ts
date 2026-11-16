@@ -64,10 +64,10 @@ test("isBelowMinimum and wageOrderFor apply the configured table correctly", () 
   assert.equal(isBelowMinimum((daily + 0.01) * 22, "NCR", 22).below, false);
 });
 
-test("all 17 configured wage screening rows match the official 2026-10-03 snapshot", () => {
+test("historic 2026-10-03 wage screening remains pinned even after later verified orders", () => {
   assert.equal(WAGE_ORDERS.length, OFFICIAL_WAGE_SCREENING_SNAPSHOT_2026_10_03.length);
   for (const [region, wageOrder, dailyRate, effectiveOn] of OFFICIAL_WAGE_SCREENING_SNAPSHOT_2026_10_03) {
-    const configured = wageOrderFor(region);
+    const configured = wageOrderFor(region, "2026-10-03");
     assert.equal(configured.wageOrder, wageOrder, `${region}: wage order`);
     assert.equal(configured.dailyRate, dailyRate, `${region}: current high-tier screening rate`);
     assert.equal(configured.effectiveOn, effectiveOn, `${region}: rate effective date`);

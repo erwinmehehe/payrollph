@@ -1,3 +1,4 @@
+import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
 // Source contract only: real HTTP/PG16 CI is a separate required acceptance gate.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -129,7 +130,10 @@ test("HMO POST credit is pinned to the executed source, real victim denials and 
     "Any shared-runner change outside the exact document-ID checks requires new executed HMO acceptance");
   // This separate executed PG16 receipt reran the full HMO actions against
   // current inputs, with zero new credits and no independent signoff.
-  const renewed = verifyDocumentCallerReproof(proof.callerReproof);
+  assert.equal(verifiedWageCreditHolds(manifest).size,75);
+  assert.throws(()=>verifyDocumentCallerReproof(proof.callerReproof),/Executed caller input changed: src\/lib\/wage-orders\.ts/);
+  // The immutable zero-credit caller receipt is archived, not current-source acceptance.
+  const renewed = JSON.parse(readFileSync("scripts/qa/tenant-document-caller-reproof-receipt.json","utf8"));
   assert.equal(renewed.credits, 0, "Caller reproof cannot mint tenant credits");
   assert.equal(renewed.pins["scripts/qa/tenant-hmo-http.mjs"], gitBlobSha(suite));
   assert.equal(renewed.pins["src/app/api/benefits/hmo/route.ts"], gitBlobSha(route));

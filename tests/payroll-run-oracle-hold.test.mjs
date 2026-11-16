@@ -24,7 +24,7 @@ test("only nineteen exact stale source credits may be withdrawn; metrics derive 
 });
 test("forged hold receipts, changed route/helper code and false acceptance are rejected", () => {
   const path = "src/app/api/payroll-runs/[id]/assurance/route.ts";
-  for (const patch of [{ coverageCredits: 1 }, { execution: "PASS" }, { productionCertified: true }, { priorProof: {} }, { oldSourceBlobSha: "0".repeat(40) }]) {
+  for (const patch of [{ coverageCredits: 1 }, { execution: "PASS" }, { productionCertified: true }, { priorProof: {} }, { sourceAfter: "0".repeat(40) }]) {
     const m = read(); Object.assign(m.allApiRouteFiles[path].methods[0].reviewedUncertified, patch);
     assert.throws(() => verifyOracleSourceHolds(m));
   }
@@ -37,16 +37,19 @@ test("forged hold receipts, changed route/helper code and false acceptance are r
   assert.throws(()=>verifyOracleSourceHolds(fabricated),"removing the hold cannot turn a fake receipt into renewal");
   const erased=read();
   for(const file of Object.values(erased.allApiRouteFiles))for(const method of file.methods)
-    if(method.reviewedUncertified?.kind==="payroll-run-membership-oracle-source-withdrawal"){
+    if(method.reviewedUncertified?.kind==="wage-registry-dependency-source-withdrawal" &&
+      method.reviewedUncertified.priorProof?.kind==="payroll-run-source-renewal-real-http-pg16"){
       method.status="COVERED";delete method.reviewedUncertified;method.testedBy={file:"scripts/qa/fabricated.mjs"};
     }
   assert.throws(()=>verifyOracleSourceHolds(erased),"erasing every hold cannot disable the source-bound verifier");
 });
 test("an unrelated downgrade remains a hard failure", () => {
-  // Mutate only the unrelated employee method. Rewinding all nineteen genuine
-  // renewals would fail the earlier source guard before exercising this check.
-  const m = live(), file = m.allApiRouteFiles["src/app/api/employees/route.ts"];
-  file.methods.find(row => row.status === "COVERED").status = "GAP";
+  // Employee methods are already correctly HELD for the wage dependency.
+  // Alter an unrelated still-COVERED attendance read instead: zero-credit
+  // wage source withdrawals must never waive unrelated security downgrades.
+  const m = live(), file = m.allApiRouteFiles["src/app/api/workforce/attendance-exceptions/route.ts"];
+  assert.equal(file.methods.find(row => row.name === "GET")?.status,"COVERED");
+  file.methods.find(row => row.name === "GET").status = "GAP";
   m.metrics.coveredAfter--; m.metrics.gap++;
   m.acceptanceStatus = m.acceptanceStatus.replace((m.metrics.gap - 1) + " API methods", m.metrics.gap + " API methods");
   assert.throws(() => assertLiveTenantCounts(assert, m), /downgraded|no proven method/);

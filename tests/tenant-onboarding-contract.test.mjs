@@ -4,7 +4,9 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {guard,METHODS,verifyOwned,rejectAnother} from '../scripts/qa/tenant-onboarding-contract.mjs';
 import {onboardingEnv} from '../scripts/qa/tenant-onboarding-env.mjs';
-import {verifyReceipt,verifyCredits} from '../scripts/qa/tenant-onboarding-credit.mjs';
+import {verifyReceipt,verifyCredit} from '../scripts/qa/tenant-onboarding-credit.mjs';
+import {verifyWageRegistrySourceHold,historicWageRegistryProofView} from '../scripts/qa/wage-registry-source-hold.mjs';
+import {verifyAllTransitiveWageHolds} from '../scripts/qa/wage-registry-transitive-source-hold.mjs';
 import {validIsoDate} from '../src/lib/payroll-period-validation.ts';
 // These hashes were checked against unchanged GET bodies in main@ff0ba9f27503a.
 // Pin actual source bytes instead of requiring shallow CI checkouts to contain
@@ -51,8 +53,37 @@ test('both profiles execute real intake, independent approvals, forged reference
  assert.match(workflow,/profile: \[legacy, preview\]/);assert.match(workflow,/image: postgres:16/);assert.match(workflow,/env -u NODE_ENV node --import tsx scripts\/qa\/tenant-onboarding-http.mjs/);
  assert.deepEqual(METHODS,['POST employees/import','POST employees','PATCH employees','POST recruitment/hire']);
 });
-test('executed receipts reject missing actions, count tampering and source drift; four credits only',()=>{
+test('onboarding historical receipts remain sealed; two wage-dependent methods are zero-credit held',()=>{
  const receipt=verifyReceipt();for(const mutate of[r=>r.runs[0].actions.pop(),r=>r.runs[1].own++,r=>r.sources[0].sha256='0'.repeat(64),r=>r.mutation.rejected=false,r=>r.runs[0].victimUnchanged=false]){const copy=structuredClone(receipt);mutate(copy);assert.throws(()=>verifyReceipt(copy));}
- const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));assert.equal(verifyCredits(manifest),4);
- const method=manifest.allApiRouteFiles['src/app/api/employees/route.ts'].methods.find(m=>m.name==='POST');method.testedBy.ownPositiveLine++;assert.throws(()=>verifyCredits(manifest));
+ const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+ for(const verb of ['POST','PATCH']){
+   const path='src/app/api/employees/route.ts',method=manifest.allApiRouteFiles[path].methods.find(m=>m.name===verb);
+   assert.equal(method.status,'GAP');assert.equal(method.testedBy,null);
+   assert.ok(verifyWageRegistrySourceHold(manifest,path,verb),
+     'A stale employees source must never borrow the old onboarding credit');
+ }
+ assert.equal(verifyAllTransitiveWageHolds(manifest).size,47);
+ const historic=historicWageRegistryProofView(manifest);
+ for(const [verb,route] of [['POST','employees/import'],['POST','recruitment/hire']]){
+  const path='src/app/api/'+route+'/route.ts';
+  const current=manifest.allApiRouteFiles[path].methods.find(m=>m.name===verb);
+  const prior=historic.allApiRouteFiles[path].methods.find(m=>m.name===verb);
+  if(route==='employees/import'){
+   assert.equal(current.status,'GAP',"Changed wage import cannot inherit onboarding credit");
+   assert.equal(current.testedBy,null);
+   assert.equal(current.reviewedUncertified?.kind,'wage-registry-transitive-dependency-source-withdrawal');
+   assert.equal(current.reviewedUncertified?.coverageCredits,0);
+   assert.deepEqual(prior.testedBy,current.reviewedUncertified.priorProof);
+  }else{
+   assert.equal(current.status,'COVERED',"Unrelated recruitment/hire receipt stays active");
+   assert.deepEqual(prior.testedBy,current.testedBy);
+  }
+  assert.equal(prior.status,'COVERED');
+  assert.ok(verifyCredit(verb+' '+route,prior),
+   "Historical receipt must keep exact own/victim proof without crediting the new wage source");
+ }
+ const importMethod=historic.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m=>m.name==='POST');
+ importMethod.testedBy.ownPositiveLine++;
+ assert.throws(()=>verifyCredit('POST employees/import',importMethod));
+ assert.equal(manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods[0].testedBy,null);
 });

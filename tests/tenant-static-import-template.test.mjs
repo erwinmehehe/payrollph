@@ -1,3 +1,4 @@
+import {historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 /**
  * Public-by-design means a truly tenant-independent static resource. The
  * authenticated template bytes MUST remain identical for all three fictional
@@ -53,7 +54,7 @@ test("statutory posting GET serves a globally public static CSV, unlike the sepa
   assert.ok(!get.includes("getSessionUser("), "Public static GET cannot use another employer session");
   assert.ok(!get.includes("organizationId"));
   assert.ok(!get.includes("db.select"));
-  const entry = manifest.allApiRouteFiles[
+  const entry = historicalWageCatalog(manifest).allApiRouteFiles[
     "src/app/api/compliance/statutory-remittances/posting-import/route.ts"].methods;
   const getter = entry.find((method) => method.name === "GET");
   const poster = entry.find((method) => method.name === "POST");

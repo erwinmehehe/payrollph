@@ -4,6 +4,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { varianceRosterMatchesRunEmployer } from "../src/lib/payroll-variance-entity-boundary";
 import { isVerifiedOracleRenewal, verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyWageRegistrySourceHold } from "../scripts/qa/wage-registry-source-hold.mjs";
 
 const base = {
   organizationId: 10, legalEntityId: 101,
@@ -86,7 +87,14 @@ test("disposable HTTPS proof is wired into the original multi-entity acceptance 
   if (proof?.status === "GAP") {
     assert.ok(verifyOracleSourceHolds(manifest).has("GET " + route), "only the exact reviewed oracle source withdrawal may hold this credit");
     assert.equal(proof.testedBy, null);
-    assert.equal(proof.reviewedUncertified.priorProof.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+    if (proof.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal") {
+      assert.ok(verifyWageRegistrySourceHold(manifest, route, "GET"),
+        "Wage source changed: old renewed tenant proof has no current credit");
+      assert.equal(proof.reviewedUncertified.priorProof.kind, "payroll-run-source-renewal-real-http-pg16");
+      assert.equal(proof.historicalOracleSourceWithdrawal.priorProof.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+    } else {
+      assert.equal(proof.reviewedUncertified.priorProof.file, "scripts/qa/tenant-high-risk-01-http.mjs");
+    }
   } else {
     assert.equal(proof?.status, "COVERED", "retain separately source-proven prior credit");
     if(proof?.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){

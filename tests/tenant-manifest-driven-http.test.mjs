@@ -1,3 +1,4 @@
+import {assertWageLedgerDelta,historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
 import { isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import { verifyWorkspaceReadinessCredit } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
@@ -48,6 +49,7 @@ const specs = [...src.matchAll(/^\s+"(GET [^"]+)": \{$/gm)].map((x) => x[1]);
   }
 test("single table-driven test reads every manifest method without claiming precovered GET as a new GAP", () => {
   assertLiveTenantCounts(assert, manifest);
+  if(assertWageLedgerDelta(assert,manifest))return;
   const report = manifest.allApiRouteFiles["src/app/api/multi-entity/reports/route.ts"]?.methods.find(method => method.name === "GET");
   assert.equal(report?.status, "COVERED");
   assert.equal(report?.testedBy?.file, "scripts/qa/multi-entity-group-report-http.mjs");
@@ -210,7 +212,7 @@ test("HCM business-process and lifecycle own/foreign proof is source-pinned", ()
 });
 
 test("government-loan GET and POST must retain real own/foreign PG16 proof", () => {
-  const entry = manifest.allApiRouteFiles["src/app/api/compliance/government-loan-remittances/route.ts"];
+  const entry = historicalWageCatalog(manifest).allApiRouteFiles["src/app/api/compliance/government-loan-remittances/route.ts"];
   const suite = readFileSync("scripts/qa/government-loan-read-http.mjs", "utf8").split("\n");
   for (const method of entry.methods) {
     assert.equal(method.status, "COVERED");

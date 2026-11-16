@@ -1,9 +1,12 @@
+import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {readFileSync} from 'node:fs';
 import {verifyDocumentCallerReproof} from '../scripts/qa/tenant-document-caller-reproof-verify.mjs';
 test('executed caller renewal rejects input, receipt and provenance mutations',()=>{
  const m=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
  const ref=m.scopedPages.find(x=>x.path==='src/app/hcm/work-items/page.tsx').callerReproof;
- const r=verifyDocumentCallerReproof(ref);
+ assert.equal(verifiedWageCreditHolds(m).size,75);
+ assert.throws(()=>verifyDocumentCallerReproof(ref),/Executed caller input changed: src\/lib\/wage-orders\.ts/);
+ const r=JSON.parse(readFileSync('scripts/qa/tenant-document-caller-reproof-receipt.json','utf8'));
  assert.equal(r.credits,0);
  assert.throws(()=>verifyDocumentCallerReproof({...ref,job:1}));
  for(const path of ['scripts/qa/tenant-document-caller-reproof-receipt.json','scripts/qa/tenant-hcm-lifecycle-caller-source-refresh.json','src/lib/auth.ts','src/app/api/benefits/hmo/route.ts','src/app/api/hcm/lifecycle-notifications/route.ts','scripts/qa/hcm-work-queue-http.mjs'])

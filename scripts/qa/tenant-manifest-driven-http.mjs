@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/db";
 import { assertLiveTenantCounts } from "../../tests/helpers/tenant-counts.mjs";
+import { historicWageRegistryProofView } from "./wage-registry-source-hold.mjs";
 import {
   auditEvents, complianceActionTasks, employees, legalEntities, payrollRuns,
   statutoryRemittanceBatches, statutoryRemittancePaymentEvidence, statutoryPostingEvidenceArtifacts,
@@ -231,8 +232,18 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  verifyBir2316HistoricalGapBaseline(gaps);
-  const certifiedGovernance = manifest.allApiRouteFiles["src/app/api/hcm/governance-readiness/route.ts"]?.methods.find((method) => method.name === "GET");
+  // Validate all 75 current GAP/HELD classifications before examining old
+  // receipts. Historical proof cannot reactivate a withdrawn method.
+  const historic = historicWageRegistryProofView(manifest);
+  verifyBir2316HistoricalGapBaseline(gaps, historic);
+  // Preserve the exact existing four-method real-HTTP source-line receipt anchors.
+  const governancePath = "src/app/api/hcm/governance-readiness/route.ts";
+  const governanceNow = manifest.allApiRouteFiles[governancePath]?.methods.find(x => x.name === "GET");
+  if (governanceNow?.status === "GAP") {
+    assert.equal(governanceNow.testedBy, null, "Held governance method cannot claim current-source credit");
+    assert.equal(governanceNow.reviewedUncertified?.execution, "NOT_RUN");
+  }
+  const certifiedGovernance = historic.allApiRouteFiles[governancePath]?.methods.find((method) => method.name === "GET");
   assert.equal(certifiedGovernance?.status, "COVERED", "Closing a GAP requires independently exercised tenant-proof evidence");
   assert.equal(certifiedGovernance?.testedBy?.file, "scripts/qa/tenant-second-pass-http.mjs", "HCM GET must retain the real authenticated own/foreign HTTP proof");
   const gapNames = new Set(gaps.map((x) => x.key));
@@ -443,7 +454,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
 /** Keep the historical statutory HTTP test's exact source-pinned request lines
  * stable when new independently reviewed BIR method evidence is introduced.
  * Called by the real signed-in PG16 harness, never an acceptance bypass. */
-function verifyBir2316HistoricalGapBaseline(gaps) {
+function verifyBir2316HistoricalGapBaseline(gaps, historic) {
   // Preserve the pre-#1353/#1361 baseline (149 covered / 335 gaps) while
   // crediting three separately exercised BIR 2316 document methods and
   // one distinct successful payroll accounting-close POST.
@@ -486,7 +497,16 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
   // Retain the distinct statutory action real-HTTP/PG16 flag ON/OFF proof.
   // These two GET/POST methods are separate from the BIR 2316 document proofs.
   const actionPath = "src/app/api/compliance/remittance-actions/route.ts";
-  const actionMethods = manifest.allApiRouteFiles[actionPath]?.methods ?? [];
+  const liveActions = manifest.allApiRouteFiles[actionPath]?.methods ?? [];
+  for (const live of liveActions) {
+    if (live.status === "GAP") {
+      assert.equal(live.testedBy, null, "No current-source remittance action coverage credit");
+      assert.equal(live.reviewedUncertified?.execution, "NOT_RUN");
+    }
+  }
+  // Only archived, source-pinned historical entries are checked for prior
+  // proof line integrity; the HTTP requests above still run on new source.
+  const actionMethods = historic.allApiRouteFiles[actionPath]?.methods ?? [];
   const actionProofFile = "scripts/qa/remittance-action-entity-http.mjs";
   const actionLines = readFileSync(actionProofFile, "utf8").split("\n");
   assert.deepEqual(actionMethods.map(m => m.name).sort(), ["GET", "POST"]);
@@ -502,7 +522,8 @@ function verifyBir2316HistoricalGapBaseline(gaps) {
     assert.match(actionLines[foreign - 1] ?? "", /expectStatus\(await request\(/);
     assert.match(actionLines[236] ?? "", /assert\.deepEqual\(await snapshot\(victim\.id\), before,/);
   }
-  const actionCredits = actionMethods.length;
+  const actionCredits = liveActions.filter(method => method.status === "COVERED").length;
+  assert.ok(actionCredits <= actionMethods.length, "Historical proofs cannot restore live credits");
   // Do not weaken the historic three-tenant HTTP proof when accepting the
   // separate two-method payout suite. Only these exact routes and method
   // executions, with a real victim snapshot, may account for the extra credit.

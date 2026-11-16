@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
-import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, payrollWageScreen, wageOrderFor, requireExplicitWageRegion, wageScreenForWorkPeriod, WAGE_ORDERS } from "../src/lib/wage-orders";
+import { FORTHCOMING_WAGE_ORDERS, HISTORICAL_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, payrollWageScreen, wageOrderFor, requireExplicitWageRegion, wageScreenForWorkPeriod, WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("NCR screening reference uses the current official Oct 2026 high tier", () => {
   const order = wageOrderFor("NCR");
@@ -46,7 +46,7 @@ test("every stored screening rate is source-verified but still only one high-tie
 });
 
 test("future tranches are not activated early", () => {
-  assert.equal(wageOrderFor("VII").dailyRate, 540, "ROVII-27 takes effect only on 2026-10-14");
+  assert.equal(wageOrderFor("VII").dailyRate, 582, "ROVII-27 is active in the current 2026-11-16 snapshot");
   assert.equal(wageOrderFor("V").dailyRate, 455, "Bicol second tranche takes effect only on 2026-12-01");
   assert.equal(wageOrderFor("BARMM").dailyRate, 436, "BARMM second tranche takes effect only on 2026-12-01");
 });
@@ -137,7 +137,7 @@ test("official ROVII-27 Class A and Class B rates activate only on 14 October 20
     [item.wageClass, item.oldDailyRate, item.newDailyRate]), [
     ["A", 540, 582], ["B", 500, 542],
   ]);
-  assert.equal(FORTHCOMING_WAGE_ORDERS.length, 1, "region-only screening uses Class A maximum");
+  assert.equal(FORTHCOMING_WAGE_ORDERS.length, 2, "IV-A and VII effective-date markers are retained");
   for (const [wageClass, before, after] of [["A", 540, 582], ["B", 500, 542]] as const) {
     assert.equal(wageOrderFor("VII", "2026-10-13", wageClass).dailyRate, before);
     assert.equal(wageOrderFor("VII", "2026-10-14", wageClass).dailyRate, after);
@@ -145,7 +145,7 @@ test("official ROVII-27 Class A and Class B rates activate only on 14 October 20
   }
   assert.equal(wageOrderFor("VII", "2026-10-10").dailyRate, 540);
   assert.equal(wageOrderFor("VII", "2026-10-14").dailyRate, 582);
-  assert.equal(wageOrderFor("VII").dailyRate, 540, "undated generic screens preserve baseline");
+  assert.equal(wageOrderFor("VII").dailyRate, 582, "undated generic screens use the current verified high tier");
   assert.equal(wageOrderFor("NCR", "2026-10-14").dailyRate, 755);
   assert.throws(() => wageOrderFor("VII", "2026-02-29"), /Invalid wage screening calendar date/);
   assert.throws(() => wageOrderFor("NCR", "2026-10-14", "B"), /only be selected for Region VII/);
@@ -202,4 +202,57 @@ test("M-2 screens Region VII by work dates even when wages are paid after the ne
     () => wageScreenForWorkPeriod(monthly, "VII", 22, "2026-10-15", "2026-10-01"),
     /starts after it ends/,
   );
+});
+
+test("official IV-A IVA-23 uses the new high tier only from 26 October 2026", () => {
+  const before = wageScreenForWorkPeriod(620 * 22, "IV-A", 22, "2026-10-01", "2026-10-25");
+  assert.equal(before.order.dailyRate, 600);
+  assert.equal(before.order.wageOrder, "WO-IVA-22");
+  assert.equal(before.order.effectiveOn, "2025-10-05");
+  assert.equal(before.effectiveDateChange, false);
+  assert.equal(before.below, false);
+
+  const after = wageScreenForWorkPeriod(620 * 22, "IV-A", 22, "2026-10-26", "2026-10-31");
+  assert.equal(after.startOrder.dailyRate, 645);
+  assert.equal(after.order.dailyRate, 645);
+  assert.equal(after.order.wageOrder, "WO-IVA-23");
+  assert.equal(after.order.effectiveOn, "2026-10-26");
+  assert.equal(after.effectiveDateChange, false);
+  assert.equal(after.below, true);
+
+  const crossing = wageScreenForWorkPeriod(620 * 22, "IV-A", 22, "2026-10-25", "2026-10-26");
+  assert.equal(crossing.startOrder.dailyRate, 600);
+  assert.equal(crossing.order.dailyRate, 645);
+  assert.equal(crossing.effectiveDateChange, true, "work-period boundary is an advisory review warning");
+  assert.equal(crossing.below, true);
+  assert.equal(wageOrderFor("IV-A").dailyRate, 645, "undated registry uses current high tier");
+  assert.equal(wageOrderFor("IV-A", "2026-10-25").dailyRate, 600, "historic order remains date-addressable");
+  assert.throws(() => wageOrderFor("IV-A", "2025-10-04"), /No verified wage-order history/,
+    "do not silently back-apply IVA-23 or IVA-22 before verified coverage");
+  assert.throws(() => wageOrderFor("VII", "2025-10-03"), /No verified wage-order history/,
+    "do not silently back-apply ROVII-27 or ROVII-26 before verified coverage");
+  assert.throws(() => wageScreenForWorkPeriod(620 * 22, "NOT-A-REGION", 22, "2026-10-25", "2026-10-26"),
+    /Unknown Philippine wage region/);
+});
+
+test("IV-A change preserves default-off payday screen and does not turn on the work-period flag", () => {
+  const args = [620 * 22, "IV-A", 22, "2026-10-01", "2026-10-25", "2026-10-30"] as const;
+  const disabled = payrollWageScreen(...args, { WORK_PERIOD_WAGE_SCREEN_ENABLED: "false" });
+  assert.equal(disabled.order.dailyRate, 645, "existing flag-OFF path still screens by payment date");
+  assert.equal(disabled.workPeriodEnd, null);
+  const enabled = payrollWageScreen(...args, { WORK_PERIOD_WAGE_SCREEN_ENABLED: "true" });
+  assert.equal(enabled.order.dailyRate, 600, "opt-in path follows actual work period");
+  assert.equal(enabled.below, false);
+  assert.equal(enabled.workPeriodEnd, "2026-10-25");
+});
+
+test("every verified current, historical and dated wage reference has an order and valid effective date", () => {
+  const allRows = [...WAGE_ORDERS, ...HISTORICAL_WAGE_ORDERS, ...FORTHCOMING_WAGE_ORDERS];
+  for (const entry of allRows) {
+    if (!entry.verified) continue;
+    assert.match(entry.wageOrder, /^WO-[A-Z0-9 -]+$/, entry.region + ": missing wage order number");
+    assert.match(entry.effectiveOn, /^\d{4}-\d{2}-\d{2}$/, entry.region + ": missing effective date");
+    assert.equal(new Date(entry.effectiveOn + "T00:00:00Z").toISOString().slice(0, 10), entry.effectiveOn,
+      entry.region + ": invalid effective date");
+  }
 });

@@ -27,7 +27,7 @@ export const RULE_FAMILY_LAST_VERIFIED: Record<RuleWatchFamily, string | null> =
   pagibig: null,
   "bir-withholding": null,
   // From the WAGE_ORDERS registry header: verified against NWPC/RTWPB pages.
-  "wage-orders": "2026-10-10",
+  "wage-orders": "2026-11-16",
 };
 
 export type RuleWatchFamily = "sss" | "philhealth" | "pagibig" | "bir-withholding" | "wage-orders";

@@ -1,3 +1,5 @@
+import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
+import {baseTenantManifest} from './helpers/tenant-counts.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -14,6 +16,7 @@ import {assertHistoricalHttpWorkflowCheckout} from '../scripts/qa/payroll-run-cr
 import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_METHODS} from '../scripts/qa/payroll-run-credit-renewal-contract.mjs';
 import {readVerifiedPayrollRenewal,PAYROLL_RENEWAL_RECEIPT,payrollRenewalProof} from '../scripts/qa/payroll-run-credit-renewal-verify.mjs';
 import {reconcilePayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal.mjs';
+import {verifyAllWageRegistrySourceHolds} from '../scripts/qa/wage-registry-source-hold.mjs';
 const receipt=()=>JSON.parse(readFileSync(PAYROLL_RENEWAL_RECEIPT,'utf8'));
 
 test('fresh execution cannot rewrite either original job archive or its accounting projection',()=>{
@@ -36,97 +39,62 @@ test('fresh HTTP reproof checks out the exact proposed head with no persisted cr
   assert.deepEqual(steps[0].with,{'persist-credentials':false,ref:'${{ github.event.pull_request.head.sha || github.sha }}'});
   assert.equal(steps[1].env.EXPECTED_SOURCE_SHA,'${{ github.event.pull_request.head.sha || github.sha }}');
   assert.equal(steps[1].run,'test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"');
+  assert.equal(steps[2].name,'Fetch main ledger for strict source-withdrawal assertions');
+  assert.ok(steps[2].run.includes('git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main'));
+  assert.ok(steps[2].run.includes('git cat-file -e origin/main:scripts/qa/tenant-isolation-coverage-manifest.json'));
+  assert.doesNotMatch(steps[2].run,/git (checkout|switch|reset)|node |npm /);
 });
 test('historical unaccepted page evidence permits only the source-sealed checkout change',()=>{
   const file='.github/workflows/security-http-smoke.yml',expected='cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736';
   assert.equal(assertHistoricalHttpWorkflowCheckout(file,expected),true);
   assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,'0'.repeat(40)));
   assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,expected,(p,...args)=>readFileSync(p,...args)+'\n# unreviewed change'));
+  for(const change of [
+    source=>source.replace('refs/heads/main:refs/remotes/origin/main','refs/heads/unreviewed:refs/remotes/origin/main'),
+    source=>source.replace('git cat-file -e','git checkout main\n          git cat-file -e'),
+  ])assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,expected,(p,...args)=>change(readFileSync(p,...args))));
 });
 
-test('nine fresh source-matched PG16 cohorts renew exactly nineteen methods',()=>{
+test('nine historical PG16 cohorts remain archived but cannot certify changed wage sources',()=>{
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
-  assert.equal(readVerifiedPayrollRenewal().methods.length,19);
-  assert.equal(readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']).methods.length,19);
+  const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+  assert.equal(verifyAllWageRegistrySourceHolds(manifest).length,23);
+  assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
+  assert.throws(()=>readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']),
+    /Executed input closure drift:/);
 });
 
-test('each sealed fresh input set equals the full locked-compiler import closure',()=>{
-  for(const [name,cohort] of Object.entries(receipt().cohorts)){
+test('all nine changed wage cohorts remain archived and refuse current-source renewal',()=>{
+  const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+  assert.equal(verifiedWageCreditHolds(manifest).size,75);
+  const prior=receipt(),before=readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json');
+  assert.equal(Object.keys(prior.cohorts).length,9);
+  for(const [name,cohort] of Object.entries(prior.cohorts)){
     const actual=collectRenewalInputs(cohort.roots,undefined,undefined,true);
-    for(const [file,expected] of Object.entries(cohort.sourcePins)){
-      if(actual[file]===expected)continue;
-      // Only two exact, reviewed default-OFF SSO probe changes may borrow
-      // the earlier source pin after a current-source fictional PG16 reproof.
-      assert.ok(isReviewedHeldSsoSecondPassInput(name,file,expected) ||
-        isReviewedFiveScopedPageProbeInput(name,file,expected),
-        'Unreviewed execution input or import drift: '+name+': '+file);
-      actual[file]=expected;
-    }
-    // The changed page probe imports two new, separately source-sealed,
-    // page-only accounting modules. They cannot retroactively enter an
-    // immutable payroll execution receipt or extend its method credits.
-    if(name==='secondPass'){
-      assert.ok(isReviewedFiveScopedPageProbeInput(name,
-        'scripts/qa/tenant-scoped-page-probes.mjs',
-        cohort.sourcePins['scripts/qa/tenant-scoped-page-probes.mjs']));
-      const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
-      const marketingGet=manifest.allApiRouteFiles['src/app/api/marketing/leads/route.ts']?.methods
-        .find(method=>method.name==='GET');
-      // The standalone MKT-01 proof cannot alter an old payroll receipt.
-      // Permit its exact reviewed accounting imports only after independent
-      // operator-only receipt/source validation; fail on every other new input.
-      const mktCredit=marketingGet?.status==='COVERED'?assertMkt01Receipt(manifest):0;
-      // The exact archived payroll proof is unchanged. Recognize only this
-      // source-pinned MKT-01/OIDC ledger adaptation, after both separate
-      // independent synthetic execution receipts verify completely.
-      assert.equal(mktCredit,1,"Operator-only MKT-01 receipt required");
-      assert.equal(verifyOidcBatchCredits(manifest),2,"Both OIDC protocol receipts required");
-      // The additional Careers module and the modified page-accounting files
-      // below must be byte-identical to this single reviewed, reversible
-      // public-boundary delta. None can enter an old executed receipt.
-      // Historical payroll receipts cannot absorb the six-page closure. The
-      // separate six-page compat verifier has already source-validated every
-      // candidate and reconstructed the immutable 10/11 ledger.
-      const reviewedPageOnlyImports = new Map([
-        ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          '8cc67f5af25a9f51e35ca6468b566daefb5ad489'],
-        ['scripts/qa/tenant-six-scoped-page-credit.mjs',
-          'f55a965f7aac336d8aec5a68725a1f2ef0f38a68'],
-        ['scripts/qa/tenant-four-scoped-page-credit.mjs',
-          '1bdc3ca026b5541467f7be4d9e7f74467139c929'],
-        ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
-          'a4e8495c12af012a37141d8f417b25d9fd410adc'],
-        ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
-          'd8040e180c03d1a65040ffa5b21380939570ca7c'],
-        ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
-          '6b71ba5a442e263064b260e260abbc6334d4a04c'],
-        ['scripts/qa/tenant-careers-public-page-classification.mjs',
-          'fb1baa69d38353160d18e70bfe518c39ca0c56dc'],
-        ['scripts/qa/tenant-saml-metadata-privacy-verify.mjs','adb087454e668257a9f149dbe7574ce2f7042557'],
-        ['scripts/qa/tenant-saml-metadata-public-policy.mjs','d26291f6f1a640ef77d6190ad33e610c10ace9ee'],
-        ['scripts/qa/tenant-sso-resolve-public-policy.mjs','d7373a1e8b21506a90901e7d0b4e532e8bea74d6'],
-      ]);
-      for(const [path,expectedSha] of reviewedPageOnlyImports){
-        if(!Object.hasOwn(actual,path))continue;
-        assert.equal(actual[path],expectedSha,'Unreviewed new page-only import: '+path);
-        delete actual[path];
-      }
-    }
-    assert.deepEqual(actual,cohort.sourcePins,'No unreviewed input may join or leave the executed closure');
+    const changed=['src/lib/wage-orders.ts','src/lib/statutory-rule-watch.ts']
+      .filter(path=>Object.hasOwn(cohort.sourcePins,path)&&actual[path]!==cohort.sourcePins[path]);
+    assert.ok(changed.length>0,name+': the executed closure must demonstrably be stale');
   }
+  assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
+  const result=reconcilePayrollRenewal({write:false});
+  assert.equal(result.credited,0);assert.equal(result.held,19);
+  assert.deepEqual(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'),before);
 });
 
-test('fast source guards verify the complete sealed graph without loading TypeScript',()=>{
+test('fast source guards reject stale wage code without loading TypeScript',()=>{
   const script=`import {registerHooks} from 'node:module';
     registerHooks({resolve(specifier,context,next){
       if(specifier==='typescript')throw new Error('Compiler unavailable in fast source-only CI');
       return next(specifier,context);
     }});
     const {readVerifiedPayrollRenewal}=await import('./scripts/qa/payroll-run-credit-renewal-verify.mjs');
-    if(readVerifiedPayrollRenewal().methods.length!==19)throw new Error('Incomplete renewal');
-    console.log('verified nineteen without compiler');`;
+    try { readVerifiedPayrollRenewal(); throw new Error('Stale payroll proof incorrectly accepted'); }
+    catch(error) {
+      if(!String(error.message).includes('Executed input closure drift:'))throw error;
+      console.log('stale wage source held without compiler');
+    }`;
   assert.match(execFileSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'}),
-    /verified nineteen without compiler/);
+    /stale wage source held without compiler/);
 });
 
 test('fresh jobs cannot drop proof roots, borrow historical executions or omit the synthetic-provider preload',()=>{
@@ -175,21 +143,22 @@ test('receipt seal rejects invented results and exact executed source drift',()=
       /closure drift/);
   }
 });
-test('renewed citations identify actual jobs without pretending independent acceptance',()=>{
-  const proof=payrollRenewalProof('POST payroll-runs');
-  assert.equal(proof.cohorts.find(x=>x.name==='creation').jobId,131745203827);
-  assert.equal(proof.independentlyAccepted,false);assert.equal(proof.productionCertified,false);
-  assert.throws(()=>payrollRenewalProof('POST payroll-runs/[id]/xendit-payout'),/not renewed/);
+test('historical job citations cannot award current-source payroll coverage',()=>{
+  assert.equal(receipt().cohorts.creation.jobId,131745203827);
+  assert.equal(receipt().productionCertified,false);
+  assert.throws(()=>payrollRenewalProof('POST payroll-runs'),/Executed input closure drift:/);
+  assert.ok(!PAYROLL_RENEWAL_METHODS.includes('POST payroll-runs/[id]/xendit-payout'));
 });
 
 test('payroll documents reconcile without duplicating or moving the separate SSO hold banner',()=>{
   const result=reconcilePayrollRenewal({write:false});
   assert.equal(result.credited,0);
-  assert.deepEqual(result.before,result.after);
+  assert.equal(result.held,19);
+  assert.equal(result.status,'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD');
   for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
     const text=readFileSync(file,'utf8');
-    assert.match(text,/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
-    assert.match(text.split('\n\n')[1],/^> \*\*PAYROLL RUN ORACLE — RENEWED:/);
+    assert.match(text,/^> \*\*CURRENT \/ PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD/);
+    assert.match(text.split('\n\n')[1],/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
     // The independently source-verified MKT-01 and OIDC receipts change only the live totals, not historical Studio proofs.
     const studioBanners=text.split('\n').filter(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
     // The inventory records two older Studio checkpoints, while the plan
@@ -198,8 +167,13 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     assert.equal(studioBanners.length,expectedBanners,
       'Keep exactly the historical Studio accounting snapshots in each document');
     const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json')).metrics;
-    assert.ok(studioBanners[0].includes(live.coveredAfter+' COVERED + '+live.publicByDesign+
-      ' PUBLIC-BY-DESIGN + '+live.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+live.gap+' GAP'));
+    assert.equal(live.coveredAfter+live.publicByDesign+live.privilegedOperationsTokenOnly+live.gap,live.methods);
+    // The dated studio banner is historical, not the current PR #1989 ledger.
+    const base=baseTenantManifest();
+    assert.ok(base,'Historical banner comparison requires the fetched comparison base');
+    const baseText=execFileSync('git',['show',base.ref+':'+file],{encoding:'utf8'});
+    const baseBanner=baseText.split('\n').find(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
+    assert.equal(studioBanners[0],baseBanner,'Historical Studio checkpoint must equal main byte-for-byte');
     // The historical Studio snapshots are retained byte-for-byte; OIDC
     // recovery updates only the first live summary, not the older 460/3
     // checkpoints or their original 16/17 page-gap accounting.

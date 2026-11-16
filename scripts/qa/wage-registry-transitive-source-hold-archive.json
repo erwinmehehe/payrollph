@@ -1,0 +1,1284 @@
+{
+  "schema": "payrollph-wage-transitive-47-method-zero-credit-withdrawal-v1",
+  "reviewedSourceCommit": "2f37390e66b749454a29fcb17f877f214c9a81ae",
+  "reviewedBaseCommit": "2459b9aa15c21b301e9ff8cc81dca2e679fed055",
+  "baseManifestGitBlobSha": "a62f967f58563979243e651e2c7e952a8a45c8bc",
+  "reviewedManifestGitBlobSha": "86b932c7bfe00a0fcad3ca8797feee00fd45e5b3",
+  "sourceBefore": "2ea37036211a846ff515540d6b982760df8db1eb",
+  "sourceAfter": "0bb8c55d6cad0f3a22f6096f0937dd55ca0b227d",
+  "watchBefore": "0393d836eeee5874a85df4ba571bc4456f47a4ef",
+  "watchAfter": "0032da010a8065d415415d50f0353a7a430e12fb",
+  "methodCount": 47,
+  "coverageCredits": 0,
+  "execution": "NOT_RUN",
+  "independentSecurityReview": "PENDING",
+  "productionCertified": false,
+  "methods": [
+    {
+      "path": "src/app/api/approvals/[id]/route.ts",
+      "verb": "PATCH",
+      "dependencyChain": [
+        "src/app/api/approvals/[id]/route.ts",
+        "src/lib/payroll-assurance-server.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "7a93ce87ea453be87631a18086c3f93636d538c2",
+      "priorProof": {
+        "file": "scripts/qa/tenant-approval-types-http.mjs",
+        "line": 326,
+        "ownPositiveLine": 326,
+        "foreignDenialLine": 230,
+        "forgedSelectorLine": 343,
+        "unchangedDbLine": 354,
+        "routeBlobSha": "7a93ce87ea453be87631a18086c3f93636d538c2",
+        "proofBlobSha": "d77891b26aeddba8700a1fc9f1a7385cc5752a7b",
+        "receiptFile": "scripts/qa/tenant-approvals-recovery-receipt.json",
+        "receiptBlobSha": "c86b6c582de88772319ff10649dad03963695453",
+        "sourceHead": "6f1a193f8b56eb52174c33e7caf4335d8a8c95e7",
+        "workflowRunId": 42842335605,
+        "workflowJobs": [
+          {
+            "name": "approval-types-http",
+            "id": 129920572175
+          },
+          {
+            "name": "complete-method-receipt",
+            "id": 129928633002
+          },
+          {
+            "name": "fictional-approval-flows-http",
+            "id": 129920573869
+          },
+          {
+            "name": "fictional-approval-http",
+            "id": 129920572308
+          },
+          {
+            "name": "fictional-approval-sources-http",
+            "id": 129920571928
+          },
+          {
+            "name": "money-lifecycle-pg16 (false)",
+            "id": 129920572272
+          },
+          {
+            "name": "money-lifecycle-pg16 (true)",
+            "id": 129920572479
+          }
+        ],
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42842335605",
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "postgresMajor": 16,
+        "providerCalled": false,
+        "productionCertified": false,
+        "independentlyAccepted": false,
+        "independentSecurityReview": "PENDING",
+        "scope": "Complete same-head PG16 HTTP gate: generic approve/decline, leave/chain, HCM/workforce/handoffs/automation, dynamic groups, delegation, payroll approve/reject and both exact-link profiles; owned SQL transitions, real victim denials, forged selectors and unchanged foreign SQL/audits. No production acceptance."
+      }
+    },
+    {
+      "path": "src/app/api/auth/me/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/auth/me/route.ts",
+        "src/db/seed.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "3eab0ffacd221aeafefc1eb1700485e6ab6e7942",
+      "priorProof": {
+        "file": "scripts/qa/tenant-identity-account-http.mjs",
+        "line": 117,
+        "ownPositiveLine": 117,
+        "foreignDenialLine": 129,
+        "unchangedDbLine": 137,
+        "forgedSelectorLine": 129,
+        "scope": "Session-principal GET: real own and victim owner positives, authentic victim and same-employer peer IDs forged in query cannot change cookie identity; no leaked session/token data; victim/peer membership and audit unchanged.",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40503386113 (PR #1475 exact-head fictional PostgreSQL 16/localhost HTTP)",
+        "postgresMajor": 16,
+        "prNumber": 1475,
+        "workflowRunId": 40503386113,
+        "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+      }
+    },
+    {
+      "path": "src/app/api/bir/annual-employer/candidate/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/bir/annual-employer/candidate/route.ts",
+        "src/lib/bir-annual-employer-source.ts",
+        "src/lib/bir-employer-reconciliation.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "431fcc6375fb6d1a8a318bd70fb77ef47f40941a",
+      "priorProof": {
+        "file": "scripts/qa/tenant-bir1604c-candidate-post-http.mjs",
+        "testFile": "tests/tenant-bir1604c-candidate-post-contract.test.mjs",
+        "ownTemplateLine": 175,
+        "ownCheckLine": 190,
+        "ownDownloadLine": 206,
+        "foreignDenialLine": 240,
+        "forgedSelectorLine": 244,
+        "forgedEmployeeLine": 262,
+        "unchangedDbLine": 269,
+        "victimIdOrderingLine": 74,
+        "anonymousLine": 287,
+        "crossSiteLine": 291,
+        "malformedBodyLine": 294,
+        "staleDigestLine": 300,
+        "protocolRefusalCountLine": 320,
+        "twoAttackersLine": 71,
+        "proofBlobSha": "237fdbb7a704064ecf892f79c6421ea413052b95",
+        "testBlobSha": "48d989d96427c046010c0020c9589f8de348eb60",
+        "workflowFile": ".github/workflows/bir-1604c-candidate-qa.yml",
+        "workflowBlobSha": "2df699021ea770cecb0d09837415ff74ed622bb4",
+        "routeBlobSha": "431fcc6375fb6d1a8a318bd70fb77ef47f40941a",
+        "line": 206,
+        "ownPositiveLine": 206,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42738761756/job/129574359597",
+        "runLabel": "GitHub Actions 42738761756/129574359597 PG16 bir-annual-employer-candidate-post PASS",
+        "postgresMajor": 16,
+        "workflowRunId": 42738761756,
+        "workflowJobId": 129574359597,
+        "verifiedPrHeadSha": "697b8b5cb8c991c4450aadabe461b41ae3fb7697",
+        "mergedProofCommit": "e6dcc76783ed5346574d21489c66dd64184fd7c6",
+        "proofPullRequest": 1891,
+        "providerMode": "none-configured",
+        "externalProviderCalled": false,
+        "birFilingMade": false,
+        "independentSecurityReview": "PENDING",
+        "independentlyAccepted": false,
+        "productionTested": false,
+        "methodActions": [
+          "template_own_200",
+          "check_own_200_read_only",
+          "download_own_200_exact_bytes_one_audit",
+          "foreign_org_403_per_action",
+          "forged_legal_entity_404_per_action",
+          "foreign_employee_422_check_and_download",
+          "anonymous_401_per_action",
+          "cross_site_403_per_action",
+          "malformed_body_400_per_action",
+          "stale_digest_409",
+          "unknown_action_400",
+          "snapshots_byte_identical"
+        ],
+        "scope": "Real HTTPS on disposable PG16 against a production-mode Next server with the BIR candidate flag on and every provider and worker off: two independent attacker employers A and B and a genuinely higher-ID victim (six fillers first, so the victim's organization, legal employer and employee IDs all exceed 6), each with its own released payroll, settled year-end row and reconciled remittance, behind genuinely signed-in MFA sessions. Each attacker's own template, check and draft DAT download answer 200; check changes nothing; the download adds exactly one source-provenance audit receipt and its bytes, hash and source digest agree. For every action a foreign organization is refused 403, the victim's legal-employer selector 404, and a foreign employee reference 422 (check and download); no response mentions the victim's marker, employee or TIN. For every action an anonymous caller is refused 401, a cross-site mutation 403 and a malformed body 400; a stale digest is 409 and an unknown action 400. The victim's and both attackers' complete snapshots (workers, runs, entries, year-end rows, remittances, audit) stay byte-identical. Not proven: concurrent requests, an official BIR module validation, or production data."
+      }
+    },
+    {
+      "path": "src/app/api/bir/annual-employer/module-evidence/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/bir/annual-employer/module-evidence/route.ts",
+        "src/lib/bir-annual-employer-source.ts",
+        "src/lib/bir-employer-reconciliation.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "53dd6bf36c06c5fb9493ff8710655336648daa8e",
+      "priorProof": {
+        "file": "scripts/qa/compliance-read-sweep-http.mjs",
+        "line": 193,
+        "ownPositiveLine": 182,
+        "foreignDenialLine": 193,
+        "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only."
+      }
+    },
+    {
+      "path": "src/app/api/bir/annual-employer/module-evidence/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/bir/annual-employer/module-evidence/route.ts",
+        "src/lib/bir-annual-employer-source.ts",
+        "src/lib/bir-employer-reconciliation.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "53dd6bf36c06c5fb9493ff8710655336648daa8e",
+      "priorProof": {
+        "file": "scripts/qa/compliance-read-sweep-http.mjs",
+        "line": 222,
+        "ownPositiveLine": 205,
+        "foreignDenialLine": 222,
+        "scope": "Real authenticated fictional employers plus two independent attackers, source-nonempty data, unchanged victim database; CI-only.",
+        "unchangedDbLine": 258
+      }
+    },
+    {
+      "path": "src/app/api/bir/annual-employer/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/bir/annual-employer/route.ts",
+        "src/lib/bir-annual-employer-source.ts",
+        "src/lib/bir-employer-reconciliation.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "eb3b66973c14a5ba9d712d8db6e12d43eca371d2",
+      "priorProof": {
+        "file": "scripts/qa/tenant-table-http.mjs",
+        "line": 251,
+        "ownPositiveLine": 251,
+        "foreignDenialLine": 260,
+        "unchangedDbLine": 280,
+        "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+        "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+        "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+        "rowLine": 104
+      }
+    },
+    {
+      "path": "src/app/api/compliance/bank-validations/[id]/file/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/bank-validations/[id]/file/route.ts",
+        "src/lib/bank-evidence-store.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "d47662ed8db7bec64d36465a12ee5cf0eacc24c6",
+      "priorProof": {
+        "file": "scripts/qa/bank-tenant-http.mjs",
+        "line": 75,
+        "ownPositiveLine": 75,
+        "foreignDenialLine": 81,
+        "unchangedDbLine": 123
+      }
+    },
+    {
+      "path": "src/app/api/compliance/bank-validations/[id]/route.ts",
+      "verb": "PATCH",
+      "dependencyChain": [
+        "src/app/api/compliance/bank-validations/[id]/route.ts",
+        "src/lib/bank-evidence-store.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "772d52bff966c85bf0b674aec50b48fbabf699d4",
+      "priorProof": {
+        "file": "scripts/qa/bank-tenant-http.mjs",
+        "line": 91,
+        "ownPositiveLine": 91,
+        "foreignDenialLine": 87,
+        "unchangedDbLine": 123
+      }
+    },
+    {
+      "path": "src/app/api/compliance/bank-validations/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/bank-validations/route.ts",
+        "src/lib/bank-evidence-store.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "b1c97f40096d1440431cf0583fac05bbd58d91ff",
+      "priorProof": {
+        "file": "scripts/qa/bank-tenant-http.mjs",
+        "line": 71,
+        "ownPositiveLine": 71,
+        "foreignDenialLine": 74,
+        "unchangedDbLine": 123
+      }
+    },
+    {
+      "path": "src/app/api/compliance/bank-validations/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/bank-validations/route.ts",
+        "src/lib/bank-evidence-store.ts",
+        "src/lib/exporters.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "b1c97f40096d1440431cf0583fac05bbd58d91ff",
+      "priorProof": {
+        "file": "scripts/qa/bank-tenant-http.mjs",
+        "line": 48,
+        "ownPositiveLine": 48,
+        "foreignDenialLine": 84,
+        "unchangedDbLine": 123
+      }
+    },
+    {
+      "path": "src/app/api/compliance/bir-1601c-remittances/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/bir-1601c-remittances/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "3846d2f3478492a7a2462aff9e43f57806f8cdab",
+      "priorProof": {
+        "file": "scripts/qa/tenant-second-pass-http.mjs",
+        "line": 1121,
+        "ownPositiveLine": 1121,
+        "foreignDenialLine": 1123,
+        "unchangedDbLine": 1130,
+        "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/bir-1601c-remittances/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/bir-1601c-remittances/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "3846d2f3478492a7a2462aff9e43f57806f8cdab",
+      "priorProof": {
+        "file": "scripts/qa/tenant-second-pass-http.mjs",
+        "line": 1118,
+        "ownPositiveLine": 1118,
+        "foreignDenialLine": 1120,
+        "unchangedDbLine": 1130,
+        "scope": "Two authenticated attacker employers; own positive, real victim and unchanged victim rows. HR POST ignores forged employer/worker and persists only the session worker."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/calendar/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/calendar/route.ts",
+        "src/lib/statutory-rule-watch.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "23de9e07cdccd6c7ae1eb66976b4da83a1548f9e",
+      "priorProof": {
+        "file": "scripts/qa/tenant-second-pass-http.mjs",
+        "line": 525,
+        "ownPositiveLine": 519,
+        "foreignDenialLine": 525,
+        "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
+      }
+    },
+    {
+      "path": "src/app/api/compliance/contribution-issues/evidence/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/contribution-issues/evidence/route.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "98772f7fbe74bd916f23a93a3947ba266061e96b",
+      "priorProof": {
+        "file": "scripts/qa/tenant-dl01-batch2-http.mjs",
+        "line": 20,
+        "ownPositiveLine": 269,
+        "foreignDenialLine": 279,
+        "forgedSelectorLine": 283,
+        "unchangedDbLine": 315,
+        "victimExistsLine": 144,
+        "victimIdOrderingLine": 146,
+        "scope": "Isolated PostgreSQL16 + localhost; two independent employer sessions; own success with persisted rows; actual higher-ID victim 403; method-specific forged selector 404/400 or ignored; unchanged victim batches/members/cases/audits/payroll/employees.",
+        "evidence": "Existing exact-source security-http-smoke PASS run 39629835069, commit ef6937548ce9911847a58360966d8d471c438a26, executing both attackers and 658 smoke assertions. New proof-link head must pass fresh CI before merge; no human acceptance claimed."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/filing-validations/[id]/file/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/filing-validations/[id]/file/route.ts",
+        "src/lib/filing-evidence-store.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "e7781bd99ecc0785c67e4990ca6d916e81e0cd26",
+      "priorProof": {
+        "file": "scripts/qa/tenant-dl01-filing-file-http.mjs",
+        "line": 10,
+        "ownPositiveLine": 104,
+        "foreignDenialLine": 107,
+        "unchangedDbLine": 118,
+        "forgedSelectorLine": 113,
+        "victimExistsLine": 87,
+        "victimIdOrderingLine": 89,
+        "scope": "Real HTTP against disposable PostgreSQL16 with two independent attacker employers; actual own positive first, persisted victim-exclusive higher ID and exact denial, forged selectors, and real unchanged victim DB snapshot. Reviewed source was exercised by security run 39592582663 and salary-correction run 39592582809 on merge candidate 47cf659f53b99275d1438d9944bdd29167e1b7bf. Fresh final-commit CI remains required; this is not overall acceptance."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/filing-validations/[id]/route.ts",
+      "verb": "PATCH",
+      "dependencyChain": [
+        "src/app/api/compliance/filing-validations/[id]/route.ts",
+        "src/lib/filing-evidence-store.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "09f642a67035dc9ce22fa502d80518ba18641b0f",
+      "priorProof": {
+        "file": "scripts/qa/tenant-compliance-accepted-http.mjs",
+        "line": 218,
+        "ownPositiveLine": 218,
+        "foreignDenialLine": 180,
+        "forgedSelectorLine": 180,
+        "unchangedDbLine": 259,
+        "rejectedFile": "scripts/qa/tenant-filing-outcome-http.mjs",
+        "rejectedOwnLine": 167,
+        "rejectedUnchangedLine": 193,
+        "proofBlobSha": "796a593c8eea153d45baea804fdde225ccb7c95b",
+        "routeBlobSha": "09f642a67035dc9ce22fa502d80518ba18641b0f",
+        "workflowFile": ".github/workflows/tenant-filing-patch-method-qa.yml",
+        "workflowBlobSha": "e59435e5846ce41ed1df4bedfc238f0842a8519f",
+        "receiptFile": "scripts/qa/tenant-filing-patch-credit-receipt.json",
+        "receiptBlobSha": "419d98c290b205a1722d2356fa279f4b7b78a45b",
+        "sourceHead": "75becb095ee209c88145c237a53afcb5b1e570e3",
+        "workflowRunId": 42728601391,
+        "workflowJobs": {
+          "accepted": 129540561266,
+          "rejected": 129540561557,
+          "guards": 129540561580,
+          "allLegs": 129545232437
+        },
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42728601391",
+        "proofPullRequest": 1885,
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "postgresMajor": 16,
+        "methodActions": [
+          "accepted:manual_entry",
+          "accepted:file_upload",
+          "rejected",
+          "RBAC/MFA/revocation guards"
+        ],
+        "providerCalled": false,
+        "agencyCalled": false,
+        "independentlyAccepted": false,
+        "productionCertified": false,
+        "scope": "Source-matched production HTTP / disposable PG16 on current main: two fictional employers, populated victim IDs >6, two accepted and two rejected persisted outcomes, 34 input/tenant denials, 20 authenticated role/MFA denials, four actual audit-veto rollbacks and unchanged protected foreign SQL. Multi-entity and money/provider release flags OFF. Synthetic agency references are not official acknowledgements; not production acceptance."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/filing-validations/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/filing-validations/route.ts",
+        "src/lib/filing-evidence-store.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "305eaefafd4ba830b5feeacec39d4b3fbfd429b0",
+      "priorProof": {
+        "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+        "line": 239,
+        "ownPositiveLine": 275,
+        "foreignDenialLine": 284,
+        "unchangedDbLine": 355,
+        "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+        "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/filing-validations/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/filing-validations/route.ts",
+        "src/lib/filing-evidence-store.ts",
+        "src/lib/filing-remittance-snapshot.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "305eaefafd4ba830b5feeacec39d4b3fbfd429b0",
+      "priorProof": {
+        "file": "scripts/qa/tenant-write-table-http.mjs",
+        "line": 112,
+        "rowFile": "scripts/qa/tenant-table-rows/write/compliance-evidence.mjs",
+        "rowLine": 50,
+        "ownPositiveLine": 112,
+        "foreignDenialLine": 125,
+        "unchangedDbLine": 149,
+        "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (local disposable PG16; exact-head CI NOT_RUN).",
+        "evidence": "Local shared runner scripts/qa/tenant-write-table-http.mjs; Local PG16 default compliance-evidence; source 49d5b9ed3; fresh HTTP receipt outputs/compliance-fresh-http.log; 3 rows/6 pairs/3 discrimination/2 forged; victim unchanged; CI NOT_RUN"
+      }
+    },
+    {
+      "path": "src/app/api/compliance/government-loan-remittances/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/government-loan-remittances/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "dcc987b3a33b4211f51436c59ad4bffb3f17f47c",
+      "priorProof": {
+        "file": "scripts/qa/government-loan-read-http.mjs",
+        "line": 57,
+        "ownPositiveLine": 49,
+        "foreignDenialLine": 57,
+        "ownStatus": 200,
+        "foreignStatus": 403,
+        "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+      }
+    },
+    {
+      "path": "src/app/api/compliance/government-loan-remittances/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/government-loan-remittances/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "dcc987b3a33b4211f51436c59ad4bffb3f17f47c",
+      "priorProof": {
+        "file": "scripts/qa/government-loan-read-http.mjs",
+        "line": 68,
+        "ownPositiveLine": 60,
+        "foreignDenialLine": 68,
+        "unchangedDbLine": 79,
+        "ownStatus": 200,
+        "foreignStatus": 403,
+        "scope": "Three seeded legal employers; real synthetic employee-loan FK and remittance/member rows; safe local PostgreSQL16 only"
+      }
+    },
+    {
+      "path": "src/app/api/compliance/labor-inspection/drills/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/labor-inspection/drills/route.ts",
+        "src/lib/labor-inspection-readiness-server.ts",
+        "src/lib/labor-inspection-readiness.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "5894274a9839c3fb8e142fce5f23b7cea98d1369",
+      "priorProof": {
+        "file": "scripts/qa/tenant-table-http.mjs",
+        "line": 251,
+        "ownPositiveLine": 251,
+        "foreignDenialLine": 260,
+        "unchangedDbLine": 280,
+        "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+        "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+        "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+        "rowLine": 31
+      }
+    },
+    {
+      "path": "src/app/api/compliance/labor-inspection/drills/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/labor-inspection/drills/route.ts",
+        "src/lib/labor-inspection-readiness-server.ts",
+        "src/lib/labor-inspection-readiness.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "5894274a9839c3fb8e142fce5f23b7cea98d1369",
+      "priorProof": {
+        "file": "scripts/qa/tenant-write-table-http.mjs",
+        "line": 112,
+        "rowFile": "scripts/qa/tenant-table-rows/write/compliance-evidence.mjs",
+        "rowLine": 79,
+        "ownPositiveLine": 112,
+        "foreignDenialLine": 125,
+        "unchangedDbLine": 149,
+        "scope": "Employer-scoped write (POST/PATCH/DELETE). Owner sessions of two fictional employers; own write succeeds and is read back from PostgreSQL, victim organizationId or victim row id is denied, optional forged victim reference writes nothing, exact victim rows and audit unchanged, and each row's expectation rejects the other attacker's genuine before/after (local disposable PG16; exact-head CI NOT_RUN).",
+        "evidence": "Local shared runner scripts/qa/tenant-write-table-http.mjs; Local PG16 default compliance-evidence; source 49d5b9ed3; fresh HTTP receipt outputs/compliance-fresh-http.log; 3 rows/6 pairs/3 discrimination/2 forged; victim unchanged; CI NOT_RUN"
+      }
+    },
+    {
+      "path": "src/app/api/compliance/labor-inspection/evidence-pack/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/labor-inspection/evidence-pack/route.ts",
+        "src/lib/labor-inspection-evidence-pack-server.ts",
+        "src/lib/compliance-calendar.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "5a245897f055ff78b2f2c1bc2bc046d041ade1ff",
+      "priorProof": {
+        "file": "scripts/qa/tenant-dl01-batch2-http.mjs",
+        "line": 21,
+        "ownPositiveLine": 294,
+        "foreignDenialLine": 303,
+        "forgedSelectorLine": 306,
+        "unchangedDbLine": 315,
+        "victimExistsLine": 125,
+        "victimIdOrderingLine": 127,
+        "scope": "Isolated PostgreSQL16 + localhost; two independent employer sessions; own success with persisted rows; actual higher-ID victim 403; method-specific forged selector 404/400 or ignored; unchanged victim batches/members/cases/audits/payroll/employees.",
+        "evidence": "Existing exact-source security-http-smoke PASS run 39629835069, commit ef6937548ce9911847a58360966d8d471c438a26, executing both attackers and 658 smoke assertions. New proof-link head must pass fresh CI before merge; no human acceptance claimed."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/labor-inspection/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/labor-inspection/route.ts",
+        "src/lib/labor-inspection-readiness-server.ts",
+        "src/lib/labor-inspection-readiness.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5",
+      "priorProof": {
+        "file": "scripts/qa/tenant-table-http.mjs",
+        "line": 251,
+        "ownPositiveLine": 251,
+        "foreignDenialLine": 260,
+        "unchangedDbLine": 280,
+        "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+        "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+        "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+        "rowLine": 35
+      }
+    },
+    {
+      "path": "src/app/api/compliance/labor-inspection/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/labor-inspection/route.ts",
+        "src/lib/labor-inspection-readiness-server.ts",
+        "src/lib/labor-inspection-readiness.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5",
+      "priorProof": {
+        "file": "scripts/qa/tenant-labor-inspection-post-http.mjs",
+        "line": 127,
+        "ownPositiveLine": 127,
+        "foreignDenialLine": 104,
+        "forgedSelectorLine": 111,
+        "unchangedDbLine": 108,
+        "scope": "Two independent attackers and a real victim exercise all three remediation actions with persisted audit/DB, foreign org 403, forged genuine victim finding indistinguishable from unknown 409, unchanged victim DB, and CI-only SQL audit rollback.",
+        "postgresMajor": 16,
+        "proofPullRequest": 1714,
+        "proofHeadSha": "e2e408735dd42c5104b55318bca0e74e67eaf019",
+        "workflowRunId": 41392987376,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/41392987376",
+        "routeBlobSha": "94cc58cb4de0d8e79b7bd7881413b71e6f1fddb5",
+        "proofBlobSha": "454bbfde7aab91069fd2eb006abd2c16fe268441",
+        "workflowFile": ".github/workflows/tenant-labor-inspection-post-http.yml",
+        "workflowBlobSha": "99a24fbdc2077dd5ed779eaf5b7c428d0b09638d",
+        "independentSecurityReview": "PENDING",
+        "secondaryOwnPositiveLine": 170,
+        "thirdOwnPositiveLine": 203,
+        "methodActions": [
+          "assign",
+          "acknowledge",
+          "close"
+        ],
+        "higherIdVictimLine": 39,
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "ownerReviewer": "@erwinmehehe",
+        "ownerIsOnlyReviewer": true,
+        "independentlyAccepted": false,
+        "productionCertified": false
+      }
+    },
+    {
+      "path": "src/app/api/compliance/payroll-month-close/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/payroll-month-close/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "f7265fd0493aae128826f73c73846f56c0504b4f",
+      "priorProof": {
+        "file": "scripts/qa/tenant-table-http.mjs",
+        "line": 251,
+        "ownPositiveLine": 251,
+        "foreignDenialLine": 260,
+        "unchangedDbLine": 280,
+        "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+        "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+        "rowFile": "scripts/qa/tenant-table-rows/read/compliance.mjs",
+        "rowLine": 53
+      }
+    },
+    {
+      "path": "src/app/api/compliance/payroll-month-close/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/payroll-month-close/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "f7265fd0493aae128826f73c73846f56c0504b4f",
+      "priorProof": {
+        "file": "scripts/qa/tenant-write-table-http.mjs",
+        "line": 112,
+        "ownPositiveLine": 112,
+        "foreignDenialLine": 125,
+        "forgedSelectorLine": 129,
+        "unchangedDbLine": 149,
+        "victimIdOrderingLine": 80,
+        "methodActions": [
+          "certify_ready_month"
+        ],
+        "sourceRowFile": "scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs",
+        "sourceRowLine": 49,
+        "sourceRowOwnPositiveLine": 217,
+        "sourceRowForeignDenialLine": 214,
+        "sourceRowForgedSelectorLine": 215,
+        "sourceRowUnchangedDbLine": 263,
+        "sourceRowBlobSha": "21daf9c24d55f4fb01ce84c6f5aef822ce0f3193",
+        "postgresMajor": 16,
+        "prNumber": 1728,
+        "verifiedPrHeadSha": "d3cdcf020a559ae85c813d656620832dd0a46d4e",
+        "workflowRunId": 41446327305,
+        "routeBlobSha": "f7265fd0493aae128826f73c73846f56c0504b4f",
+        "proofBlobSha": "c9db7e9f1b0f7035836b4f599e82c51384a0f127",
+        "workflowFile": ".github/workflows/tenant-compliance-post-candidate.yml",
+        "workflowBlobSha": "e9641c0a85bb97101ec28803c0b36d2387667114",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/41446327305",
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "ownerReviewer": "@erwinmehehe",
+        "ownerIsOnlyReviewer": true,
+        "independentlyAccepted": false,
+        "productionCertified": false,
+        "productionTested": false
+      }
+    },
+    {
+      "path": "src/app/api/compliance/remittance-actions/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/remittance-actions/route.ts",
+        "src/lib/statutory-remittance-actions.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "e8d43b1eeaff7a126d440a9d957e5f9658c8c4ae",
+      "priorProof": {
+        "file": "scripts/qa/remittance-action-entity-http.mjs",
+        "line": 138,
+        "ownPositiveLine": 138,
+        "foreignDenialLine": 210,
+        "unchangedDbLine": 237,
+        "scope": "Synthetic PostgreSQL 16, two unrelated attacker organizations, same-tenant two legal employers, real high-ID task, flag ON and OFF, selected sync, assignee grant and no-provider escalation outbox."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/remittance-actions/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/remittance-actions/route.ts",
+        "src/lib/statutory-remittance-actions.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "e8d43b1eeaff7a126d440a9d957e5f9658c8c4ae",
+      "priorProof": {
+        "file": "scripts/qa/remittance-action-entity-http.mjs",
+        "line": 186,
+        "ownPositiveLine": 186,
+        "foreignDenialLine": 213,
+        "unchangedDbLine": 237,
+        "scope": "Synthetic PostgreSQL 16, two unrelated attacker organizations, same-tenant two legal employers, real high-ID task, flag ON and OFF, selected sync, assignee grant and no-provider escalation outbox."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/remittance-month-close/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/remittance-month-close/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "240c0de50adbddccebc5a9fa586a25a7485c5163",
+      "priorProof": {
+        "file": "scripts/qa/tenant-second-pass-http.mjs",
+        "line": 1256,
+        "ownPositiveLine": 1256,
+        "foreignDenialLine": 1263,
+        "unchangedDbLine": 1284,
+        "ownStatus": 200,
+        "foreignStatus": 403,
+        "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
+        "evidence": "Own GET asserts legal employer, calendar month, ready=true, real batch ID; own POST asserts certified closure persisted, hash matches original GET and reread. Foreign GET/POST exact 403; victim closure, batches and payment proof unchanged."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/remittance-month-close/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/remittance-month-close/route.ts",
+        "src/lib/statutory-remittance-state.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "240c0de50adbddccebc5a9fa586a25a7485c5163",
+      "priorProof": {
+        "file": "scripts/qa/tenant-second-pass-http.mjs",
+        "line": 1264,
+        "ownPositiveLine": 1264,
+        "foreignDenialLine": 1275,
+        "unchangedDbLine": 1284,
+        "ownStatus": 200,
+        "foreignStatus": 403,
+        "scope": "Existing victim (A) plus two separately authenticated owner attackers (B/C); real Sept 2026 synthetic SSS payroll, reconciled batch, posting and hashed proof; independent owner MFA for POST.",
+        "evidence": "Own GET asserts legal employer, calendar month, ready=true, real batch ID; own POST asserts certified closure persisted, hash matches original GET and reread. Foreign GET/POST exact 403; victim closure, batches and payment proof unchanged."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/statutory-remittance-corrections/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/statutory-remittance-corrections/route.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "015284992a158be4c0eaa116e6b3eb8cb67a760f",
+      "priorProof": {
+        "file": "scripts/qa/payroll-read-sweep-http.mjs",
+        "line": 146,
+        "ownPositiveLine": 146,
+        "foreignDenialLine": 152,
+        "unchangedDbLine": 173,
+        "ownStatus": 200,
+        "foreignStatus": 403,
+        "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+        "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/statutory-remittance-corrections/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/statutory-remittance-corrections/route.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "015284992a158be4c0eaa116e6b3eb8cb67a760f",
+      "priorProof": {
+        "file": "scripts/qa/payroll-read-sweep-http.mjs",
+        "line": 157,
+        "ownPositiveLine": 157,
+        "foreignDenialLine": 165,
+        "unchangedDbLine": 173,
+        "ownStatus": 200,
+        "foreignStatus": 403,
+        "scope": "Three independent fictional employer owners, real seeded resources in isolated CI PostgreSQL 16",
+        "evidence": "Valid own employer response with real batch/gate/run/correction; real victim denied 403; victim managed and correction ledgers unchanged."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/statutory-remittances/posting-import/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/statutory-remittances/posting-import/route.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "b47960857609014699a78a8fbb1086e63bdbe189",
+      "priorProof": {
+        "file": "scripts/qa/tenant-dl01-batch2-http.mjs",
+        "line": 19,
+        "ownPositiveLine": 188,
+        "foreignDenialLine": 217,
+        "forgedSelectorLine": 226,
+        "unchangedDbLine": 315,
+        "victimExistsLine": 142,
+        "victimIdOrderingLine": 146,
+        "scope": "Isolated PostgreSQL16 + localhost; two independent employer sessions; own success with persisted rows; actual higher-ID victim 403; method-specific forged selector 404/400 or ignored; unchanged victim batches/members/cases/audits/payroll/employees.",
+        "evidence": "Existing exact-source security-http-smoke PASS run 39629835069, commit ef6937548ce9911847a58360966d8d471c438a26, executing both attackers and 658 smoke assertions. New proof-link head must pass fresh CI before merge; no human acceptance claimed."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/statutory-remittances/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/compliance/statutory-remittances/route.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "b5804b036e4da1c2558002d57f3c3d9bf49b5d8d",
+      "priorProof": {
+        "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+        "line": 232,
+        "ownPositiveLine": 275,
+        "foreignDenialLine": 284,
+        "unchangedDbLine": 355,
+        "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+        "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+      }
+    },
+    {
+      "path": "src/app/api/compliance/statutory-remittances/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/compliance/statutory-remittances/route.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "b5804b036e4da1c2558002d57f3c3d9bf49b5d8d",
+      "priorProof": {
+        "file": "scripts/qa/tenant-write-table-http.mjs",
+        "line": 112,
+        "ownPositiveLine": 112,
+        "foreignDenialLine": 125,
+        "forgedSelectorLine": 129,
+        "unchangedDbLine": 149,
+        "victimIdOrderingLine": 80,
+        "methodActions": [
+          "create_batch",
+          "record_payment",
+          "confirm_member_posting",
+          "mark_member_exception"
+        ],
+        "sourceRowFile": "scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs",
+        "sourceRowLine": 75,
+        "sourceRowOwnPositiveLine": 216,
+        "sourceRowForeignDenialLine": 172,
+        "sourceRowForgedSelectorLine": 178,
+        "sourceRowUnchangedDbLine": 175,
+        "sourceRowBlobSha": "f24a7349c902dae0bc41a3989c8a88df24aedb6f",
+        "postgresMajor": 16,
+        "prNumber": 1728,
+        "verifiedPrHeadSha": "d3cdcf020a559ae85c813d656620832dd0a46d4e",
+        "workflowRunId": 41446327305,
+        "routeBlobSha": "b5804b036e4da1c2558002d57f3c3d9bf49b5d8d",
+        "proofBlobSha": "c9db7e9f1b0f7035836b4f599e82c51384a0f127",
+        "workflowFile": ".github/workflows/tenant-compliance-post-candidate.yml",
+        "workflowBlobSha": "e9641c0a85bb97101ec28803c0b36d2387667114",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/41446327305",
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "ownerReviewer": "@erwinmehehe",
+        "ownerIsOnlyReviewer": true,
+        "independentlyAccepted": false,
+        "productionCertified": false,
+        "productionTested": false
+      }
+    },
+    {
+      "path": "src/app/api/dashboard/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/dashboard/route.ts",
+        "src/lib/dashboard-data.ts",
+        "src/db/seed.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "e0d6f11ea9a08d679508d7a72ec2dd6738df58c2",
+      "priorProof": {
+        "file": "scripts/qa/tenant-second-pass-http.mjs",
+        "line": 440,
+        "ownPositiveLine": 431,
+        "foreignDenialLine": 440,
+        "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
+      }
+    },
+    {
+      "path": "src/app/api/employees/import/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/employees/import/route.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "7a1bb05fc329cf36e867e50f738897ebf18edb1c",
+      "priorProof": {
+        "file": "scripts/qa/tenant-onboarding-http.mjs",
+        "line": 31,
+        "ownPositiveLine": 31,
+        "foreignDenialLine": 35,
+        "forgedSelectorLine": 36,
+        "unchangedDbLine": 24,
+        "localReceipt": "docs/qa/tenant-onboarding-receipt.json",
+        "evidence": "SOLO_VERIFIED_DEV_RECOVERY local disposable PG16.14 localhost3310 legacy+preview approval-boundary reproof 2026-11-10: 38 own / 38 victim / 30 forged / 64 negative / 19 discrimination; outputs/onboarding-legacy.json and outputs/onboarding-preview.json",
+        "proofSha256": "040aaf332fbca792acc7fde8d6e55f4e59459b77a67b4697c0df3e0f94e6f103",
+        "profiles": [
+          "legacy",
+          "preview"
+        ],
+        "postgresMajor": 16
+      }
+    },
+    {
+      "path": "src/app/api/employees/import/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/employees/import/route.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "7a1bb05fc329cf36e867e50f738897ebf18edb1c",
+      "priorProof": {
+        "file": "scripts/qa/tenant-dl01-import-history-http.mjs",
+        "line": 8,
+        "ownPositiveLine": 87,
+        "foreignDenialLine": 90,
+        "unchangedDbLine": 105,
+        "forgedSelectorLine": 95,
+        "victimExistsLine": 62,
+        "victimIdOrderingLine": 64,
+        "scope": "Real HTTP against disposable PostgreSQL16 with two independent attacker employers; actual own positive first, persisted victim-exclusive higher ID and exact denial, forged selectors, and real unchanged victim DB snapshot. Reviewed source was exercised by security run 39592582663 and salary-correction run 39592582809 on merge candidate 47cf659f53b99275d1438d9944bdd29167e1b7bf. Fresh final-commit CI remains required; this is not overall acceptance."
+      }
+    },
+    {
+      "path": "src/app/api/first-payroll/preview/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/first-payroll/preview/route.ts",
+        "src/lib/first-payroll-canonical-preview.ts",
+        "src/lib/payroll-engine.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "33313bcbd12f67cfbfab73a4ea7d6fda3ddff944",
+      "priorProof": {
+        "file": "scripts/qa/pr-1302-tenant-proof.mjs",
+        "line": 31,
+        "ownPositiveLine": 31,
+        "foreignDenialLine": 40,
+        "scope": "Synthetic authenticated owners in two employers; real own HTTP success, real victim denial, disposable PG16, no provider secrets, money, or production approval"
+      }
+    },
+    {
+      "path": "src/app/api/hcm/governance-readiness/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/hcm/governance-readiness/route.ts",
+        "src/lib/hcm-governance-readiness-server.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "1d8ad354a97c060c262b73e4f49e0da283713402",
+      "priorProof": {
+        "file": "scripts/qa/tenant-second-pass-http.mjs",
+        "line": 1311,
+        "ownPositiveLine": 1311,
+        "foreignDenialLine": 1315,
+        "ownStatus": 200,
+        "foreignStatus": 403,
+        "scope": "Three real fictional employer records and independently authenticated owner sessions in isolated localhost PostgreSQL; HCM feature enabled only in CI",
+        "evidence": "Victim's 8 workers and complete 8-process inventory return 200; both attacker owners read their real 1-worker employer 200 and are denied 403 for the populated victim employer; anonymous 401"
+      }
+    },
+    {
+      "path": "src/app/api/migrations/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/migrations/route.ts",
+        "src/lib/migration-import.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "6f2aabfe906a2c38594ea8b20d17b27a90dafb95",
+      "priorProof": {
+        "file": "scripts/qa/tenant-table-http.mjs",
+        "line": 251,
+        "ownPositiveLine": 251,
+        "foreignDenialLine": 260,
+        "unchangedDbLine": 280,
+        "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+        "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+        "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+        "rowLine": 50
+      }
+    },
+    {
+      "path": "src/app/api/migrations/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/migrations/route.ts",
+        "src/lib/migration-import.ts",
+        "src/lib/csv-import.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "6f2aabfe906a2c38594ea8b20d17b27a90dafb95",
+      "priorProof": {
+        "file": "scripts/qa/tenant-requested-migrations-http.mjs",
+        "line": 67,
+        "ownPositiveLine": 67,
+        "foreignDenialLine": 72,
+        "forgedSelectorLine": 74,
+        "unchangedDbLine": 78,
+        "victimIdOrderingLine": 33,
+        "twoAttackerLine": 51,
+        "scope": "Provisional four-kind JSON and XLSX real HTTP/PG16 proof: two independent employers per transport, eight JSON and eight XLSX owned persisted commits, foreign/forged worker denials and immutable victim SQL/audit. Eight forced audit-insert errors roll back all import/source/worker/profile/audit state. Discrimination checks reject other employers; no provider calls, production or independent security acceptance.",
+        "methodActions": [
+          "employees",
+          "payroll_history",
+          "leave_balances",
+          "loans"
+        ],
+        "proofPullRequest": 1815,
+        "verifiedPrHeadSha": "3d1a237e1bcf718cdbbb7aeaf8045397014183ff",
+        "mergedProofCommit": "20885ea6a94a7fe876a8b317e1ba9a82ff775572",
+        "workflowRunId": 42326040103,
+        "workflowJobId": 128261441543,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42326040103/job/128261441543",
+        "routeBlobSha": "6f2aabfe906a2c38594ea8b20d17b27a90dafb95",
+        "proofBlobSha": "ee5148891f0df0003eb39c846f34c7b6da04e32e",
+        "proofHelperBlobSha": "a97bb41eb9341680d28d8f208ca547a46217cbfa",
+        "contractBlobSha": "ac86f5a159a5a2886d7051e79b40c4b93fba0aa9",
+        "workflowBlobSha": "653b034ae00ce6388cb8c780430f9c3665447aaa",
+        "postgresMajor": 16,
+        "ownCommits": 8,
+        "foreignDenials": 8,
+        "forgedDenials": 6,
+        "multipartPreviews": 2,
+        "providerCalls": 0,
+        "productionTested": false,
+        "independentSecurityReview": "PENDING",
+        "auditVetoLine": 62,
+        "xlsxOwnLine": 101,
+        "xlsxForeignLine": 103,
+        "xlsxDiscriminationLine": 115,
+        "xlsxCommits": 8,
+        "xlsxForeignDenials": 8,
+        "xlsxDiscriminationChecks": 8,
+        "auditVetoRollbacks": 8
+      }
+    },
+    {
+      "path": "src/app/api/reports/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/reports/route.ts",
+        "src/lib/reports.ts",
+        "src/lib/payroll-assurance-server.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "92e63ae4e2251b5d9461d70224da7ac5d2222ccc",
+      "priorProof": {
+        "file": "scripts/qa/tenant-high-risk-01-http.mjs",
+        "line": 263,
+        "ownPositiveLine": 275,
+        "foreignDenialLine": 284,
+        "unchangedDbLine": 355,
+        "scope": "Two independently authenticated real owner sessions; actual own worker/run/entity 200, populated victim-only organization/record 403, exact original victim PostgreSQL snapshot unchanged (CI PG16 only).",
+        "evidence": "High-risk batch-01 own/foreign HTTP proof and stored victim-data invariant; independently verify run 39445598204 exact main source SHA 826d563 before accepting new source-head CI."
+      }
+    },
+    {
+      "path": "src/app/api/self/contribution-evidence/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/self/contribution-evidence/route.ts",
+        "src/lib/statutory-remittance.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "ee69893285e43cf519b6afdde5d28e739581a1c2",
+      "priorProof": {
+        "file": "scripts/qa/tenant-dl02-http.mjs",
+        "line": 311,
+        "ownPositiveLine": 295,
+        "foreignDenialLine": 311,
+        "denialKind": "same-session-revoked-membership",
+        "scope": "Two synthetic attacker-employer linked employee sessions: real own-method 200 then real same-session 403 after own membership is deactivated; no caller-selectable foreign employer/object ID on this route. Separate victim-employer PostgreSQL rows unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence."
+      }
+    },
+    {
+      "path": "src/app/api/year-end/route.ts",
+      "verb": "GET",
+      "dependencyChain": [
+        "src/app/api/year-end/route.ts",
+        "src/lib/payroll-engine.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
+      "priorProof": {
+        "file": "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs",
+        "line": 102,
+        "ownPositiveLine": 102,
+        "foreignDenialLine": 113,
+        "forgedSelectorLine": 118,
+        "unchangedDbLine": 116,
+        "methodActions": [
+          "json",
+          "preflight",
+          "2316_draft",
+          "2316_print",
+          "alphalist_source"
+        ],
+        "evidenceLabel": "SOURCE_PINNED_PG16_REVIEW_PENDING",
+        "routeBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
+        "proofBlobSha": "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19",
+        "workflowFile": ".github/workflows/tenant-year-end-post-candidate.yml",
+        "workflowBlobSha": "4f6be5303581ed5538b1ccb15f7d7f49a19ca576",
+        "postgresMajor": 16,
+        "verifiedPrHeadSha": "ba70678f30e24436dcaac853e0b047adbbe3f96a",
+        "mergedProofCommit": "ba70678f30e24436dcaac853e0b047adbbe3f96a",
+        "proofPullRequest": 1804,
+        "workflowRunId": 43372002300,
+        "workflowJobId": 131709669757,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372002300/job/131709669757",
+        "ownerReviewer": "@erwinmehehe",
+        "ownerIsOnlyReviewer": true,
+        "independentSecurityReview": "PENDING",
+        "independentPayrollReview": "PENDING",
+        "independentlyAccepted": false,
+        "productionTested": false,
+        "productionCertified": false,
+        "productionProviderCalled": false,
+        "governmentFilingPerformed": false,
+        "productionMoneyMoved": false,
+        "annualizationBlobSha": "b2b52a7913be85eb70c507d26e730fc366852237",
+        "proofEvent": "push-to-main"
+      }
+    },
+    {
+      "path": "src/app/api/year-end/route.ts",
+      "verb": "POST",
+      "dependencyChain": [
+        "src/app/api/year-end/route.ts",
+        "src/lib/payroll-engine.ts",
+        "src/lib/wage-orders.ts"
+      ],
+      "routeBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
+      "priorProof": {
+        "file": "scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs",
+        "line": 125,
+        "ownPositiveLine": 125,
+        "foreignDenialLine": 140,
+        "forgedSelectorLine": 144,
+        "unchangedDbLine": 148,
+        "methodActions": [
+          "unbound_annualization",
+          "bind_december_payroll"
+        ],
+        "evidenceLabel": "SOURCE_PINNED_PG16_REVIEW_PENDING",
+        "routeBlobSha": "f040f5bbbc3df275d32d23f1728b1b0345f77814",
+        "proofBlobSha": "9e64fc18a1a5b76c3ec583a0668ea680efd1ed19",
+        "workflowFile": ".github/workflows/tenant-year-end-post-candidate.yml",
+        "workflowBlobSha": "4f6be5303581ed5538b1ccb15f7d7f49a19ca576",
+        "postgresMajor": 16,
+        "verifiedPrHeadSha": "ba70678f30e24436dcaac853e0b047adbbe3f96a",
+        "mergedProofCommit": "ba70678f30e24436dcaac853e0b047adbbe3f96a",
+        "proofPullRequest": 1804,
+        "workflowRunId": 43372002300,
+        "workflowJobId": 131709669757,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/43372002300/job/131709669757",
+        "ownerReviewer": "@erwinmehehe",
+        "ownerIsOnlyReviewer": true,
+        "independentSecurityReview": "PENDING",
+        "independentPayrollReview": "PENDING",
+        "independentlyAccepted": false,
+        "productionTested": false,
+        "productionCertified": false,
+        "productionProviderCalled": false,
+        "governmentFilingPerformed": false,
+        "productionMoneyMoved": false,
+        "annualizationBlobSha": "b2b52a7913be85eb70c507d26e730fc366852237",
+        "proofEvent": "push-to-main"
+      }
+    }
+  ]
+}

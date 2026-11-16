@@ -1,4 +1,5 @@
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
+import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from '../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs';
 import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -118,11 +119,15 @@ test("five distinct platform targets preserve security-write and full enterprise
     const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const row = record.methods.find(r => r.name === method);
     if (key === "POST developer") assert.equal(verifySecurityCredits(manifest), 3);
-    else if (key === "POST enterprise") {
-      const { verifyEnterprisePostCredit } = await import("../scripts/qa/tenant-enterprise-admin-credit.mjs");
-      assert.equal(verifyEnterprisePostCredit(manifest), 1);
-      assert.equal(row.testedBy.file, "scripts/qa/tenant-enterprise-admin-http.mjs");
-    } else if(key==="POST automation-studio") assert.equal(verifyStudioPostCredit(manifest),1);
+    else if (key === "POST enterprise" || key === "POST automation-studio") {
+      assert.equal(verifyAllSealedWageHolds(manifest).size,5,
+        "Previously source-sealed Enterprise/Studio evidence is invalidated in full");
+      assert.equal(row.status,"GAP");
+      assert.equal(row.testedBy,null);
+      assert.equal(row.reviewedUncertified?.kind,SEALED_WAGE_HOLD_KIND);
+      assert.equal(row.reviewedUncertified.coverageCredits,0);
+      assert.ok(row.reviewedUncertified.priorProof,"Historical PG16 method record stays sealed");
+    }
     else assert.equal(row.status, ["GET enterprise", "PUT organizations"].includes(key) ? "COVERED" : "GAP");
   }
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));

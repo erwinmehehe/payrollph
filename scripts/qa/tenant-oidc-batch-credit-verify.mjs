@@ -4,6 +4,7 @@ import {SSO_RESOLVE_PATH,historicalSsoResolveView,assertSsoResolveHeldOrApproved
 import {createHash} from 'node:crypto';
 import {readFileSync,readdirSync} from 'node:fs';
 import {historicalSamlMetadataView,SAML_PUBLIC_PATH} from './tenant-saml-metadata-public-policy.mjs';
+import {historicWageRegistryProofView} from './wage-registry-source-hold.mjs';
 export const OIDC_START='src/app/api/auth/sso/start/route.ts';
 export const OIDC_BATCH_CALLBACK='src/app/api/auth/sso/callback/route.ts';
 export const OIDC_BATCH_RECEIPT='scripts/qa/tenant-oidc-batch-executed-receipt.json';
@@ -92,5 +93,7 @@ export function historicOidcBatchView(m,read=readFileSync){
  let historic=view;
  if(historic.allApiRouteFiles[SAML_PUBLIC_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN')historic=historicalSamlMetadataView(historic,read);
  if(historic.allApiRouteFiles[SSO_RESOLVE_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN')historic=historicalSsoResolveView(historic,read);
- return historic;
+  // Every affected wage-source claim stays held in the live ledger; this is
+  // solely a source-verified in-memory projection of the older page receipt.
+  return historicWageRegistryProofView(historic,read);
 }

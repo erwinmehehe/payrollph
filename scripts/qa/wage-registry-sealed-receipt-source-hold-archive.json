@@ -1,0 +1,204 @@
+{
+  "schema": "wage-registry-broad-sealed-receipt-source-withdrawal-v1",
+  "reviewedBaseCommit": "2459b9aa15c21b301e9ff8cc81dca2e679fed055",
+  "reviewedSourceCommit": "35f110c0b4657a88f037a3fe579f30012955219c",
+  "baseManifestGitBlobSha": "a62f967f58563979243e651e2c7e952a8a45c8bc",
+  "reviewedManifestGitBlobSha": "efa6a99f7f61b521f369fb2f42852e729d711313",
+  "methodCount": 5,
+  "sourceBefore": "2ea37036211a846ff515540d6b982760df8db1eb",
+  "sourceAfter": "0bb8c55d6cad0f3a22f6096f0937dd55ca0b227d",
+  "coverageCredits": 0,
+  "execution": "NOT_RUN",
+  "independentSecurityReview": "PENDING",
+  "productionCertified": false,
+  "methods": [
+    {
+      "path": "src/app/api/enterprise/route.ts",
+      "verb": "POST",
+      "routeBlobSha": "be3e320df828d681ad34c034b6469cf4940846cc",
+      "receiptFile": "scripts/qa/tenant-enterprise-admin-credit-receipt.json",
+      "historicalWageBlobSha": "2ea37036211a846ff515540d6b982760df8db1eb",
+      "priorProof": {
+        "file": "scripts/qa/tenant-enterprise-admin-http.mjs",
+        "testFile": "tests/tenant-enterprise-admin-credit.test.mjs",
+        "line": 77,
+        "ownPositiveLine": 77,
+        "foreignDenialLine": 85,
+        "forgedSelectorLine": 146,
+        "unchangedDbLine": 157,
+        "persistedStateLine": 79,
+        "writeDiscriminationLine": 80,
+        "victimIdOrderingLine": 32,
+        "routeBlobSha": "be3e320df828d681ad34c034b6469cf4940846cc",
+        "proofBlobSha": "415c2005393dadfeccb106260495b2ce7d408c91",
+        "stateBlobSha": "c44079a8811320e11bf512f0b8751d6370d94145",
+        "verifiedPrHeadSha": "79bc9cd062e76af102c63fe0263a7b75ffad9e65",
+        "runLabel": "GitHub Actions 42489689534/128759143344 PG16 enterprise-admin PASS",
+        "label": "SOLO_VERIFIED_DEV_RECOVERY",
+        "execution": "github-actions-http-pg16",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42489689534/job/128759143344",
+        "scope": "POST enterprise Owner method: all twelve action names, fifteen mutation paths, 42 persisted own transitions, 42 wrong-employer discriminators, 42 real victim denials, 22 forged-reference denials and 42 reached audit-veto rollbacks. Mocked exact-host DNS/OIDC discovery only; no real provider, login exchange, SCIM provisioning, automation execution or production certification.",
+        "independentSecurityReview": "PENDING",
+        "productionTested": false,
+        "prBranchHeadSha": "5d5d93b7ebb925d01ec93d73727c89fb9a3ba631",
+        "workflowRunId": 42489689534,
+        "workflowJobId": 128759143344
+      }
+    },
+    {
+      "path": "src/app/api/automation-studio/route.ts",
+      "verb": "POST",
+      "routeBlobSha": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
+      "receiptFile": "scripts/qa/tenant-studio-post-credit-receipt.json",
+      "historicalWageBlobSha": "2ea37036211a846ff515540d6b982760df8db1eb",
+      "priorProof": {
+        "file": "scripts/qa/tenant-studio-recovery-scope-http.mjs",
+        "line": 76,
+        "ownPositiveLine": 76,
+        "foreignDenialLine": 86,
+        "forgedSelectorLine": 89,
+        "unchangedDbLine": 41,
+        "writeDiscriminationLine": 85,
+        "routeBlobSha": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
+        "proofBlobSha": "5ed183ec0560ae4ccc53f56f4652a2d66d782e1e",
+        "receiptFile": "scripts/qa/tenant-studio-post-credit-receipt.json",
+        "receiptBlobSha": "f75b1436996f98ffe40be2f0a785700530583e0e",
+        "recoveryCredit": "studio-post-complete",
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909017/job/130378012121",
+        "cohort": [
+          {
+            "family": "triage",
+            "job": 130378012392,
+            "run": 42976909059,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909059/job/130378012392"
+          },
+          {
+            "family": "draft",
+            "job": 130378011099,
+            "run": 42976908827,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976908827/job/130378011099"
+          },
+          {
+            "family": "lifecycle",
+            "job": 130378011560,
+            "run": 42976908891,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976908891/job/130378011560"
+          },
+          {
+            "family": "execution",
+            "job": 130378013368,
+            "run": 42976909137,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909137/job/130378013368"
+          },
+          {
+            "family": "resolution",
+            "job": 130378012979,
+            "run": 42976909044,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909044/job/130378012979"
+          },
+          {
+            "family": "language",
+            "job": 130378014291,
+            "run": 42976909055,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909055/job/130378014291"
+          },
+          {
+            "family": "scope",
+            "job": 130378012121,
+            "run": 42976909017,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909017/job/130378012121"
+          },
+          {
+            "family": "sessions",
+            "job": 130378013681,
+            "run": 42976909243,
+            "sourceHead": "931b7eb8f4aaa43ef81dce8f80b2ad0aa50b2766",
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42976909243/job/130378013681"
+          }
+        ],
+        "providerCalled": false,
+        "productionTested": false,
+        "independentlyAccepted": false,
+        "independentSecurityReview": "PENDING",
+        "scope": "Complete eleven-action provider-OFF/keyless Studio POST cohort; owned persisted states, two attackers, populated higher-ID victim, forged selectors, all six source families, unchanged foreign business/session/audits and recovery binding locks. External-model/provider and production acceptance remain separate."
+      }
+    },
+    {
+      "path": "src/app/api/spend/route.ts",
+      "verb": "POST",
+      "routeBlobSha": "7a5d067830b7f7a754a00ee1cad294081c3f8e19",
+      "receiptFile": "scripts/qa/tenant-spend-managed-receipt.json",
+      "historicalWageBlobSha": "2ea37036211a846ff515540d6b982760df8db1eb",
+      "priorProof": {
+        "file": "scripts/qa/tenant-spend-write-actions-http.mjs",
+        "line": 174,
+        "ownPositiveLine": 174,
+        "foreignDenialLine": 156,
+        "unchangedDbLine": 121,
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "workflowRunId": 42425680713,
+        "workflowJobId": 128563327706,
+        "verifiedPrHeadSha": "f286d177ebc5acb304fd743d5df31a421471bcd4",
+        "proofPullRequest": 1829,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42425680713/job/128563327706",
+        "scope": "Provisional SOLO_VERIFIED_DEV_RECOVERY: dedicated required-OFF PG16 real HTTP proof; own persisted success, two attackers, real victim and forged-selector denial, unchanged victim SQL. No production acceptance.",
+        "productionTested": false,
+        "forgedSelectorLine": 179
+      }
+    },
+    {
+      "path": "src/app/api/spend/route.ts",
+      "verb": "PATCH",
+      "routeBlobSha": "7a5d067830b7f7a754a00ee1cad294081c3f8e19",
+      "receiptFile": "scripts/qa/tenant-spend-managed-receipt.json",
+      "historicalWageBlobSha": "2ea37036211a846ff515540d6b982760df8db1eb",
+      "priorProof": {
+        "file": "scripts/qa/tenant-spend-write-actions-http.mjs",
+        "line": 227,
+        "ownPositiveLine": 227,
+        "foreignDenialLine": 242,
+        "unchangedDbLine": 121,
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "workflowRunId": 42425680713,
+        "workflowJobId": 128563327706,
+        "verifiedPrHeadSha": "f286d177ebc5acb304fd743d5df31a421471bcd4",
+        "proofPullRequest": 1829,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42425680713/job/128563327706",
+        "scope": "Provisional SOLO_VERIFIED_DEV_RECOVERY: dedicated required-OFF PG16 real HTTP proof; own persisted success, two attackers, real victim and forged-selector denial, unchanged victim SQL. No production acceptance.",
+        "productionTested": false,
+        "forgedSelectorLine": 245
+      }
+    },
+    {
+      "path": "src/app/api/managed-payroll/runs/[id]/approve/route.ts",
+      "verb": "POST",
+      "routeBlobSha": "762ea23b45b7edd4070b4e546795ae13d7d2228f",
+      "receiptFile": "scripts/qa/tenant-spend-managed-receipt.json",
+      "historicalWageBlobSha": "2ea37036211a846ff515540d6b982760df8db1eb",
+      "priorProof": {
+        "file": "scripts/qa/tenant-managed-client-approval-http.mjs",
+        "line": 78,
+        "ownPositiveLine": 78,
+        "foreignDenialLine": 72,
+        "unchangedDbLine": 76,
+        "evidenceLabel": "SOLO_VERIFIED_DEV_RECOVERY",
+        "workflowRunId": 42425680713,
+        "workflowJobId": 128563327706,
+        "verifiedPrHeadSha": "f286d177ebc5acb304fd743d5df31a421471bcd4",
+        "proofPullRequest": 1829,
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/42425680713/job/128563327706",
+        "scope": "Provisional SOLO_VERIFIED_DEV_RECOVERY: dedicated required-OFF PG16 real HTTP proof; own persisted success, two attackers, real victim and forged-selector denial, unchanged victim SQL. No production acceptance.",
+        "productionTested": false,
+        "forgedSelectorLine": 78
+      }
+    }
+  ]
+}

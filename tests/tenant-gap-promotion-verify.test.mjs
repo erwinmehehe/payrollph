@@ -2,7 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {verifyPromotionCredits} from '../scripts/qa/tenant-gap-promotion-verify.mjs';
-const original=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+import {historicWageRegistryProofView,verifyAllWageRegistrySourceHolds} from '../scripts/qa/wage-registry-source-hold.mjs';
+import {verifyAllTransitiveWageHolds} from '../scripts/qa/wage-registry-transitive-source-hold.mjs';
+const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+assert.equal(verifyAllWageRegistrySourceHolds(live).length,23);
+assert.equal(verifyAllTransitiveWageHolds(live).size,47);
+const original=historicWageRegistryProofView(live);
+assert.equal(live.allApiRouteFiles['src/app/api/auth/me/route.ts'].methods[0].status,'GAP');
+assert.equal(live.allApiRouteFiles['src/app/api/auth/me/route.ts'].methods[0].testedBy,null);
 const pick=m=>m.allApiRouteFiles['src/app/api/account/route.ts'].methods[0];
 test('promotion catalogue requires all sixteen exact source-bound identities',()=>{
  assert.equal(verifyPromotionCredits(original),16);

@@ -1,3 +1,4 @@
+import {assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
 import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
 import assert from "node:assert/strict";
 import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
@@ -39,5 +40,5 @@ test("neighboring unproved careers mutations do not receive an implicit credit",
   for(const [p,v] of [["src/app/api/documents/route.ts","POST"],
     ["src/app/api/approvals/[id]/route.ts","PATCH"]])
       if(p==='src/app/api/documents/route.ts')assert.equal(verifySecurityCredits(manifest),3);
-      else assert.equal(verifyApprovalsCredit(manifest),1);
+      else assertCreditOrWageHold(assert,manifest,p,v,verifyApprovalsCredit);
 });

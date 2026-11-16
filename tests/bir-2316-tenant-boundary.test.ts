@@ -1,4 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
+import { assertWageLedgerDelta } from "./helpers/wage-source-holds.mjs";
 import { isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 /**
  * Regression controls for the offboarding BIR 2316 and unsigned certificate
@@ -119,6 +120,9 @@ test("three BIR document methods have executed-path HTTP fixtures and remain rev
   assert.match(script, /assert\.deepEqual\(victimAfter, victimBefore/);
   assert.match(script, /Revoked historical employer grant denies existing signed-in PDF generation/);
   assert.match(script, /Transferred employee source must use prior employer/);
+  // Keep the real HTTP fixture contract above. For the live ledger, require
+  // the exact source withdrawal rather than falsely accepting archived credits.
+  if (assertWageLedgerDelta(assert, inventory)) return;
   for (const [path, verbs] of [
     ["src/app/api/separation/[id]/2316/route.ts", ["GET"]],
     ["src/app/api/year-end/2316-certificate/route.ts", ["GET", "POST"]],

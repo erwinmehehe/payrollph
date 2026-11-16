@@ -1,3 +1,4 @@
+import {wageHeldPriorProof} from './helpers/wage-source-holds.mjs';
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -66,8 +67,9 @@ test("separate proof-file citations resolve their own exact source lines", () =>
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   for (const route of ["compliance/payroll-month-close", "compliance/statutory-remittances"]) {
-    const proof = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]
-      .methods.find(method => method.name === "POST").testedBy;
+    const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"]
+      .methods.find(method => method.name === "POST");
+    const proof = method.testedBy ?? wageHeldPriorProof(manifest,"src/app/api/"+route+"/route.ts","POST");
     assert.match(proof.sourceRowFile, /^scripts\/qa\/tenant-table-rows\/write\//);
     assert.notEqual(proof.file, proof.sourceRowFile);
     const rowLines = readFileSync(proof.sourceRowFile, "utf8").split("\n");

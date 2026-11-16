@@ -1,4 +1,7 @@
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
+import { verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
+import { verifyAllTransitiveWageHolds } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
+import { verifyAllSealedWageHolds } from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 import {xenditPostCreditDelta,verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {oidcStartCreditDelta} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
@@ -70,8 +73,20 @@ test("receipt/source/workflow/blob drift requires a fresh executed proof", () =>
   }
 });
 
-test("exactly one additional provisional billing credit; other GAPs and classes unchanged", () => {
+test("provisional billing proof survives; 75 verified wage-source withdrawals remain zero-credit", () => {
   const m = manifest(), counts = tallyTenantManifest(m);
+  // These three source-pinned archives account for every historical method
+  // withdrawn by this wage change. They validate the live GAP ledger, NOT a
+  // source-current credit or a payroll/security acceptance.
+  const wageHoldKeys = new Set([
+    ...verifyAllWageRegistrySourceHolds(m).map(key => {
+      const at = key.lastIndexOf(" ");
+      return key.slice(at + 1) + " " + key.slice(0, at);
+    }),
+    ...verifyAllTransitiveWageHolds(m),
+    ...verifyAllSealedWageHolds(m),
+  ]);
+  assert.equal(wageHoldKeys.size, 75, "Every withdrawn method requires a distinct zero-credit receipt hold");
   assert.equal(m.metrics.methods, counts.methods);
   assert.equal(m.metrics.coveredAfter, counts.coveredAfter);
   assert.equal(m.metrics.gap, counts.gap);
@@ -81,12 +96,26 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
   const base = baseTenantManifest();
   if (base) {
     const before = tallyTenantManifest(base.manifest);
+    let wageWithdrawalsFromBase = 0;
+    for (const key of wageHoldKeys) {
+      const at = key.indexOf(" "), verb = key.slice(0, at), path = key.slice(at + 1);
+      const current = m.allApiRouteFiles[path]?.methods.find(row => row.name === verb);
+      const previous = base.manifest.allApiRouteFiles[path]?.methods.find(row => row.name === verb);
+      assert.equal(current?.status, "GAP", key + ": changed-source credit must remain held");
+      assert.equal(current.testedBy, null, key + ": prior proof may not be credited");
+      assert.equal(current.reviewedUncertified?.coverageCredits, 0, key + ": no invented proof credit");
+      if (previous?.status === "COVERED") {
+        assert.deepEqual(current.reviewedUncertified.priorProof, previous.testedBy,
+          key + ": archived prior proof must match the actual inspected base");
+        wageWithdrawalsFromBase++;
+      }
+    }
     const old = base.manifest.allApiRouteFiles[BILLING_POST_PATH].methods.find(x => x.name === 'POST');
     const delta = old.status === 'GAP' ? 1 : 0;
     const readyDelta=base.manifest.allApiRouteFiles[READINESS_GET_PATH].methods.find(x=>x.name==='GET').status==='GAP'?verifyWorkspaceReadinessCredit(m):0;
-    const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP'?verifyStudioPostCredit(m):0;
+    const studioDelta=base.manifest.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').status==='GAP' && !wageHoldKeys.has('POST '+STUDIO_POST_PATH)?verifyStudioPostCredit(m):0;
     const exportsDelta=base.manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='GAP' && m.allApiRouteFiles['src/app/api/payroll-runs/[id]/exports/route.ts'].methods.find(x=>x.name==='POST').status==='COVERED'?1:0;
-    const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP'?verifyApprovalsCredit(m):0;
+    const approvalsDelta=base.manifest.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==='PATCH').status==='GAP' && !wageHoldKeys.has('PATCH '+APPROVALS_PATH)?verifyApprovalsCredit(m):0;
     const yearEndHold = yearEndHoldDelta(base.manifest, m) - yearEndRenewalDelta(base.manifest, m);
     // The Worker 360 GET's organization-only receipt cannot credit its changed legal-employer source.
     const workerPath = "src/app/api/hcm/worker-360/route.ts";
@@ -106,7 +135,13 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     const currentMkt01=m.allApiRouteFiles[mkt01Path].methods.find(x=>x.name==="GET");
     const mkt01Delta=mainMkt01.status==="GAP" && currentMkt01.status==="COVERED"
       ? verifyMkt01Credit(m) : 0;
-    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m)+mkt01Delta;
+    // The nineteen payroll withdrawals are included in the 75 wage holds.
+    // Subtract each actual base-to-head withdrawal exactly once.
+    const overlappingOracleWithdrawals=[...verifyOracleSourceHolds(m)].filter(key=>{
+      const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+      return wageHoldKeys.has(key)&&base.manifest.allApiRouteFiles[path]?.methods.find(row=>row.name===verb)?.status==='COVERED';
+    }).length;
+    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+overlappingOracleWithdrawals+oracleRenewalDelta(base.manifest,m)+mkt01Delta-wageWithdrawalsFromBase;
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
@@ -123,6 +158,12 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     ["GET", "readiness/workspace"],
   ]) {
     const path='src/app/api/'+route+'/route.ts';
+    if(wageHoldKeys.has(verb+' '+path)){
+      const held=m.allApiRouteFiles[path].methods.find(x=>x.name===verb);
+      assert.equal(held.status,'GAP');assert.equal(held.testedBy,null);
+      assert.equal(held.reviewedUncertified.coverageCredits,0);
+      continue;
+    }
     if(isVerifiedOracleRenewal(m,path,verb))continue;
     if(verifyOracleSourceHolds(m).has(verb+' '+path)){
       const held=m.allApiRouteFiles[path].methods.find(x=>x.name===verb);
@@ -147,10 +188,19 @@ test("exactly one additional provisional billing credit; other GAPs and classes 
     } else assert.equal(row.status,"GAP",verb+" "+route+" remains uncredited");
     assert.equal(row.testedBy, null);
   }
-  assert.equal(m.allApiRouteFiles["src/app/api/bir/annual-employer/candidate/route.ts"]
-    .methods[0].status, "COVERED", "BIR evidence is not this credit");
-  assert.equal(m.allApiRouteFiles["src/app/api/compliance/filing-validations/[id]/route.ts"]
-    .methods[0].status, "COVERED", "Filing evidence is not this credit");
+  for (const [path, verb] of [
+    ["src/app/api/bir/annual-employer/candidate/route.ts", "POST"],
+    ["src/app/api/compliance/filing-validations/[id]/route.ts", "PATCH"],
+  ]) {
+    const row = m.allApiRouteFiles[path].methods.find(x => x.name === verb);
+    const held = wageHoldKeys.has(verb + " " + path);
+    assert.equal(row.status, held ? "GAP" : "COVERED",
+      "Independent historical BIR/filing receipts are not billing credits");
+    if (held) {
+      assert.equal(row.testedBy, null);
+      assert.equal(row.reviewedUncertified.coverageCredits, 0);
+    }
+  }
   assert.equal(m.acceptanceStatus.startsWith('NOT ACCEPTED: ' + counts.gap + ' API methods'), true);
 });
 import {verifyWorker360LegalEmployerCredits} from '../scripts/qa/tenant-worker360-legal-employer-credit.mjs';
