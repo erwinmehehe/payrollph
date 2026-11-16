@@ -40,7 +40,32 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Fetch source ledger baseline (no external applications or databases)
         run: git fetch --no-tags origin main
-      - name: Reject unearned credits and stale source-line anchors
-        run: node --test tests/tenant-six-method-proof-review.test.mjs
+      # The six-method legacy test is pinned byte-for-byte to the PR base.
+      # Run it against the exact source it certified, not an updated wage
+      # registry whose 75 historical method receipts are now explicitly held.
+      # This historical replay does NOT confer current-source coverage credit.
+      - name: Verify historic six-method source against exact PR base (historical only)
+        env:
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${REVIEW_BASE_SHA:-origin/main}"
+          git cat-file -e "$base:scripts/qa/tenant-isolation-coverage-manifest.json"
+          test "$(git rev-parse HEAD:tests/tenant-six-method-proof-review.test.mjs)" = \
+            "$(git rev-parse "$base:tests/tenant-six-method-proof-review.test.mjs")"
+          historical="$(mktemp -d "${RUNNER_TEMP:-/tmp}/six-method-historical.XXXXXX")"
+          git worktree add --detach "$historical" "$base"
+          trap 'git worktree remove --force "$historical"' EXIT
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$historical/node_modules"
+          (cd "$historical" && node --test tests/tenant-six-method-proof-review.test.mjs)
+      - name: Verify exact-head 75 wage dependency holds (no credits)
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/wage-registry-source-hold.test.mjs \
+            tests/wage-registry-transitive-source-hold.test.mjs \
+            tests/wage-registry-sealed-receipt-source-hold.test.mjs \
+            tests/wage-order-transitive-import-inventory.test.mjs
       - name: Read-only exact-line manifest repin against latest origin/main
         run: node scripts/qa/tenant-manifest-repin.mjs --base origin/main
