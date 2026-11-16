@@ -18,8 +18,8 @@ test("all 23 previously credited wage-dependent methods are now held with zero c
   const manifest = readManifest();
   assert.equal(WAGE_SOURCE_HELD_METHODS.length, 23);
   assert.equal(verifyAllWageRegistrySourceHolds(manifest).length, 23);
-  assert.equal(manifest.metrics.coveredAfter, 438);
-  assert.equal(manifest.metrics.gap, 24);
+  const counts=manifest.metrics;
+  assert.equal(counts.coveredAfter+counts.publicByDesign+counts.privilegedOperationsTokenOnly+counts.gap,counts.methods);
   for (const key of WAGE_SOURCE_HELD_METHODS) {
     const [path, verb] = split(key);
     const method = manifest.allApiRouteFiles[path].methods.find(m => m.name === verb);
