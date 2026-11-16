@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { PrivateWorkplaceStatement } from "@/components/private-workplace-statement";
 type Officer = { userId: number; name: string };
 type CaseRecord = { id: number; status: string; caseKind: string; incidentOn: string | null;
-  statement: string; createdAt: string };
+  createdAt: string };
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const kinds = [
   ["gender_based_harassment", "Gender-based harassment"],
@@ -104,7 +105,7 @@ export function EmployeeWorkplaceConcern({ organizationId }: { organizationId: n
       <p className="my-2 text-xs text-slate-600">Only your own authorized cases. Open private statements on a trusted device.</p>
       {cases.length ? cases.map(c => <details key={c.id} className="my-2 rounded-md border p-3">
         <summary className="cursor-pointer text-sm font-semibold">Case #{c.id} · {c.status}</summary>
-        <p className="mt-3 whitespace-pre-wrap text-sm">{c.statement}</p>
+        <PrivateWorkplaceStatement organizationId={organizationId} caseId={c.id} />
       </details>) : <p className="mt-2 text-sm text-slate-600">No case recorded in this account.</p>}
     </section>
   </div>;
