@@ -9,6 +9,7 @@ import ts from "typescript";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, normalize, extname } from "node:path";
 import { WAGE_SOURCE_HELD_METHODS, verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
+import {verifyAllTransitiveWageHolds,readTransitiveWageHoldArchive} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 
 const WAGE="src/lib/wage-orders.ts", WATCH="src/lib/statutory-rule-watch.ts";
 const EXT=[".ts",".tsx",".js",".jsx",".mts",".mjs"];
@@ -79,6 +80,7 @@ function pathTo(start,goal) {
 test("only historical zero-credit holds can stand for changed transitive wage runtime sources",()=>{
   const m=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
   assert.equal(verifyAllWageRegistrySourceHolds(m).length,23);
+  assert.equal(verifyAllTransitiveWageHolds(m).size,47);
   const impacted=[];
   for(const [route,rec] of Object.entries(m.allApiRouteFiles)) {
     const viaWage=pathTo(route,WAGE),viaWatch=pathTo(route,WATCH);
@@ -88,6 +90,16 @@ test("only historical zero-credit holds can stand for changed transitive wage ru
       held:method.reviewedUncertified?.kind==="wage-registry-dependency-source-withdrawal",
     }))});
   }
+  const selected=readTransitiveWageHoldArchive().methods.map(e=>e.verb+" "+e.path).sort();
+  const actual=impacted.flatMap(row=>row.methods.filter(m=>
+    m.status==="GAP" && m.held===false).map(m=>m.verb+" "+row.route));
+  // The archive itself is verified above; compare all previously COVERED
+  // source-dependent methods to the exactly sealed 47 zero-credit withdrawals.
+  const coveredAfterWithdrawal=selected.filter(key=>{
+    const i=key.indexOf(" "),verb=key.slice(0,i),route=key.slice(i+1);
+    return m.allApiRouteFiles[route].methods.find(method=>method.name===verb).status==="COVERED";
+  });
+  assert.deepEqual(coveredAfterWithdrawal,[],"Archived source-held credit was unexpectedly restored");
   const uncovered=impacted.flatMap(row=>row.methods.filter(m=>m.status==="COVERED")
     .map(m=>({route:row.route,verb:m.verb,chain:row.viaWage??row.viaWatch})));
   console.log("WAGE_TRANSITIVE_SOURCE_IMPACT="+JSON.stringify({

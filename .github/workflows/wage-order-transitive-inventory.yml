@@ -9,6 +9,7 @@ on:
       - 'scripts/qa/tenant-isolation-coverage-manifest.json'
       - 'scripts/qa/wage-registry-source-hold.mjs'
       - 'tests/wage-order-transitive-import-inventory.test.mjs'
+      - 'tests/wage-registry-transitive-source-hold.test.mjs'
       - '.github/workflows/wage-order-transitive-inventory.yml'
 permissions:
   contents: read
@@ -35,4 +36,4 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Source-only closure and immutable zero-credit holds
-        run: node --test tests/wage-order-transitive-import-inventory.test.mjs
+        run: node --test tests/wage-order-transitive-import-inventory.test.mjs tests/wage-registry-transitive-source-hold.test.mjs

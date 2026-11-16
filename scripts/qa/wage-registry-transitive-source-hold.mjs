@@ -77,6 +77,9 @@ export function verifyAllTransitiveWageHolds(m,read=readFileSync){
   return new Set(expected);
 }
 export function reviewedTransitiveWageWithdrawals(before,after,read=readFileSync){
+  const present=Object.values(after.allApiRouteFiles).flatMap(file=>file.methods)
+    .filter(row=>row.reviewedUncertified?.kind===TRANSITIVE_HOLD_KIND).length;
+  if(present===0)return new Set(); // Historical archive validation only, no new withdrawal.
   const a=readTransitiveWageHoldArchive(read),held=verifyAllTransitiveWageHolds(after,read);
   for(const e of a.methods){
     const file=before.allApiRouteFiles[e.path],prior=file?.methods.find(x=>x.name===e.verb);

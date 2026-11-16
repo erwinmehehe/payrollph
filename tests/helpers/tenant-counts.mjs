@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { YEAR_END_HOLD_KIND, YEAR_END_HOLD_REASON, YEAR_END_PROOF, YEAR_END_SOURCE_PINS, yearEndHoldRecord } from "../../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
 import { reviewedWageRegistrySourceWithdrawals } from "../../scripts/qa/wage-registry-source-hold.mjs";
+import { reviewedTransitiveWageWithdrawals } from "../../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Newly restored methods only, backed by the sealed executed renewal. */
@@ -268,6 +269,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...reviewedOidcSourceSupersession(base.manifest, manifest),
     ...verifyOracleSourceHolds(manifest, base.manifest),
     ...reviewedWageRegistrySourceWithdrawals(base.manifest, manifest),
+    ...reviewedTransitiveWageWithdrawals(base.manifest, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
