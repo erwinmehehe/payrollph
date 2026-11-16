@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync, existsSync } from "node:fs";
 import {
   phCivilDate, positiveId, limitedText, isOneOf, validDateRange, sha256Digest,
-  mayAdvanceDoleRecord, mayReadProtectedCase, mayTransitionProtectedCase,
+  mayAdvanceDoleRecord, mayReadProtectedCase, mayTransitionProtectedCase, protectedCaseDetailRequiresMfa,
   PROTECTED_CASE_STATES, DOLE_EXTENDED_REPORT_TYPES,
 } from "../src/lib/ph-workplace-compliance-policy";
 import { sealWorkplaceStatement, openWorkplaceStatement } from "../src/lib/ph-workplace-statement-crypto";
@@ -44,6 +44,15 @@ test("complaint readers are limited to creator or named investigator/reviewer", 
   assert.equal(mayReadProtectedCase(claim), false);
   for (const id of [1, 2, 3]) assert.equal(mayReadProtectedCase({ ...claim, viewerId: id }), true);
   assert.equal(mayReadProtectedCase({ viewerId: 3, creatorId: 1, investigatorId: 2, reviewerId: null }), false);
+});
+test("appointed officers must have MFA even when their global account role is employee", () => {
+  assert.equal(protectedCaseDetailRequiresMfa("employee", false), false);
+  assert.equal(protectedCaseDetailRequiresMfa("employee", true), true);
+  assert.equal(protectedCaseDetailRequiresMfa("admin", false), true);
+  assert.equal(protectedCaseDetailRequiresMfa("admin", true), true);
+  const route = readFileSync("src/pilots/workplace/api/protected-cases.ts", "utf8");
+  assert.ok(route.includes("protectedCaseDetailRequiresMfa(session.role, officer)"));
+  assert.ok(route.includes("requireSensitiveActionMfa(session)"));
 });
 test("case decisions require independent reviewer and valid state machine", () => {
   assert.deepEqual([...PROTECTED_CASE_STATES], ["intake", "investigating", "review_pending", "closed"]);
