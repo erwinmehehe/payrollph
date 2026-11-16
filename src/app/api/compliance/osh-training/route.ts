@@ -101,6 +101,10 @@ export async function PATCH(request: Request) {
   if (guard.denied) return guard.denied;
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
+  const rate = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id, action: "ph-training-review", resourceId: id, limit: 20, windowMs: 300_000,
+  });
+  if (rate) return rate;
   try {
     const row = await db.transaction(async tx => {
       const [old] = await tx.select().from(oshTrainingRecords).where(and(
