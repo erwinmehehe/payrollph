@@ -11,14 +11,14 @@ const action = "rounded-md bg-emerald-800 px-4 py-2 text-sm font-medium text-whi
 const section = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
 const label = "mb-1 block text-xs font-medium text-slate-700";
 
-function Input({ name, title, type = "text", required = false, hint, placeholder, maxLength, defaultValue }: {
+function Input({ name, title, type = "text", required = false, hint, placeholder, maxLength, minLength, defaultValue }: {
   name: string; title: string; type?: string; required?: boolean; hint?: string; placeholder?: string;
-  maxLength?: number; defaultValue?: string;
+  maxLength?: number; minLength?: number; defaultValue?: string;
 }) {
   return <label className="block min-w-0">
     <span className={label}>{title}</span>
     <input className={control} name={name} type={type} required={required} placeholder={placeholder}
-      maxLength={maxLength} defaultValue={defaultValue} aria-description={hint} />
+      maxLength={maxLength} minLength={minLength} defaultValue={defaultValue} aria-description={hint} />
     {hint ? <small className="mt-1 block text-slate-500">{hint}</small> : null}
   </label>;
 }
