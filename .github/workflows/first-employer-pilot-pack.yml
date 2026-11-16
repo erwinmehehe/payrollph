@@ -1,0 +1,67 @@
+name: First employer pilot pack (offline Linux)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/first-employer-pilot-pack.yml'
+      - 'scripts/qa/first-employer-pilot-pack.ts'
+      - 'src/lib/private-parallel-payroll-reconciliation.ts'
+      - 'tests/first-employer-pilot-pack.test.ts'
+      - 'tests/private-parallel-payroll*.test.ts'
+      - 'docs/launch/first-employer-shadow-pilot.md'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/first-employer-pilot-pack.yml'
+      - 'scripts/qa/first-employer-pilot-pack.ts'
+      - 'src/lib/private-parallel-payroll-reconciliation.ts'
+      - 'tests/first-employer-pilot-pack.test.ts'
+      - 'tests/private-parallel-payroll*.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: first-employer-pilot-pack-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-linux:
+    name: Private pilot preparation and reconciliation (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PILOT_REQUIRE_LINUX_CHECKS: 'true'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Require actual Linux and native no-follow support
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --input-type=module -e "import assert from 'node:assert/strict'; import {constants} from 'node:fs'; assert.equal(process.platform,'linux'); assert.equal(typeof constants.O_NOFOLLOW,'number'); console.log(JSON.stringify({platform:process.platform,node:process.version,evidence:'SOLO_VERIFIED_DEV_RECOVERY'}));"
+      - name: Real offline CLI, scope, file-integrity and payroll-GL regressions
+        shell: bash
+        run: |
+          mkdir -p qa-artifacts
+          node --import tsx --test tests/first-employer-pilot-pack.test.ts tests/private-parallel-payroll-cli.test.ts tests/private-parallel-payroll-reconciliation.test.ts | tee qa-artifacts/first-employer-pilot-linux.tap
+      - name: Retain fictional test results only
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: first-employer-pilot-linux
+          path: qa-artifacts/first-employer-pilot-linux.tap
+          if-no-files-found: error

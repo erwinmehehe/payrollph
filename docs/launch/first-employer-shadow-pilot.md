@@ -57,6 +57,13 @@ checker requires native O_NOFOLLOW support for private JSON reads and fails
 closed on hosts where it is unavailable; run validation on a secured supported
 host instead. The tool does not attest ACLs/encryption.
 
+The dedicated **First employer pilot pack (offline Linux)** workflow checks out
+the exact PR head on Ubuntu 24.04 / Node 22 and requires real Linux plus native
+no-follow support. Its supported-host tests cannot silently skip in that job.
+Windows tests separately assert that validation exits with a sanitized failure;
+they do not pretend that Windows completed reconciliation. The Linux report
+contains fictional regression results only, never employer files.
+
 ## Employer onboarding and ownership
 
 | Stage | Operator and retained private evidence | Stop condition |

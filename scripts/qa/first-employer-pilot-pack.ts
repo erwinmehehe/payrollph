@@ -47,7 +47,10 @@ function privateJson(path: string): unknown {
   // O_NOFOLLOW rejects final-component symlinks atomically. Fail closed if
   // the runtime cannot request it rather than silently following links.
   if (typeof constants.O_NOFOLLOW !== "number") throw Error("UNSAFE_INPUT_PLATFORM");
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  // Nonblocking open prevents a substituted FIFO from hanging before fstat.
+  // Regular files are unaffected; all special files are rejected below.
+  if (typeof constants.O_NONBLOCK !== "number") throw Error("UNSAFE_INPUT_PLATFORM");
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const opened = fstatSync(fd);
     if (!opened.isFile() || opened.nlink !== 1 || opened.size > LIMIT)
