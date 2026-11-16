@@ -40,7 +40,8 @@ test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence"
   // receipts. Keep the original six-page and 10/11 historical views sealed.
   assert.equal(verifyFourPageCredits(m), selectedFour().length);
   assert.equal(verifySixPageCredits(m), selectedTargets().length);
-  assert.equal(verifyCurrentScopedPageGapCount(m), 1);
+  // Careers is PUBLIC-BY-DESIGN, never private COVERED; the verifier seals the exact public proof and preserves all 20 private credits.
+  assert.equal(verifyCurrentScopedPageGapCount(m), 0);
   assert.equal(verifyCurrentScopedPageGapCount(historicFourPageView(m)), 5);
   assert.equal(verifyCurrentScopedPageGapCount(historicSixPageView(m)), 11);
   const base=baseTenantManifest();

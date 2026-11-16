@@ -13,6 +13,7 @@ import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 import { historicSixPageView, verifySixPageCredits } from "./tenant-six-scoped-page-credit.mjs";
 import { historicFourPageView, verifyFourPageCredits } from "./tenant-four-scoped-page-credit.mjs";
+import { verifyCareersPublicPage } from "./tenant-careers-public-page-classification.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const WORKFLOW = ".github/workflows/tenant-five-scoped-pages-credit.yml";
@@ -288,6 +289,17 @@ export function verifyFivePageCredits(m, read = readFileSync) {
  */
 export function verifyCurrentScopedPageGapCount(m, read = readFileSync) {
   const gaps = m.scopedPages.filter(page => page.status === "GAP").length;
+  if (gaps === 0) {
+    // The sole public Careers SSR is anonymous by owner-approved design.
+    // Validate the exact page, predicate, client, proof/workflow SHA and
+    // unchanged 20 private-page evidence before allowing zero GAP labels.
+    // This never confers employer-private rights or security acceptance.
+    assert.equal(verifyCareersPublicPage(m, read), 1,
+      "SCOPED_PAGE_REFUSED: sole public Careers page requires source-sealed approval");
+    assert.equal(verifyFourPageCredits(m, read), 4,
+      "SCOPED_PAGE_REFUSED: twenty private page proofs must remain exact");
+    return gaps;
+  }
   if (gaps === 1) {
     assert.equal(verifyFourPageCredits(m, read), 4,
       "SCOPED_PAGE_REFUSED: exact four additional page receipts required");
