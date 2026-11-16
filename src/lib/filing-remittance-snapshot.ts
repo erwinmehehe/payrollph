@@ -1,4 +1,5 @@
 import { parseCsv } from "@/lib/csv-import";
+import { postedCentavos } from "@/lib/remittance-centavos-compare";
 
 export type MonthlyFilingSnapshot = {
   applicableMonth: string;
@@ -168,7 +169,11 @@ export function compareFilingToRemittance(input: {
 }) {
   const employeeCountMatches = input.filingEmployeeCount === input.remittanceEmployeeCount;
   const totalDifference = round2(input.filingTotal - input.remittanceTotal);
-  const totalMatches = Math.abs(totalDifference) <= 0.01;
+  // Both values must be valid already-posted whole-cent totals; no 1-cent grace.
+  const filingCents = postedCentavos(input.filingTotal);
+  const remittanceCents = postedCentavos(input.remittanceTotal);
+  const totalMatches = filingCents !== null && remittanceCents !== null
+    && filingCents === remittanceCents;
 
   return {
     matched: employeeCountMatches && totalMatches,
