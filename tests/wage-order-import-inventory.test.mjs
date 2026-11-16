@@ -32,8 +32,12 @@ test("inventory every source, test and script importer of regional wage orders",
   }
   assert.ok(importers.includes("src/lib/payroll-engine.ts"),
     "payroll engine must remain explicitly inventoried");
-  assert.ok(importers.includes("src/app/api/employees/route.ts"),
-    "employee route is a covered direct wage-order importer");
+  for (const route of [
+    "src/app/api/employees/route.ts",
+    "src/app/api/compliance/validate/route.ts",
+    "src/app/api/payroll-runs/route.ts",
+  ]) assert.ok(importers.includes(route),
+    route + ": covered direct importer must remain inventoried");
   assert.ok(importers.includes("tests/wage-orders.test.ts"),
     "wage-order regressions must remain inventoried");
 
