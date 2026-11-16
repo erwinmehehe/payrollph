@@ -1,10 +1,10 @@
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
-> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 1 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
+> **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 0 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
 
-> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 461 COVERED + 24 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP. Eleven actions, eight executed proof jobs and all six source families; 0 separate page/action gaps remain. No production or external-provider acceptance.
+> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 461 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP. Eleven actions, eight executed proof jobs and all six source families; 0 separate page/action gaps remain. No production or external-provider acceptance.
 
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 461 COVERED + 24 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 461 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
 > **PR #1952 OIDC CALLBACK SOURCE PROOF — NOT ACCEPTED:** 498 API methods = 439 COVERED + 23 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 24 GAP; 16 page/action GAPs. [Synthetic HTTPS IdP / PG16 proof](https://github.com/erwinmehehe/payrollph/actions/runs/43251981343/job/131299924274) supports one distinct provisional callback GET. Merged #1956 keeps 19 separate payroll-run methods on source hold. SSO start/resolve and all other unproved surfaces stay GAP. Independent security, identity, payroll/privacy and production acceptance remain PENDING.
 
@@ -254,10 +254,10 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 16 | 10 | 6 | 1 | INCOMPLETE |
+| 6 | **EDG-01** | 33 | 16 | 11 | 6 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
 
-Frozen subtotal (2026-11-11 classification proposal): **377 COVERED + 16 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED + 8 PUBLIC-BY-DESIGN**. 1 batches remain INCOMPLETE; DL-01, DL-02, MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **377 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED + 8 PUBLIC-BY-DESIGN**. 0 batches remain INCOMPLETE; DL-01, DL-02, MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-01, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

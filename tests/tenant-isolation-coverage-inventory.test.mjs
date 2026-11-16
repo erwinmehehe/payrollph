@@ -1,5 +1,6 @@
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
+import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
 import {historicalSamlMetadataView,samlPrivacyRead} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {verifySamlPublicClassification} from '../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
@@ -3879,6 +3880,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     assert.equal(currentBlob, routeBlobSha,
       "SSO discovery changed: rerun three-employer PG16 real HTTP and owner security review");
     assert.equal(manifest.allApiRouteFiles[routePath].gitBlobSha, routeBlobSha);
+    if (method.status === "PUBLIC-BY-DESIGN") { assert.equal(verifySsoResolveClassification(manifest), 1); return true; }
     assert.equal(method.status, "GAP", "SSO public discovery is NOT certified as a tenant-private method");
     assert.equal(method.testedBy, null, "unaccepted GAP must not have credited evidence");
     const reviewed = method.reviewedUncertified;

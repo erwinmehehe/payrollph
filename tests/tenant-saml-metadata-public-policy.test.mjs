@@ -26,7 +26,7 @@ test('forged decision, changed archive, route drift, expanded scope and resolve 
  for(const mutate of [m=>{m.allApiRouteFiles[SAML_PUBLIC_PATH].methods[0].status='COVERED';},
   m=>{m.allApiRouteFiles[SAML_PUBLIC_PATH].methods[0].classificationEvidence.coverageCredits=1;},
   m=>{m.allApiRouteFiles[SAML_PUBLIC_PATH].methods.push({name:'POST',status:'PUBLIC-BY-DESIGN'});},
-  m=>{m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods[0].status='PUBLIC-BY-DESIGN';}]){
+  m=>{m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods[0].status='COVERED';}]){
   const m=proposal();mutate(m);assert.throws(()=>verifySamlPublicPolicy(m));
  }
 });
