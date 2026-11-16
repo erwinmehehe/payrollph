@@ -46,7 +46,7 @@ concurrency:
 
 jobs:
   synthetic-ess:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       TZ: Asia/Manila
