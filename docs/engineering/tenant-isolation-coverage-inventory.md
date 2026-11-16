@@ -1,5 +1,7 @@
 > **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD (NO NEW CREDITS):** 498 API methods = **386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP**. Exactly 75 previously provisionally credited methods are now **GAP / HELD / testedBy:null**: 23 direct/payroll-run, 47 transitive wage imports and 5 broad source-sealed Enterprise/Studio/Spend receipts. Prior receipts remain HISTORICAL ONLY, sealed for review; no credits may be restored without fresh exact-source PG16 HTTP proof and independent security review. No production, payment, filing, provider or payroll release acceptance. All dated summaries below are historical.
 
+> **NOT ACCEPTED**: 75 method gaps and 0 page/action gaps remain after exact-source wage dependency withdrawals. Every held method retains zero active proof credits; past receipts are historical only.
+
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
 > **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 0 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
@@ -282,7 +284,7 @@ Three salary-correction-case method proofs are inherited unchanged from main com
 | methods | 498 |
 | coveredBefore | 20 |
 | coveredAfter | 386 |
-| publicByDesign | 24 |
+| publicByDesign | 25 |
 | privilegedOperationsTokenOnly | 12 |
 | gap | 75 |
 | scopedPagesAndActions | 21 |

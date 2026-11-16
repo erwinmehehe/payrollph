@@ -259,7 +259,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 15 | 11 | 6 | 1 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 5 | 4 | INCOMPLETE |
 
-Current frozen subtotal after PR #1989 source withdrawal: **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **62 COVERED + 8 PUBLIC-BY-DESIGN + 22 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED. Historical pre-withdrawal figures remain in dated sections.
+Frozen subtotal (2026-11-11 classification proposal): **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **62 COVERED + 8 PUBLIC-BY-DESIGN + 22 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED. Historical pre-withdrawal figures remain in dated sections.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -851,6 +851,33 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 - `POST /api/webhooks/resend` — [source](../../src/app/api/webhooks/resend/route.ts#L10)
 - `POST /api/webhooks/xendit-payout` — [source](../../src/app/api/webhooks/xendit-payout/route.ts#L16)
 - `POST /api/webhooks/xendit/subscriptions` — [source](../../src/app/api/webhooks/xendit/subscriptions/route.ts#L31)
+
+### Supplemental wage-source method holds outside the frozen 406-method queue
+
+These 22 additional methods were previously source-credited but are now individually **GAP / HELD / zero credits** after the changed NWPC wage dependency. Their prior receipts remain historical, not current-source coverage. Fresh exact-source fictional PG16 own/foreign/unchanged-victim execution and independent security review are required before any credit is restored.
+
+- HELD `GET /api/compliance/bank-validations/[id]/file` — fresh exact-source PG16 HTTP required
+- HELD `PATCH /api/compliance/bank-validations/[id]` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/bank-validations` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/bank-validations` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/bir-1601c-remittances` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/bir-1601c-remittances` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/calendar` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/remittance-month-close` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/remittance-month-close` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/compliance/statutory-remittance-corrections` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/compliance/statutory-remittance-corrections` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/dashboard` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/employees` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/first-payroll/preview` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/hcm/governance-readiness` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/assurance` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/release-checklist` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs` — fresh exact-source PG16 HTTP required
+- HELD `POST /api/payroll-runs` — fresh exact-source PG16 HTTP required
+- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — fresh exact-source PG16 HTTP required
 
 ## Page and server-action closure (20 independently requested wrong-employer surfaces)
 
