@@ -5,9 +5,13 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyCredit as verifyOnboardingCredit } from '../scripts/qa/tenant-onboarding-credit.mjs';
+import { historicWageRegistryProofView, verifyWageRegistrySourceHold } from '../scripts/qa/wage-registry-source-hold.mjs';
+import { verifyAllTransitiveWageHolds, TRANSITIVE_HOLD_KIND } from '../scripts/qa/wage-registry-transitive-source-hold.mjs';
 
 const manifest = JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json', 'utf8'));
 const overview = readFileSync('docs/engineering/tenant-isolation-coverage-inventory.md', 'utf8');
+const archival = historicWageRegistryProofView(manifest);
+assert.equal(verifyAllTransitiveWageHolds(manifest).size,47);
 const specs = [
   { route: 'employees/import', file: 'scripts/qa/tenant-dl01-import-history-http.mjs', declaration: 'export const IMPORT_HISTORY_METHOD = "GET employees/import";', forged: 'const ignored = expectStatus(await request(', exists: 'assert.equal(persistedVictim?.organizationId, victimOrg.id)', order: 'assert.ok(victim.id > 6 && victim.id > rows[8].id && victim.id > rows[9].id)' },
   { route: 'compliance/filing-validations/[id]/file', file: 'scripts/qa/tenant-dl01-filing-file-http.mjs', declaration: 'export const FILING_FILE_METHOD = "GET compliance/filing-validations/[id]/file";', forged: 'const forged = expectStatus(await request(', exists: 'assert.equal(persistedVictim?.organizationId, victimOrg.id)', order: 'assert.ok(victim.record.id > 6 && victim.record.id > fixtures[7].record.id && victim.record.id > fixtures[8].record.id)' },
@@ -54,9 +58,21 @@ function assertLinks(method, spec, source) {
 
 for (const spec of specs) {
   const record = manifest.allApiRouteFiles['src/app/api/' + spec.route + '/route.ts'];
-  const method = record?.methods.find(m => m.name === 'GET');
+  const current = record?.methods.find(m => m.name === 'GET');
+  const method = archival.allApiRouteFiles['src/app/api/' + spec.route + '/route.ts']
+    ?.methods.find(m => m.name === 'GET');
   const source = readFileSync(spec.file, 'utf8');
   test('reviewed GET requires every exact executed proof link: ' + spec.route, () => {
+    if (current.status === 'GAP') {
+      assert.equal(current.testedBy,null);
+      assert.equal(current.reviewedUncertified?.kind,TRANSITIVE_HOLD_KIND,
+        'Historical proof cannot conceal a wage-source dependency gap');
+      assert.equal(current.reviewedUncertified.coverageCredits,0);
+      assert.deepEqual(current.reviewedUncertified.priorProof,method.testedBy);
+    } else {
+      assert.equal(current.status,'COVERED');
+      assert.deepEqual(current.testedBy,method.testedBy);
+    }
     assertLinks(method, spec, source);
     assert.ok(overview.includes('(../../' + spec.file + '#L' + method.testedBy.ownPositiveLine + ')'));
   });
@@ -85,11 +101,21 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.equal(methods.length, manifest.metrics.methods);
   assert.ok(methods.length > 0);
   assertLiveTenantCounts(assert, manifest);
-  const readiness = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts']
+  const readinessPath='src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts';
+  const processPath='src/app/api/payroll-runs/[id]/process/route.ts';
+  const readiness = manifest.allApiRouteFiles[readinessPath]
     ?.methods.find(m => m.name === 'GET');
-  const changedProcess = manifest.allApiRouteFiles['src/app/api/payroll-runs/[id]/process/route.ts']
+  const changedProcess = manifest.allApiRouteFiles[processPath]
     ?.methods.find(m => m.name === 'POST');
-  if(!isVerifiedOracleSupersession(manifest,'src/app/api/payroll-runs/[id]/pre-run-readiness/route.ts','GET')) {
+  if (verifyWageRegistrySourceHold(manifest,readinessPath,'GET')) {
+    assert.ok(verifyWageRegistrySourceHold(manifest,processPath,'POST'));
+    assert.equal(readiness.status,'GAP');
+    assert.equal(changedProcess.status,'GAP');
+    assert.equal(readiness.testedBy,null);
+    assert.equal(changedProcess.testedBy,null);
+    assert.equal(archival.allApiRouteFiles[readinessPath].methods.find(x=>x.name==='GET').status,'COVERED');
+    assert.equal(archival.allApiRouteFiles[processPath].methods.find(x=>x.name==='POST').status,'COVERED');
+  } else if(!isVerifiedOracleSupersession(manifest,readinessPath,'GET')) {
   assert.equal(readiness?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.equal(changedProcess?.testedBy?.file, 'scripts/qa/tenant-second-pass-http.mjs');
   assert.match(changedProcess?.reason ?? '', /422.*403/,
@@ -106,17 +132,36 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.ok(probation.every(method =>
     method.status === 'COVERED' &&
     method.testedBy?.file === 'scripts/qa/hcm-probation-sweep-http.mjs'));
-  const actionMethods = manifest.allApiRouteFiles['src/app/api/compliance/remittance-actions/route.ts'].methods;
-  assert.deepEqual(actionMethods.map(m => m.name), ['GET', 'POST']);
-  assert.ok(actionMethods.every(m => m.status === 'COVERED' &&
-    m.testedBy?.file === 'scripts/qa/remittance-action-entity-http.mjs'));
-  const importPost = manifest.allApiRouteFiles['src/app/api/employees/import/route.ts'].methods.find(m => m.name === 'POST');
-  assert.equal(importPost.status, 'COVERED', 'Only the separately executed onboarding proof covers import POST');
-  assert.notEqual(importPost.testedBy?.file, specs[0].file, 'GET proof cannot cover the import write');
-  assert.equal(verifyOnboardingCredit('POST employees/import', importPost), true);
+  const actionsPath='src/app/api/compliance/remittance-actions/route.ts';
+  const actionMethods=manifest.allApiRouteFiles[actionsPath].methods;
+  const archivedActions=archival.allApiRouteFiles[actionsPath].methods;
+  assert.deepEqual(actionMethods.map(m=>m.name),['GET','POST']);
+  for (const current of actionMethods) {
+    assert.equal(current.status,'GAP',"New wage source withdraws remittance-action credit");
+    assert.equal(current.testedBy,null);
+    assert.equal(current.reviewedUncertified?.kind,TRANSITIVE_HOLD_KIND);
+    const prior=archivedActions.find(x=>x.name===current.name);
+    assert.equal(prior?.status,'COVERED');
+    assert.equal(prior.testedBy?.file,'scripts/qa/remittance-action-entity-http.mjs');
+    assert.deepEqual(prior.testedBy,current.reviewedUncertified.priorProof);
+  }
+  const importPath='src/app/api/employees/import/route.ts';
+  const importPost=manifest.allApiRouteFiles[importPath].methods.find(m=>m.name==='POST');
+  assert.equal(importPost.status,'GAP',"Old onboarding receipt cannot recredit changed wage source");
+  assert.equal(importPost.testedBy,null);
+  assert.equal(importPost.reviewedUncertified?.kind,TRANSITIVE_HOLD_KIND);
+  const archivedImport=archival.allApiRouteFiles[importPath].methods.find(m=>m.name==='POST');
+  assert.equal(archivedImport.status,'COVERED');
+  assert.notEqual(archivedImport.testedBy?.file,specs[0].file,'GET proof cannot cover the import write');
+  assert.equal(verifyOnboardingCredit('POST employees/import',archivedImport),true);
   const closePost = manifest.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
     ?.methods.find(method => method.name === "POST");
-  if(!isVerifiedOracleSupersession(manifest,"src/app/api/payroll-runs/[id]/close/route.ts","POST")) {
+  if(verifyWageRegistrySourceHold(manifest,"src/app/api/payroll-runs/[id]/close/route.ts","POST")) {
+    assert.equal(closePost.status,"GAP","Prior close POST remains source-held");
+    assert.equal(closePost.testedBy,null);
+    assert.equal(archival.allApiRouteFiles["src/app/api/payroll-runs/[id]/close/route.ts"]
+      .methods.find(x=>x.name==="POST").status,"COVERED");
+  } else if(!isVerifiedOracleSupersession(manifest,"src/app/api/payroll-runs/[id]/close/route.ts","POST")) {
   assert.equal(closePost?.status, "COVERED",
     "Only separately source-pinned successful close POST can add a provisional credit");
   assert.equal(closePost.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
