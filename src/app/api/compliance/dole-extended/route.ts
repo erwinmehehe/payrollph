@@ -125,6 +125,8 @@ export async function PATCH(request: Request) {
       const [row] = await tx.update(doleExtendedReports).set({
         status: body.status as string, portalReference: nextRef, receiptSha256: nextReceipt,
         submittedAt: old.submittedAt ?? (body.status === "submitted_recorded" ? new Date() : null),
+        outcomeRecordedByUserId: ["accepted_recorded","rejected_recorded"].includes(body.status as string)
+          ? user.id : old.outcomeRecordedByUserId,
         reviewedByUserId: body.status === "independently_reviewed" ? user.id : old.reviewedByUserId,
         reviewedAt: body.status === "independently_reviewed" ? new Date() : old.reviewedAt,
         updatedAt: new Date(),
