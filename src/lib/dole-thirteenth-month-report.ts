@@ -24,18 +24,29 @@ export type DoleReportingProfile = {
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 /**
- * Screening entitlement = 1/12 of basic, exact integer-centavo half-up (the shared PD 851 module).
- * The previous float path (round2(basic / 12)) was one centavo low in 0.87% of amounts.
- * A basic amount that cannot be proven to whole centavos keeps the legacy float result rather
- * than being invented or zeroed; the report only screens, it never pays.
+ * Screening entitlement = 1/12 of basic, exact integer-centavo half-up.
+ * A finite basic that cannot be verified to centavos retains the legacy float
+ * screening figure for diagnostic display only. It is NOT a verified screening
+ * amount: the employee must appear in incompleteBasicRows and submission
+ * readiness must be blocked. Non-finite or malformed basics have no display
+ * entitlement at all. No real pay, granted amounts, or report hash are changed.
  */
-function screeningEntitlementPesos(basicSalaryEarned: number): number {
+function screeningEntitlementPesos(
+  basicSalaryEarned: number,
+): { amount: number | null; verified: boolean } {
+  if (typeof basicSalaryEarned !== "number" || !Number.isFinite(basicSalaryEarned)) {
+    return { amount: null, verified: false };
+  }
   const basic = Math.max(0, basicSalaryEarned);
+  const unverified = () => {
+    const legacy = round2(basic / 12);
+    return { amount: Number.isFinite(legacy) ? legacy : null, verified: false };
+  };
   const centavos = storedMoneyCentavos(basic);
-  if (centavos === null) return round2(basic / 12);
+  if (centavos === null) return unverified();
   const result = computeThirteenthMonth({ basicCentavos: centavos, payouts: {} });
-  if (result.blockers.length > 0) return round2(basic / 12);
-  return result.entitlementCentavos / 100;
+  if (result.blockers.length > 0) return unverified();
+  return { amount: result.entitlementCentavos / 100, verified: true };
 }
 
 export function buildDoleThirteenthMonthReport(input: {
@@ -51,12 +62,18 @@ export function buildDoleThirteenthMonthReport(input: {
         + Math.max(0, worker.historicalThirteenthPaid)
         + Math.max(0, worker.finalPayThirteenthPaid),
       );
-      const screeningEntitlement = screeningEntitlementPesos(worker.basicSalaryEarned);
-      const screeningShortfall = round2(Math.max(0, screeningEntitlement - amountGranted));
+      const screening = screeningEntitlementPesos(worker.basicSalaryEarned);
+      const basicSalaryComplete = worker.basicSalaryComplete && screening.verified;
+      // An unverified base cannot establish either a clean screen or a real shortfall.
+      const screeningShortfall = screening.verified && screening.amount !== null
+        ? round2(Math.max(0, screening.amount - amountGranted))
+        : null;
       return {
         ...worker,
+        basicSalaryComplete,
+        screeningBasicVerified: screening.verified,
         amountGranted,
-        screeningEntitlement,
+        screeningEntitlement: screening.amount,
         screeningShortfall,
       };
     })
@@ -66,7 +83,9 @@ export function buildDoleThirteenthMonthReport(input: {
   const totalBenefitsGranted = round2(
     beneficiaries.reduce((sum, worker) => sum + worker.amountGranted, 0),
   );
-  const reviewRows = workers.filter((worker) => worker.basicSalaryComplete && worker.screeningShortfall >= 0.01);
+  const reviewRows = workers.filter((worker) =>
+    worker.basicSalaryComplete && worker.screeningShortfall !== null && worker.screeningShortfall >= 0.01,
+  );
   const incompleteBasicRows = workers.filter((worker) => !worker.basicSalaryComplete);
   const profileComplete = Boolean(
     input.profile?.establishmentAddress.trim()
@@ -107,7 +126,11 @@ export function buildDoleThirteenthMonthReport(input: {
     profileComplete,
     reviewRows,
     incompleteBasicRows,
-    readyToSubmit: profileComplete && workers.length > 0,
+    // Existing incomplete imported history remains reportable as before.
+    // Newly detected invalid/unverifiable numeric basic blocks recording
+    // submission evidence until the basic source is reconciled.
+    readyToSubmit: profileComplete && workers.length > 0
+      && workers.every((worker) => worker.screeningBasicVerified),
     sourceNote:
       "Source worksheet for the DOLE Online Compliance Portal. PayrollPH does not submit this report to DOLE and does not treat generation as proof of submission.",
   };
