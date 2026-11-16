@@ -121,17 +121,20 @@ test('each sealed fresh input set equals the full locked-compiler import closure
   }
 });
 
-test('fast source guards verify the complete sealed graph without loading TypeScript',()=>{
+test('fast source guards reject stale wage sources without loading TypeScript',()=>{
   const script=`import {registerHooks} from 'node:module';
     registerHooks({resolve(specifier,context,next){
       if(specifier==='typescript')throw new Error('Compiler unavailable in fast source-only CI');
       return next(specifier,context);
     }});
     const {readVerifiedPayrollRenewal}=await import('./scripts/qa/payroll-run-credit-renewal-verify.mjs');
-    if(readVerifiedPayrollRenewal().methods.length!==19)throw new Error('Incomplete renewal');
-    console.log('verified nineteen without compiler');`;
+    try { readVerifiedPayrollRenewal(); throw new Error('Stale credit incorrectly accepted'); }
+    catch (error) {
+      if (!String(error.message).includes('Executed input closure drift:')) throw error;
+      console.log('stale wage source correctly held without compiler');
+    }`;
   assert.match(execFileSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'}),
-    /verified nineteen without compiler/);
+    /stale wage source correctly held without compiler/);
 });
 
 test('fresh jobs cannot drop proof roots, borrow historical executions or omit the synthetic-provider preload',()=>{
@@ -180,21 +183,23 @@ test('receipt seal rejects invented results and exact executed source drift',()=
       /closure drift/);
   }
 });
-test('renewed citations identify actual jobs without pretending independent acceptance',()=>{
-  const proof=payrollRenewalProof('POST payroll-runs');
-  assert.equal(proof.cohorts.find(x=>x.name==='creation').jobId,131745203827);
-  assert.equal(proof.independentlyAccepted,false);assert.equal(proof.productionCertified,false);
-  assert.throws(()=>payrollRenewalProof('POST payroll-runs/[id]/xendit-payout'),/not renewed/);
+test('archived payroll-run citations cannot authorize current-source coverage',()=>{
+  assert.equal(receipt().cohorts.creation.jobId,131745203827);
+  assert.equal(receipt().independentlyAccepted,false);
+  assert.equal(receipt().productionCertified,false);
+  assert.throws(()=>payrollRenewalProof('POST payroll-runs'),/Executed input closure drift:/);
+  assert.ok(!PAYROLL_RENEWAL_METHODS.includes('POST payroll-runs/[id]/xendit-payout'));
 });
 
 test('payroll documents reconcile without duplicating or moving the separate SSO hold banner',()=>{
   const result=reconcilePayrollRenewal({write:false});
   assert.equal(result.credited,0);
-  assert.deepEqual(result.before,result.after);
+  assert.equal(result.held,19);
+  assert.equal(result.status,'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD');
   for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
     const text=readFileSync(file,'utf8');
-    assert.match(text,/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
-    assert.match(text.split('\n\n')[1],/^> \*\*PAYROLL RUN ORACLE — RENEWED:/);
+    assert.match(text,/^> \*\*CURRENT \/ PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD/);
+    assert.match(text.split('\n\n')[1],/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
     // The independently source-verified MKT-01 and OIDC receipts change only the live totals, not historical Studio proofs.
     const studioBanners=text.split('\n').filter(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
     // The inventory records two older Studio checkpoints, while the plan
@@ -203,8 +208,10 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     assert.equal(studioBanners.length,expectedBanners,
       'Keep exactly the historical Studio accounting snapshots in each document');
     const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json')).metrics;
-    assert.ok(studioBanners[0].includes(live.coveredAfter+' COVERED + '+live.publicByDesign+
-      ' PUBLIC-BY-DESIGN + '+live.privilegedOperationsTokenOnly+' PRIVILEGED-OPERATIONS-TOKEN-ONLY + '+live.gap+' GAP'));
+    assert.equal(live.coveredAfter,438);
+    assert.equal(live.gap,24);
+    // Dated Studio banners are history; do not rewrite them as newer credits.
+    assert.ok(studioBanners[0].includes('461 COVERED + 24 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP'));
     // The historical Studio snapshots are retained byte-for-byte; OIDC
     // recovery updates only the first live summary, not the older 460/3
     // checkpoints or their original 16/17 page-gap accounting.
