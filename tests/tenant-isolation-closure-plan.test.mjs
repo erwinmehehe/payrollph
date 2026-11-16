@@ -125,7 +125,7 @@ test("closure plan schedules every original GAP exactly once in priority order",
     return key.slice(at + 1) + " " + key.slice(0, at);
   }));
   assert.equal(wageHolds.size, 75, "Complete 75-method source withdrawal required");
-  const supplemental = new Set([...plan.matchAll(/^- HELD `(GET|POST) \/api\/([^`]+)` — fresh exact-source PG16 HTTP required$/gm)]
+  const supplemental = new Set([...plan.matchAll(/^- HELD `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — fresh exact-source PG16 HTTP required$/gm)]
     .map(match => match[1] + " " + match[2]));
   for (const key of supplemental) {
     const [verb, route] = key.split(" "), path = "src/app/api/" + route + "/route.ts";
