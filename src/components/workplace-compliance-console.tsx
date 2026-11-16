@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { PrivateWorkplaceStatement } from "@/components/private-workplace-statement";
 
 type Row = { id: number; status?: string; [key: string]: unknown };
 type Payload = { records?: Row[]; events?: Row[]; cases?: Row[]; officers?: Array<{ userId: number; name: string }> };
@@ -263,7 +264,7 @@ export function WorkplaceComplianceConsole({ organizationId, enabled }: {
         <p className="my-2 text-xs text-slate-600">Only disclose on a trusted screen. Never copy into shared audit tickets.</p>
         {data.cases.cases.map(r => <details className="my-2 rounded-md border p-3" key={r.id}>
           <summary className="cursor-pointer text-sm font-semibold">Case #{r.id} · restricted statement</summary>
-          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-800">{String(r.statement ?? "")}</p>
+          <PrivateWorkplaceStatement organizationId={organizationId} caseId={r.id} />
         </details>)}
       </div> : null}
     </section> : null}
