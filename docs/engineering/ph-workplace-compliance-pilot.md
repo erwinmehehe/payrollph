@@ -1,27 +1,27 @@
 # Philippine Workplace Compliance pilot: DOLE, OSH/training, protected investigations
 
-**State: source implementation ONLY. NO production activation, migration, genuine employee data, agency submission, or legal certification.**
+**State: QUARANTINED SOURCE-ONLY PILOT. No active Next.js pages or HTTP routes in this PR. NO production activation, migration, genuine employee data, agency submission, or legal certification.**
 
-This branch adds three strictly default-OFF capabilities. They deliberately do not change payroll, existing 13th-month reports, banking, or ordinary HR cases.
+This branch preserves prototype implementations for three strictly default-OFF capabilities under `src/pilots/workplace/`, with reusable components and domain models. Their active `src/app` entrypoints were intentionally withdrawn because the tenant-isolation inventory requires independently executed own-employer and foreign-employer PG16/HTTP proof for each method and page. The existing inventory and historical proofs are unchanged. These capabilities cannot be reached or used in the running product from this branch.
 
 ## 1. Extended DOLE reporting
 
-Employer console: /workspace/workplace-compliance?organizationId=APPROVED_ID.
+**Planned future employer console (NOT REGISTERED):** `/workspace/workplace-compliance?organizationId=APPROVED_ID`. Prototype page: `src/pilots/workplace/ui/employer-workplace-compliance.tsx`.
 
-API: /api/compliance/dole-extended (GET, POST, PATCH).
+**Planned future HTTP API (NOT REGISTERED):** `/api/compliance/dole-extended` (GET, POST, PATCH); prototype: `src/pilots/workplace/api/dole-extended.ts`.
 
 Tracks employer-scoped source evidence for Work Accident/Illness Reports, telecommuting, flexible work, construction safety, labor inspection and other DOLE submissions. The state flow is draft -> submitted_recorded -> accepted_recorded/rejected_recorded -> independently_reviewed. The separate human review requires a different user and the original receipt reference plus SHA-256. **An operator's entered agency outcome is not official verification**. The app never submits a filing to DOLE, does not infer statutory deadlines, and does not call a worksheet an agency upload template.
 
 ## 2. OSH incidents, corrective action, and training proof
 
-APIs: /api/compliance/osh-events and /api/compliance/osh-training.
+**Planned future APIs (NOT REGISTERED):** `/api/compliance/osh-events` and `/api/compliance/osh-training`; prototype handlers in `src/pilots/workplace/api/`.
 
 The incident register holds a worksite label, civil date, category, severity, corrective-action reference and evidence hash; it has no medical narrative or diagnoses. A separate authorized reviewer must close a case with private evidence. The training register tracks exact worker identity, course type/title, completed and optional expiration date, protected evidence hash and independent review. An employer's OSH officer decides legally required courses, risk categories, reporting duties, proof, and expiry rules; the software does not make those determinations.
 
 ## 3. Encrypted protected complaints and case officers
 
-Employee page: /self/workplace-concern (authenticated employee identity only; no query-selected employer or worker).
-APIs: /api/workplace/case-officers and /api/workplace/protected-cases.
+**Planned future employee page (NOT REGISTERED):** `/self/workplace-concern` (authenticated identity; no query-selected employer). Prototype page: `src/pilots/workplace/ui/employee-workplace-concern.tsx`.
+**Planned future APIs (NOT REGISTERED):** `/api/workplace/case-officers` and `/api/workplace/protected-cases`, prototypes in `src/pilots/workplace/api/`.
 
 An independent Owner/Admin must appoint named company-member intake officers (no self-appointment). Any employee can create a case assigned to an active approved officer; statements are encrypted with purpose-derived AES-256-GCM and a required PII_ENCRYPTION_KEY, with rotation via PII_ENCRYPTION_KEY_PREVIOUS. The case list is metadata-only. One statement is decrypted and returned only after a separate, deliberate caseId request by the creator or a currently active named investigator/reviewer (staff requests require recent privileged MFA). Creator, investigator and final reviewer cannot be the same person for final case closure. Restricted audit events contain metadata only, not allegation text or case category. Cases can only close with private external-evidence digest.
 
@@ -47,6 +47,14 @@ All three new flags are enumerated with owner/risk/approval in src/lib/ph-workpl
 
 New additive source-only candidate: docs/engineering/migration-candidates/0139_ph_workplace_compliance_foundation.sql.
 Model definitions are in src/db/workplace-compliance-schema.ts. Standard drizzle.config.ts and protected core src/db/schema.ts are restored byte-for-byte to their verified base versions. The separate drizzle.workplace-pilot.config.ts can be used only against an explicitly verified disposable local database; it checks the original isolated-target guard. The unapproved 0139 candidate is deliberately NOT inside drizzle/ so existing production/synthetic baseline scanners never treat it as an applied migration. A DBA-reviewed 0139 migration is required before ever enabling these routes in a real environment. Existing security proof hashes must never be fabricated or repinned without independent re-execution. **DO NOT run db:push, apply 0139 in Neon, or deploy to real customers from this PR.** An independent DBA must reconcile correct branch/schema/receipts and contiguous migration order; rehearse an isolated restore and rollback; review FK and table/model parity; record a signed release receipt. No historical receipts, incident records, allegations or committee appointments are inferred.
+
+## Mandatory promotion gate for live route registration
+
+- [ ] Keep source-only pilot under `src/pilots/workplace/` until separately approved; simply setting an environment flag cannot register a live route.
+- [ ] Run a real disposable PostgreSQL 16 multi-employer HTTP harness for **GET, POST, PATCH of all five APIs**, with populated authorized-own success, two existing victim tenants, denied cross-tenant reads/mutations, and unchanged victim SQL rows.
+- [ ] Independently test both employer and employee SSR pages with authorized own and foreign/revoked user sessions; include protected statement detail and officer revocation races.
+- [ ] Add each exact source blob and independently executed proof references to `scripts/qa/tenant-isolation-coverage-manifest.json`. Preserve all historical credits; never invent, reuse or repin old receipts.
+- [ ] Reintroduce each `src/app` route/page **only as part of the same reviewed proof-backed PR**. Then run the exact-head CI gate. A passing source-only CI run is not production release authorization.
 
 ## Required engineering QA
 
