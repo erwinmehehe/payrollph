@@ -18,7 +18,7 @@ function Input({ name, title, type = "text", required = false, hint, placeholder
   return <label className="block min-w-0">
     <span className={label}>{title}</span>
     <input className={control} name={name} type={type} required={required} placeholder={placeholder}
-      maxLength={maxLength} minLength={minLength} defaultValue={defaultValue} aria-description={hint} />
+      maxLength={maxLength} minLength={minLength} defaultValue={defaultValue} />
     {hint ? <small className="mt-1 block text-slate-500">{hint}</small> : null}
   </label>;
 }
@@ -126,7 +126,10 @@ export function WorkplaceComplianceConsole({ organizationId, enabled }: {
     } catch (e) { setFailure(e instanceof Error ? e.message : "Could not verify permissions."); }
     finally { setLoading(false); }
   }, [organizationId, enabled.dole, enabled.osh, enabled.cases]);
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    const handle = window.setTimeout(() => { void reload(); }, 0);
+    return () => window.clearTimeout(handle);
+  }, [reload]);
   return <div className="space-y-5">
     <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
       Pilot only. Confirm applicability and deadlines with Philippine counsel/OSH officers.
