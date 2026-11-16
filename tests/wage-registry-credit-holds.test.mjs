@@ -44,9 +44,12 @@ test('the current-ledger guard rejects unrelated edits, false counts and borrowe
 });
 
 test('historical wage bytes do not conceal a newly changed statutory watch',()=>{
+ // Pin this test's real pre-withdrawal input, so it remains meaningful when
+ // origin/main eventually contains this PR's 75 holds and updated registry.
+ const historicalMain='d7393966e6b2ea14430fc76b558e5cf1fb77735c';
  const m=load(),base=JSON.parse(execFileSync('git',
-   ['show','origin/main:scripts/qa/tenant-isolation-coverage-manifest.json'],{maxBuffer:16<<20}));
- const historicalRead=p=>execFileSync('git',['show','origin/main:'+p],{maxBuffer:16<<20});
+   ['show',historicalMain+':scripts/qa/tenant-isolation-coverage-manifest.json'],{maxBuffer:16<<20}));
+ const historicalRead=p=>execFileSync('git',['show',historicalMain+':'+p],{maxBuffer:16<<20});
  assert.equal(verifiedWageCreditHolds(base,historicalRead).size,0);
  assert.throws(()=>verifiedWageCreditHolds(base,p=>p==='src/lib/statutory-rule-watch.ts'
    ?readFileSync(p):historicalRead(p)),/changed statutory watch/);
