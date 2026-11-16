@@ -23,7 +23,7 @@ The incident register holds a worksite label, civil date, category, severity, co
 Employee page: /self/workplace-concern (authenticated employee identity only; no query-selected employer or worker).
 APIs: /api/workplace/case-officers and /api/workplace/protected-cases.
 
-An independent Owner/Admin must appoint named company-member intake officers (no self-appointment). Any employee can create a case assigned to an active approved officer; statements are encrypted with purpose-derived AES-256-GCM and a required PII_ENCRYPTION_KEY, with rotation via PII_ENCRYPTION_KEY_PREVIOUS. Only the creator or currently active named investigator/reviewer can view the statement. Creator, investigator and final reviewer cannot be the same person for final case closure. Restricted audit events contain metadata only, not allegation text or case category. Cases can only close with private external-evidence digest.
+An independent Owner/Admin must appoint named company-member intake officers (no self-appointment). Any employee can create a case assigned to an active approved officer; statements are encrypted with purpose-derived AES-256-GCM and a required PII_ENCRYPTION_KEY, with rotation via PII_ENCRYPTION_KEY_PREVIOUS. The case list is metadata-only. One statement is decrypted and returned only after a separate, deliberate caseId request by the creator or a currently active named investigator/reviewer (staff requests require recent privileged MFA). Creator, investigator and final reviewer cannot be the same person for final case closure. Restricted audit events contain metadata only, not allegation text or case category. Cases can only close with private external-evidence digest.
 
 This is **not an anonymous whistleblower product or certified Committee on Decorum and Investigation (CODI) process**. Counsel/DPO must independently assess member diversity, impartiality, replacement/recusal, conflicts, legal deadlines, policies, due process, retaliation protection, retention/legal holds and alternative reporting channels. An employer must provide external emergency and independent reporting channels before enabling this preview.
 
@@ -46,7 +46,7 @@ Review with a qualified Philippine OSH officer/labor practitioner, government bo
 All flags require the exact value true and otherwise return 404. The existing multiEntity flag disables the entire pilot until employer/legal-entity authorization is separately verified. All new data is organization plus verified single-legal-entity scoped.
 
 New additive source-only candidate: drizzle/0139_ph_workplace_compliance_foundation.sql.
-Model definitions are in src/db/schema.ts. **DO NOT run db:push, apply 0139 in Neon, or deploy to real customers from this PR.** An independent DBA must reconcile correct branch/schema/receipts and contiguous migration order; rehearse an isolated restore and rollback; review FK and table/model parity; record a signed release receipt. No historical receipts, incident records, allegations or committee appointments are inferred.
+Model definitions are in src/db/workplace-compliance-schema.ts, included explicitly in drizzle.config.ts. The protected core source src/db/schema.ts is restored byte-for-byte to the verified base; existing security proof hashes must never be fabricated or repinned without independent re-execution. **DO NOT run db:push, apply 0139 in Neon, or deploy to real customers from this PR.** An independent DBA must reconcile correct branch/schema/receipts and contiguous migration order; rehearse an isolated restore and rollback; review FK and table/model parity; record a signed release receipt. No historical receipts, incident records, allegations or committee appointments are inferred.
 
 ## Required engineering QA
 
@@ -57,6 +57,8 @@ Model definitions are in src/db/schema.ts. **DO NOT run db:push, apply 0139 in N
 - [ ] Real device, accessible 390px, employee/HR/OSH/officer workflows and source SHA verification.
 - [ ] Simulate key missing, tampered ciphertext, previous-key rotation; no plaintext in logs, audit, CI, or GitHub.
 - [ ] Test concurrent case decisions, officer conflict, revocation hold, second-signatory review and no final closure without evidence.
+- [ ] Test list replies never contain sealed/plain allegation statements, and one-record caseId detail reads deny foreign/non-assigned/revoked callers.
+- [ ] Restore and re-run original source-pinned proof checks from original unchanged blob rather than editing legacy manifests or issuing fictitious proof credit.
 - [ ] Independently review private storage, retention, deletion, case recusal and alternate reporting mechanisms.
 
 ## External business signoff / open acceptance
