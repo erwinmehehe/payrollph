@@ -1,7 +1,5 @@
 > **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD (NO NEW CREDITS):** 498 API methods = **386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP**. Exactly 75 previously provisionally credited methods are now **GAP / HELD / testedBy:null**: 23 direct/payroll-run, 47 transitive wage imports and 5 broad source-sealed Enterprise/Studio/Spend receipts. Prior receipts remain HISTORICAL ONLY, sealed for review; no credits may be restored without fresh exact-source PG16 HTTP proof and independent security review. No production, payment, filing, provider or payroll release acceptance. All dated summaries below are historical.
 
-> **NOT ACCEPTED**: 75 method gaps and 0 page/action gaps remain after exact-source wage dependency withdrawals. Every held method retains zero active proof credits; past receipts are historical only.
-
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
 > **PAYROLL RUN ORACLE — RENEWED:** 19 source-sealed provisional method renewals; 461 COVERED / 0 GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.
@@ -9,6 +7,8 @@
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** 498 methods = 461 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP. Eleven actions, eight executed proof jobs and all six source families; 0 separate page/action gaps remain. No production or external-provider acceptance.
 
 > **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+
+> **NOT ACCEPTED**: 75 method gaps and 0 page/action gaps remain after exact-source wage dependency withdrawals. Every held method retains zero active proof credits; past receipts are historical only.
 
 > **Year-end GET and POST credit renewed again (provisional, NOT ACCEPTED):** 439 COVERED / 23 PUBLIC-BY-DESIGN / 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY / 24 GAP. #1957 made `src/lib/year-end.ts` apply one de minimis ceiling per category and statutory period across imported and calculated pay (golden Phase 14) and held the pair at zero. The fictional PG16 real-HTTP proof (`annualize-and-bind-isolated`) then ran on the main merge commit [`ba70678f3`](https://github.com/erwinmehehe/payrollph/commit/ba70678f30e24436dcaac853e0b047adbbe3f96a): [run 43372002300, job 131709669757](https://github.com/erwinmehehe/payrollph/actions/runs/43372002300/job/131709669757). It credits only these two methods; the `year-end.ts` pin is renewed (`b2b52a79`). Independent payroll/security review stays PENDING; not production certified; no government filing.
 
