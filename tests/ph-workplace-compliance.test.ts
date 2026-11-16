@@ -7,11 +7,11 @@ import {
   PROTECTED_CASE_STATES, DOLE_EXTENDED_REPORT_TYPES,
 } from "../src/lib/ph-workplace-compliance-policy";
 import { sealWorkplaceStatement, openWorkplaceStatement } from "../src/lib/ph-workplace-statement-crypto";
-import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
+import { workplacePilotFlagEnabled, workplacePilotFlagInventory, PH_WORKPLACE_PILOT_FLAGS } from "../src/lib/ph-workplace-release-flags";
 
 test("three protected workplace modules remain disabled without explicit true flags", () => {
   for (const flag of ["phDoleExtended", "phOshRecords", "phProtectedCases"] as const) {
-    assert.equal(criticalReleaseFlagEnabled(flag, {}), false);
+    assert.equal(workplacePilotFlagEnabled(flag, {}), false);
   }
 });
 test("PH civil dates reject impossible dates and never coerce time zones", () => {
@@ -117,4 +117,31 @@ test("private allegation narratives are retrieved only by one authorized detail 
   assert.ok(console.includes("<PrivateWorkplaceStatement"));
   assert.ok(!employee.includes("{c.statement}"));
   assert.ok(!console.includes("String(r.statement ??"));
+});
+
+
+test("workplace pilot gate metadata is complete, distinct, exact-true and separately reviewed", () => {
+  const entries = workplacePilotFlagInventory();
+  assert.equal(entries.length, 3);
+  assert.equal(new Set(entries.map(x => x.env)).size, 3);
+  for (const entry of entries) {
+    assert.ok(entry.owner && entry.risk && entry.approval);
+    assert.equal(entry.defaultEnabled, false);
+    assert.equal(entry.releaseApproved, false);
+    const flag = entry.key as keyof typeof PH_WORKPLACE_PILOT_FLAGS;
+    for (const value of [undefined, "TRUE", "on", "1", "", "false"]) {
+      assert.equal(workplacePilotFlagEnabled(flag, { [entry.env]: value }), false);
+    }
+    assert.equal(workplacePilotFlagEnabled(flag, { [entry.env]: "true" }), true);
+  }
+  assert.throws(() => workplacePilotFlagEnabled("inventedGate" as never, {}),
+    /Unknown workplace release-critical/);
+});
+test("original source-sealed release registry is not modified by workplace pilot", () => {
+  const global = readFileSync("src/lib/critical-release-flags.ts", "utf8");
+  assert.ok(!global.includes("PH_DOLE_EXTENDED_REPORTS_ENABLED"));
+  assert.ok(!global.includes("PH_PROTECTED_WORKPLACE_CASES_ENABLED"));
+  const workplace = readFileSync("src/lib/ph-workplace-context.ts", "utf8");
+  assert.ok(workplace.includes('workplacePilotFlagEnabled(flag)'));
+  assert.ok(workplace.includes('criticalReleaseFlagEnabled("multiEntity")'));
 });
