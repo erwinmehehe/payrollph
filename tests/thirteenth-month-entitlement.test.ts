@@ -30,8 +30,7 @@ test("entitlement equals floor((c + 6) / 12) for every basic from 0 to 250,000 c
   }
 });
 
-test("KNOWN DIVERGENCE: the report's floating-point path is one centavo low where the exact path is right", () => {
-  // Fails once dole-thirteenth-month-report.ts is rewired to this module; then update this test.
+test("the old floating-point formula (legacy, no longer used by the DOLE report) was one centavo low where the exact path is right", () => {
   assert.equal(legacyEntitlementPesos(100.02), 8.33);
   assert.equal(computeThirteenthMonth({ basicCentavos: 10_002, payouts: {} }).entitlementCentavos, 834);
   assert.equal(legacyEntitlementPesos(100.86), 8.4);

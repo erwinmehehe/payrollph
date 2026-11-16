@@ -1,6 +1,6 @@
 # 13th-month entitlement module (PD 851 minimum)
 
-Status: pure library and golden tests only. Evidence label `SOLO_VERIFIED_DEV`. **Nothing calls this module yet**: no route, schema, payroll run, year-end, final-pay or DOLE-report behavior changes, no tenant-ledger pin moves, nothing is activated. Not a payroll certification.
+Status: pure library with a read-only DOLE-report screening integration and golden tests. Evidence label `SOLO_VERIFIED_DEV`. The report now detects exact-centavo entitlement shortfalls; granted amounts and report hashes are unchanged. Year-end, final-pay and payroll payment paths retain their separate implementations. No schema, route, tenant credit or feature-flag changes. Not a payroll certification.
 
 Code: `src/lib/thirteenth-month-entitlement.ts`. Tests: `tests/thirteenth-month-entitlement.test.ts` (20 hand-derived, adversarial and boundary cases; the original 15 were mutation-checked with five deliberate bugs).
 
@@ -12,7 +12,7 @@ Entitlement = 1/12 of BASIC salary actually earned in the calendar year, rounded
 | --- | --- | --- |
 | `BASIC`, `LATE` and `UT` (negative), `LEAVE-*` paid leave, `RETRO-*` only when the ORIGINAL cutoff is in the tax year | `OT`, `ND`, `HOLIDAY`, `HOLIDAY_UNWORKED`, `OTPREM-*`, `NDPREM-*`, `LEAVE_CONV-*`, retro from another year | `SSS`, `PHIC`, `HDMF`, `WHT`, `DM-*`, `UNPAID_MANDATORY`, 13th-month payout lines |
 
-An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing or unverifiable line amounts now block (`LINE_AMOUNT_INVALID`), and a retro line with an unknown source year blocks. These match the behavior of `readBasicAndThirteenth` in `final-pay.ts`, which this module is meant to replace; the inclusion list was taken from that function, not re-derived from DOLE text.
+An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing or unverifiable line amounts now block (`LINE_AMOUNT_INVALID`), and a retro line with an unknown source year blocks. Classification follows `readBasicAndThirteenth` in `final-pay.ts`, but the new module has stricter amount and overflow validation. The inclusion list was taken from that function, not re-derived from DOLE text.
 
 ## Negative liabilities (new behavior)
 
@@ -24,9 +24,9 @@ An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing 
 - If `sumBasicCentavos` returns any blockers, its basic and excluded-pay subtotals are **partial diagnostic values only**; callers must stop, not pass them on as earned salary. The new functions do not trigger payroll or authorize any payment.
 - The 1/12 result is computed directly from integer centavos, without converting the centavo source to floating-point pesos and back.
 
-## Divergences in the current code (measured, not yet fixed)
+## Recorded legacy divergences
 
-1. **Rounding.** `src/lib/dole-thirteenth-month-report.ts:37` computes `round2(basic / 12)` in floating point. `year-end.ts:480` uses the exact centavo method only when the `exactThirteenthCentavos` flag is on. Over every basic amount from 100.00 to 600,000.00 the report differs from the exact method in 518,758 of 59,990,001 cases (0.87%), always one centavo LOW, never high. Example: basic 100.02 gives 8.33 in the report and 8.34 exact. Effect: the report can miss a one-centavo shortfall. It cannot create a false one.
+1. **Rounding — report screening repaired.** The previous report builder computed `round2(basic / 12)` in floating point. `year-end.ts` still uses its exact centavo method only when the `exactThirteenthCentavos` flag is on. Over every basic amount from 100.00 to 600,000.00 the legacy report formula differed from the exact method in 518,758 of 59,990,001 cases (0.87%), always one centavo LOW, never high. Example: basic 100.02 gave 8.33 with the old formula and 8.34 exact. The report now uses the exact result for verifiable, supported centavo inputs; its legacy fallback remains for other inputs. Year-end rounding behavior is unchanged.
 2. **Reversals ignored.** `readBasicAndThirteenth` (`final-pay.ts`) and the DOLE report apply `Math.max(0, amount)` per payout line, so a reversal is dropped and the original payout still counts as granted. The tests show 95,000.00 reported still due where 100,000.00 is.
 3. **Possible double count, NOT reproduced.** The DOLE report adds payroll, historical and final-pay 13th amounts. If one payout is recorded both as a payroll line and in the separation record it would count twice. This was read from the code path only; it needs a database-backed reproduction before anyone relies on it.
 
@@ -36,8 +36,12 @@ An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing 
 - Overpayment recovery: not asserted. The module reports it and stops.
 - Resignation and separation proration rules are not encoded here; final pay keeps its own path.
 
+## Rewired so far
+
+- `src/lib/dole-thirteenth-month-report.ts` (pure builder): the 1/12 screening figure now uses this module (exact centavo half-up). Effect: where basic is a whole-centavo amount, the screening entitlement can be 0.01 higher than before in 0.87% of cases, so a one-centavo shortfall the float path hid is now listed in `reviewRows`. The report's `amountGranted`, `totalBenefitsGranted` and `reportHash` are unchanged (they come from granted amounts, not the entitlement). An unverified but finite basic retains the legacy float screening figure **only as a diagnostic**, appears in `incompleteBasicRows`, and blocks recording a portal submission through `readyToSubmit = false`. Missing, non-finite, unsupported, negative or malformed basic input never becomes a verified shortfall or a clean screen (non-finite/malformed values have a null screening figure; a finite negative basic retains the legacy zero display for diagnosis but is marked unverified and blocks submission readiness). This is a pure-builder validation of the aggregated basic; the server's underlying source attribution and reversal handling still require separate work. The report's granted amounts, totals and SHA-256 hash remain untouched.
+- Not changed: per-line reversal handling lives in the server reader (`readBasicAndThirteenth` in `final-pay.ts`), so reversals are still dropped there.
+
 ## Not built yet
 
-- Rewiring `year-end.ts`, `final-pay.ts`, `dole-thirteenth-month-report*.ts` and the routes that import them. Those files carry tenant-ledger pins and need blob repins and inventory rows, so each needs its own proof.
-- The `KNOWN DIVERGENCE` test in the suite asserts today's floating-point value; it must be updated when the report is rewired.
+- Rewiring `year-end.ts`, `final-pay.ts`, `dole-thirteenth-month-report-server.ts` and the routes that import them. Those files carry tenant-ledger pins and need blob repins and inventory rows, so each needs its own proof.
 - A database-backed reproduction of the possible double count (item 3 above).
