@@ -52,7 +52,9 @@ export function verifySamlPublicPolicy(m,read=readFileSync){
  assert.equal(blob(read(SAML_METADATA_ROUTE)),SAML_METADATA_BLOB);assert.equal(entry.methods.length,1);
  assert.deepEqual(entry.methods[0],expectedSamlPublicMethod(read),'Only the exact approved SAML public contract may be relabelled');
  const resolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods.find(r=>r.name==='POST');
- assert.equal(resolve.status,'GAP','Owner explicitly kept anonymous resolve held');assert.equal(resolve.testedBy,null);
+ // Resolve is either still held, or carries only the separately owner-approved zero-credit label (verified by its own gate).
+ const held=resolve.status==='GAP'||(resolve.status==='PUBLIC-BY-DESIGN'&&resolve.classificationEvidence?.kind==='owner-approved-public-sso-discovery'&&resolve.classificationEvidence.coverageCredits===0);
+ assert.ok(held,'Anonymous resolve must stay held or carry only its approved zero-credit label');assert.equal(resolve.testedBy,null);
  return 1;
 }
 /** Validation-only reconstruction of the original GAP for sealed historical guards. */

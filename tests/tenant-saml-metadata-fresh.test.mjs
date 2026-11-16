@@ -54,5 +54,5 @@ test('fresh evidence cannot silently classify metadata or lift anonymous resolve
  const m=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
  assert.equal(verifySamlMetadataPrivacyHold(historicalSamlMetadataView(m),samlPrivacyRead()),0);
  const resolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods.find(r=>r.name==='POST');
- assert.equal(resolve.status,'GAP');assert.equal(resolve.testedBy,null);
+ assert.ok(resolve.status==='GAP'||resolve.classificationEvidence?.kind==='owner-approved-public-sso-discovery');assert.equal(resolve.testedBy,null);
 });

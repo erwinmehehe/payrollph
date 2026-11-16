@@ -178,9 +178,9 @@ test("all classifications reconcile dynamically, without silently crediting any 
   assert.equal(tally.COVERED, manifest.metrics.coveredAfter);
   assert.equal(tally["PUBLIC-BY-DESIGN"], manifest.metrics.publicByDesign);
   assert.equal(tally["PRIVILEGED-OPERATIONS-TOKEN-ONLY"], manifest.metrics.privilegedOperationsTokenOnly);
-  assert.equal(tally.GAP, manifest.metrics.gap);
+  assert.equal(tally.GAP ?? 0, manifest.metrics.gap);
   assert.equal(Object.values(tally).reduce((a, b) => a + b, 0), manifest.metrics.methods);
-  assert.match(manifest.acceptanceStatus, new RegExp("^NOT ACCEPTED: " + tally.GAP + " API methods"));
+  assert.match(manifest.acceptanceStatus, new RegExp("^NOT ACCEPTED: " + (tally.GAP ?? 0) + " API methods"));
 });
 
 

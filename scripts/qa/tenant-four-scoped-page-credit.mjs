@@ -13,6 +13,7 @@ import {
   verifyFivePageCredits,
   verifyCurrentScopedPageGapCount as verifyHistoricPageGapCount,
 } from "./tenant-five-scoped-page-credit.mjs";
+import { assertSsoResolveHeldOrApproved } from "./tenant-sso-resolve-public-policy.mjs";
 
 export const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 export const SELECTION = "scripts/qa/tenant-four-page-selection.json";
@@ -294,7 +295,7 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
   // previously source-sealed API methods. No status change is allowed in the
   // committed ledger, and this branch never awards any API-method credit.
   // Compare every byte of the fixture with a replay from the exact PR HEAD.
-  if ((gaps === 1 || gaps === 0) && manifest.metrics.gap === 20 &&
+  if ((gaps === 1 || gaps === 0) && (manifest.metrics.gap === 20 || manifest.metrics.gap === 19) &&
       process.env.CI === "true" &&
       process.env.GITHUB_ACTIONS === "true" &&
       process.env.TENANT_SECOND_PASS_MODE === "isolated-ci-only") {
@@ -302,8 +303,10 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
       encoding: "utf8", maxBuffer: 8 * 1024 * 1024
     });
     const head = JSON.parse(headText);
-    assert.equal(head.metrics.gap, 1,
-      "FOUR_PAGE_REFUSED: only the current 1-GAP API ledger may be replayed");
+    assert.ok(head.metrics.gap === 1 || head.metrics.gap === 0,
+      "FOUR_PAGE_REFUSED: only the exact committed 0/1-GAP API ledger may be replayed");
+    assertSsoResolveHeldOrApproved(head);
+    assert.equal(manifest.metrics.gap, head.metrics.gap + 19);
     assert.equal(head.scopedPages.filter(p => p.status === "GAP").length, gaps,
       "FOUR_PAGE_REFUSED: only the committed public Careers classification may change the page-GAP count");
     const expected = structuredClone(head);

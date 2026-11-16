@@ -1,6 +1,7 @@
 import test from "node:test";
 import {historicalSamlMetadataView} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {historicWageRegistryProofView} from '../scripts/qa/wage-registry-source-hold.mjs';
+import {historicalSsoResolveView} from '../scripts/qa/tenant-sso-resolve-public-policy.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { historicOidcBatchView, verifyOidcBatchCredits } from "../scripts/qa/tenant-oidc-batch-credit-verify.mjs";
@@ -33,10 +34,10 @@ test("five page-only credits preserve the API ledger; only separately proved MKT
   assert.equal(marketingGet?.status, "COVERED", "Only the reviewed operator-only MKT-01 GET may receive its separate method credit");
   assert.equal(assertMkt01Receipt(m), 1, "MKT-01 needs its exact source-pinned PG16 receipt");
   assert.equal(verifyOidcBatchCredits(m), 2, "Require both independent OIDC source-verified receipts");
-  // #1989 withdrew 23 previously COVERED wage-importing API methods. Both
+  // #1989 withdrew 75 previously COVERED wage-dependent API methods. Both
   // sides of this historical OIDC comparison must use the same verified
   // pre-withdrawal wage ledger; this projection never changes the live manifest.
-  const priorWageAndSaml = historicWageRegistryProofView(historicalSamlMetadataView(m));
+  const priorWageAndSaml = historicWageRegistryProofView(historicalSsoResolveView(historicalSamlMetadataView(m)));
   assert.equal(historicOidcBatchView(m).metrics.gap, priorWageAndSaml.metrics.gap + 2,
     "Historical page accounting withdraws precisely the two OIDC method credits");
   // Live method classifications must be tallied rather than frozen to a

@@ -7,12 +7,14 @@ import {
   reviewedTransitiveWageWithdrawals
 } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import {historicWageRegistryProofView} from "../scripts/qa/wage-registry-source-hold.mjs";
+import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
 const read=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
 test("47 transitive source-dependent credits are withdrawn, source-sealed and unaccepted",()=>{
   const m=read(),a=readTransitiveWageHoldArchive();
   assert.equal(a.methods.length,47);
   assert.equal(verifyAllTransitiveWageHolds(m).size,47);
-  assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap],[386,76]);
+  const publicResolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods[0].status==='PUBLIC-BY-DESIGN'?verifySsoResolveClassification(m):0;
+  assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap,m.metrics.publicByDesign],[386,76-publicResolve,24+publicResolve]);
   const historic=historicWageRegistryProofView(m);
   assert.equal(historic.metrics.coveredAfter,m.metrics.coveredAfter+75);
   assert.equal(historic.metrics.gap,m.metrics.gap-75);

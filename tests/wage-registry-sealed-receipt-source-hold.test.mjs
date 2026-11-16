@@ -6,11 +6,13 @@ import {
  readSealedWageHoldArchive,verifyAllSealedWageHolds,reviewedSealedWageWithdrawals
 } from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 import {historicWageRegistryProofView} from "../scripts/qa/wage-registry-source-hold.mjs";
+import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
 const manifest=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
 test("five broad exact-source receipts remain zero-credit and held",()=>{
  const m=manifest(),a=readSealedWageHoldArchive();
  assert.equal(verifyAllSealedWageHolds(m).size,5);
- assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap],[386,76]);
+ const publicResolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods[0].status==='PUBLIC-BY-DESIGN'?verifySsoResolveClassification(m):0;
+ assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap,m.metrics.publicByDesign],[386,76-publicResolve,24+publicResolve]);
  const old=historicWageRegistryProofView(m);
  assert.equal(old.metrics.coveredAfter,m.metrics.coveredAfter+75);
  assert.equal(old.metrics.gap,m.metrics.gap-75);

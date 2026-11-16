@@ -135,7 +135,13 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
     const currentMkt01=m.allApiRouteFiles[mkt01Path].methods.find(x=>x.name==="GET");
     const mkt01Delta=mainMkt01.status==="GAP" && currentMkt01.status==="COVERED"
       ? verifyMkt01Credit(m) : 0;
-    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+oracleRenewalDelta(base.manifest,m)+mkt01Delta-wageWithdrawalsFromBase;
+    // The nineteen payroll withdrawals are included in the 75 wage holds.
+    // Subtract each actual base-to-head withdrawal exactly once.
+    const overlappingOracleWithdrawals=[...verifyOracleSourceHolds(m)].filter(key=>{
+      const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+      return wageHoldKeys.has(key)&&base.manifest.allApiRouteFiles[path]?.methods.find(row=>row.name===verb)?.status==='COVERED';
+    }).length;
+    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+overlappingOracleWithdrawals+oracleRenewalDelta(base.manifest,m)+mkt01Delta-wageWithdrawalsFromBase;
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
