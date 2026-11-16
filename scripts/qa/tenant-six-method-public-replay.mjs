@@ -49,7 +49,7 @@ const occurrences = archived.split(before).length - 1;
 assert.equal(archived.split(marker).length - 1, 1, "Exact historical main-ledger invariant required");
 assert.equal(occurrences, 8, "Only eight documented frozen/main subtotal expressions may change");
 const extension =
-  "    // Exact main-only one-method public classification, with original owner and PG16 receipt proof.\n" +
+  "    // Current main has exactly one owner-approved, zero-credit public SSO relabel.\n" +
   "    const baselineSsoPublic = baseline.allApiRouteFiles[SSO_RESOLVE_PATH].methods[0].status==='PUBLIC-BY-DESIGN'\n" +
   "      ? verifySsoResolveClassification(baseline, readMainSource) : 0;\n" +
   "    if (baselineSsoPublic) expectedOriginalMain[SSO_RESOLVE_PATH].POST='PUBLIC-BY-DESIGN';\n";
