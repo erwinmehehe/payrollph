@@ -101,20 +101,13 @@ const employerCutoffExpected: Record<string, {
 };
 
 /**
- * FIRST-CUTOFF SOFTWARE ESTIMATE ONLY (NOT monthly statutory certification).
- * PayrollPH projects a full month by doubling the already rounded first
- * cutoff's *paid gross*. An odd-cent monthly salary can therefore project
- * one cent above the contracted monthly figure, crossing an SSS MSC boundary.
- *
- * These literal expectations are independently read from the ORIGINAL SSS
- * business-employer table at the projected remuneration amount, not copied
- * from engine output: Circular 2024-006, page 1 (2025 table).
- *
- * The official monthly-source tests ABOVE still check the exact original
- * monthly salary and have NOT been changed. Month-end paid-gross carry,
- * released first-cutoff baseline and SSS actual-month true-up are unresolved
- * and are being tracked in issue #2003. Passing this provisional first-cutoff
- * test must never be called a complete monthly payroll certification.
+ * HISTORICAL PRE-FIX REPRODUCTION ONLY (not an accepted payroll oracle).
+ * Before the proposed #2003 repair, PayrollPH doubled the already rounded
+ * first-cutoff *paid gross*. These fixed, independently worked historical
+ * examples demonstrate the incorrect projected monthly MSC boundary.
+ * Do not change the official monthly-source salary or make the historical
+ * projected value the new expected result. The full-month second cutoff and
+ * external reviewer approval remain separate requirements.
  */
 const firstCutoffProjectionExceptions: Record<string, {
   projectedMonthlyRemuneration: number; sourceMonthlySalary: number;
@@ -387,9 +380,8 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
       };
       const erExpected = employerCutoffExpected[c.id];
       assert.ok(erExpected, c.id + " employer reference missing");
-      // Cutoff split is a PayrollPH software policy, not agency remittance
-      // guidance. A first-cutoff projection can differ from contracted
-      // monthly remuneration after half-cent gross rounding.
+      // #2003: Preserve pre-fix evidence without granting the old SSS
+      // projection an expectation waiver. Official monthly row is authoritative.
       const projection = firstCutoffProjectionExceptions[c.id];
       if (projection) {
         assert.equal(centavos(c.salary), centavos(projection.sourceMonthlySalary),
@@ -402,14 +394,19 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
           firstCutoffGross: c.gross, projectedMonthlyRemuneration: projection.projectedMonthlyRemuneration,
           projectedSssRow: projection.projectedSssRow,
           expectedProjectedCutoffEmployeeSss: projection.cutoffSss,
-          status: "PROVISIONAL SOFTWARE ESTIMATE; MONTH-END SOURCE PARITY NOT VERIFIED; issue #2003",
+          actualCorrectedMonthlySssBase: traceNumber(entry, "statutoryMonthlySssCompensation"),
+          status: "PRE-FIX HISTORICAL BUG ONLY; CURRENT ENGINE MUST MATCH CONTRACTED MONTHLY SOURCE; #2003",
         }));
       }
-      const policyExpectedSss = projection?.cutoffSss ?? c.cutoffSss;
-      const policyExpectedEmployerSss = projection?.cutoffEmployerSss ?? erExpected.sss;
-      const policyExpectedEmployerEc = projection?.cutoffEmployerEc ?? erExpected.ec;
-      const policyExpectedWht = projection?.cutoffWht ?? c.cutoffWht;
-      const policyExpectedNet = projection?.cutoffNet ?? c.cutoffNet;
+      if (projection) {
+        check(c.id, "SSS estimated full-month remuneration at corrected first cutoff",
+          traceNumber(entry, "statutoryMonthlySssCompensation"), c.salary);
+      }
+      const policyExpectedSss = c.cutoffSss;
+      const policyExpectedEmployerSss = erExpected.sss;
+      const policyExpectedEmployerEc = erExpected.ec;
+      const policyExpectedWht = c.cutoffWht;
+      const policyExpectedNet = c.cutoffNet;
       check(c.id, "cutoff gross", gross, c.gross);
       check(c.id, "cutoff split SSS", sss, policyExpectedSss);
       check(c.id, "cutoff split HDMF", hdmf, c.cutoffPag);
@@ -432,7 +429,7 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
         evidenceBoundary: "2025 official table figures rechecked against July 2026 fictional engine; NOT a 2026 agency certificate",
         sourceStatus: c.phEe === null ? "SOURCE NOT VERIFIED (PH odd-cent EE/ER)" : "source verified",
         softwareProjectionStatus: projection
-          ? "PROVISIONAL ESTIMATE ONLY; original monthly source remains separately tested; #2003"
+          ? "PRE-FIX WRONG-BRACKET EXAMPLE; current output must now use official monthly-source bracket"
           : "No first-cutoff MSC boundary shift in this fixture",
         sourceMonthlyExpected: {
           sssEe: c.sssEe, sssEr: c.sssEr, employerEc: c.ec,
@@ -466,8 +463,58 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
       referenceSourceDate: SOURCE_DATE, executedEnginePeriod: ENGINE_PERIOD,
       checkedWorkers: workers.length, mismatches,
     }));
+    // Exercise *two actual payroll calculations*, not a second invocation of a
+    // statutory helper. In this disposable CI-only fixture a direct test-DB
+    // Released state stands in for the prior ledger lookup; this DOES NOT
+    // prove a real approval/release process or independent UAT.
+    await db.update(payrollRuns).set({ status: "Released" }).where(eq(payrollRuns.id, run.id));
+    const FINAL_PERIOD = { periodStart: "2026-07-16", periodEnd: "2026-07-31", payDate: "2026-07-31" };
+    const [finalRun] = await db.insert(payrollRuns).values({
+      organizationId: org.id, periodLabel: "Fictional July 2026 final cutoff",
+      scopeLabel: "All locations", status: "Draft", ...FINAL_PERIOD,
+    }).returning();
+    await enqueuePayrollRun(finalRun.id, 25);
+    await drainPayrollQueue(10, finalRun.id);
+    const finalEntries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, finalRun.id));
+    const finalByNumber = new Map(finalEntries.map((e) => [employeeNumbers.get(e.employeeId), e]));
+    const exactBoundaryCases = new Set(["C02", "C03", "C04", "C08", "C09", "C10", "C12", "C13", "C16"]);
+    const twoCutoffEvidence: unknown[] = [];
+    for (const c of workers.filter((worker) => exactBoundaryCases.has(worker.id))) {
+      const first = entriesByNumber.get("SC-" + c.id);
+      const second = finalByNumber.get("SC-" + c.id);
+      assert.ok(first && second, c.id + " must have two persisted real-engine entries");
+      const amount = (entry: typeof first, code: string) => {
+        const lines = Array.isArray(entry.lineItems)
+          ? entry.lineItems as Array<{ code?: string; amount?: number | string }>
+          : [];
+        return Math.abs(Number(lines.find((line) => line.code === code)?.amount ?? 0));
+      };
+      const actualMonthlyGross = Number(first.grossPay) + Number(second.grossPay);
+      const actualEeSss = amount(first, "SSS") + amount(second, "SSS");
+      const actualErSss = traceNumber(first, "sssEmployerCutoff") + traceNumber(second, "sssEmployerCutoff");
+      const actualErEc = traceNumber(first, "sssEmployerEcCutoff") + traceNumber(second, "sssEmployerEcCutoff");
+      check(c.id, "two-cutoff gross equals contracted monthly basic", actualMonthlyGross, c.salary);
+      check(c.id, "two-cutoff actual-month SSS source basis",
+        traceNumber(second, "statutoryMonthlySssCompensation"), c.salary);
+      check(c.id, "two-cutoff SSS employee", actualEeSss, c.sssEe);
+      check(c.id, "two-cutoff SSS employer", actualErSss, c.sssEr);
+      check(c.id, "two-cutoff SSS employer EC", actualErEc, c.ec);
+      check(c.id, "final-cutoff gross - deductions = net",
+        Number(second.grossPay) - Number(second.deductions), Number(second.netPay));
+      twoCutoffEvidence.push({
+        worker: c.id, sourceMonthlySalary: c.salary, firstGross: first.grossPay,
+        secondGross: second.grossPay, actualMonthlyGross,
+        sourceMonthlySssEmployee: c.sssEe, actualMonthlySssEmployee: actualEeSss,
+        sourceMonthlySssEmployer: c.sssEr, actualMonthlySssEmployer: actualErSss,
+        sourceMonthlyEmployerEC: c.ec, actualMonthlyEmployerEC: actualErEc,
+        actualMonthlySssRemuneration: traceNumber(second, "statutoryMonthlySssCompensation"),
+        approvalEvidence: "NOT RUN: synthetic test-DB release marker; not a real release or bank/agency approval",
+      });
+    }
+    console.log("STATUTORY_TWO_CUTOFF_EVIDENCE " + JSON.stringify(twoCutoffEvidence));
+    console.log("STATUTORY_TWO_CUTOFF_DISAGREEMENTS " + JSON.stringify(mismatches));
     assert.deepEqual(mismatches, [],
-      "Independent 2025 monthly tables and separately labeled first-cutoff software projections must agree with the observed engine; do not mask undocumented differences");
+      "Current source monthly tables, first and final real-engine cutoff outputs must agree in exact integer centavos; no historical projection waiver");
   } finally {
     if (organizationId !== null) await db.delete(organizations).where(eq(organizations.id, organizationId));
     await pool.end();
