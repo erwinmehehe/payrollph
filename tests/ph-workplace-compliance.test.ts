@@ -129,6 +129,13 @@ test("private allegation narratives are retrieved only by one authorized detail 
 });
 
 
+test("confidential case statements remain bound to their exact employer and case", () => {
+  const component = readFileSync("src/components/private-workplace-statement.tsx", "utf8");
+  assert.ok(component.includes('const scopeKey = organizationId + ":" + caseId;'));
+  assert.ok(component.includes("revealed?.scopeKey === scopeKey"));
+  assert.ok(component.includes("setRevealed({ scopeKey, statement: record.statement })"));
+  assert.ok(component.includes("}, [scopeKey]);"));
+});
 test("workplace pilot gate metadata is complete, distinct, exact-true and separately reviewed", () => {
   const entries = workplacePilotFlagInventory();
   assert.equal(entries.length, 3);
