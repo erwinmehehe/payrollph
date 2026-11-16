@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {verifySpendManaged} from '../scripts/qa/tenant-spend-managed-credit.mjs';
+import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from '../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs';
 
 const ROUTE = "src/app/api/spend/route.ts";
 const HARNESS = "scripts/qa/tenant-spend-write-actions-http.mjs";
@@ -26,12 +27,19 @@ test("Spend write proof cannot borrow the historical GET credit or claim unrevie
   const manifest = JSON.parse(source(MANIFEST));
   const entry = manifest.allApiRouteFiles[ROUTE];
   assert.equal(entry.gitBlobSha, EXPECTED[ROUTE]);
-  assert.deepEqual(entry.methods.map(method => [method.name, method.status]),
-    [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"]]);
-  assert.equal(verifySpendManaged(manifest),3);
-  for (const method of entry.methods.filter(method => method.name !== "GET")) {
-    assert.equal(method.testedBy.file,HARNESS,"writes require the dedicated executed proof, never GET evidence");
+  assert.equal(verifyAllSealedWageHolds(manifest).size,5);
+  assert.deepEqual(entry.methods.map(method=>[method.name,method.status]),
+    [["GET","COVERED"],["POST","GAP"],["PATCH","GAP"]],
+    "Spend GET is independently credited; both wage-source-sensitive writes are held");
+  for(const method of entry.methods.filter(method=>method.name!=="GET")){
+    assert.equal(method.testedBy,null);
+    assert.equal(method.reviewedUncertified?.kind,SEALED_WAGE_HOLD_KIND);
+    assert.equal(method.reviewedUncertified.coverageCredits,0);
+    assert.equal(method.reviewedUncertified.priorProof?.file,HARNESS,
+      "Original full-action Spend proof is archival, not a new wage-source credit");
   }
+  assert.throws(()=>verifySpendManaged(manifest),
+    "Old fully source-sealed proof must refuse the changed wage registry");
   assert.equal(manifest.metrics.coveredAfter + manifest.metrics.publicByDesign + manifest.metrics.privilegedOperationsTokenOnly + manifest.metrics.gap,
     manifest.metrics.methods);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
