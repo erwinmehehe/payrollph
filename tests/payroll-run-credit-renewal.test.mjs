@@ -14,6 +14,7 @@ import {assertHistoricalHttpWorkflowCheckout} from '../scripts/qa/payroll-run-cr
 import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_METHODS} from '../scripts/qa/payroll-run-credit-renewal-contract.mjs';
 import {readVerifiedPayrollRenewal,PAYROLL_RENEWAL_RECEIPT,payrollRenewalProof} from '../scripts/qa/payroll-run-credit-renewal-verify.mjs';
 import {reconcilePayrollRenewal} from '../scripts/qa/payroll-run-credit-renewal.mjs';
+import {verifyAllWageRegistrySourceHolds} from '../scripts/qa/wage-registry-source-hold.mjs';
 const receipt=()=>JSON.parse(readFileSync(PAYROLL_RENEWAL_RECEIPT,'utf8'));
 
 test('fresh execution cannot rewrite either original job archive or its accounting projection',()=>{
@@ -44,10 +45,11 @@ test('historical unaccepted page evidence permits only the source-sealed checkou
   assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,expected,(p,...args)=>readFileSync(p,...args)+'\n# unreviewed change'));
 });
 
-test('nine fresh source-matched PG16 cohorts renew exactly nineteen methods',()=>{
+test('historical nine-cohort receipt cannot renew the changed wage-order source',()=>{
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
-  assert.equal(readVerifiedPayrollRenewal().methods.length,19);
-  assert.equal(readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']).methods.length,19);
+  assert.equal(verifyAllWageRegistrySourceHolds(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'))).length,23);
+  assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
+  assert.throws(()=>readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']),/Executed input closure drift:/);
 });
 
 test('each sealed fresh input set equals the full locked-compiler import closure',()=>{
@@ -55,6 +57,15 @@ test('each sealed fresh input set equals the full locked-compiler import closure
     const actual=collectRenewalInputs(cohort.roots,undefined,undefined,true);
     for(const [file,expected] of Object.entries(cohort.sourcePins)){
       if(actual[file]===expected)continue;
+      if(['src/lib/wage-orders.ts','src/lib/statutory-rule-watch.ts'].includes(file)){
+        // Check the immutable historical receipt in isolation: its actual current
+        // source is DIFFERENT, all affected methods are explicitly HELD, and
+        // readVerifiedPayrollRenewal must reject these old source pins.
+        assert.notEqual(actual[file],expected);
+        assert.equal(verifyAllWageRegistrySourceHolds(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'))).length,23);
+        actual[file]=expected;
+        continue;
+      }
       // Only two exact, reviewed default-OFF SSO probe changes may borrow
       // the earlier source pin after a current-source fictional PG16 reproof.
       assert.ok(isReviewedHeldSsoSecondPassInput(name,file,expected) ||
