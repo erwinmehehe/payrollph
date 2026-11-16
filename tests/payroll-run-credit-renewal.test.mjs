@@ -38,12 +38,20 @@ test('fresh HTTP reproof checks out the exact proposed head with no persisted cr
   assert.deepEqual(steps[0].with,{'persist-credentials':false,ref:'${{ github.event.pull_request.head.sha || github.sha }}'});
   assert.equal(steps[1].env.EXPECTED_SOURCE_SHA,'${{ github.event.pull_request.head.sha || github.sha }}');
   assert.equal(steps[1].run,'test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"');
+  assert.equal(steps[2].name,'Fetch main ledger for strict source-withdrawal assertions');
+  assert.ok(steps[2].run.includes('git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main'));
+  assert.ok(steps[2].run.includes('git cat-file -e origin/main:scripts/qa/tenant-isolation-coverage-manifest.json'));
+  assert.doesNotMatch(steps[2].run,/git (checkout|switch|reset)|node |npm /);
 });
 test('historical unaccepted page evidence permits only the source-sealed checkout change',()=>{
   const file='.github/workflows/security-http-smoke.yml',expected='cca392e383c9f24b3ab6d3ec0e5b0de5a6be2736';
   assert.equal(assertHistoricalHttpWorkflowCheckout(file,expected),true);
   assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,'0'.repeat(40)));
   assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,expected,(p,...args)=>readFileSync(p,...args)+'\n# unreviewed change'));
+  for(const change of [
+    source=>source.replace('refs/heads/main:refs/remotes/origin/main','refs/heads/unreviewed:refs/remotes/origin/main'),
+    source=>source.replace('git cat-file -e','git checkout main\n          git cat-file -e'),
+  ])assert.throws(()=>assertHistoricalHttpWorkflowCheckout(file,expected,(p,...args)=>change(readFileSync(p,...args))));
 });
 
 test('nine historical PG16 cohorts remain archived but cannot certify changed wage sources',()=>{

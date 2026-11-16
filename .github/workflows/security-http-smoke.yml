@@ -81,6 +81,11 @@ jobs:
         env:
           EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+      - name: Fetch main ledger for strict source-withdrawal assertions
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+          git cat-file -e origin/main:scripts/qa/tenant-isolation-coverage-manifest.json
 
       - uses: actions/setup-node@v7
         with:
