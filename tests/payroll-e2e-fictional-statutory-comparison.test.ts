@@ -63,6 +63,35 @@ const workers: Worker[] = [
   { id: "C19", salary: 400000, sssRow: "34,750-OVER", msc: 35000, sssEe: 1750, sssEr: 3500, ec: 30, phPremium: 5000, phEe: 2500, phEr: 2500, pagEe: 200, pagEr: 200, gross: 200000, cutoffSss: 875, cutoffPh: 1250, cutoffPag: 100, cutoffWht: 51103.30, cutoffNet: 146671.70 },
 ];
 
+
+/** First-cutoff employer liabilities, manually halved from official monthly S/P/H
+ * original-source rows, then rounded to centavos under the stated *software*
+ * collection convention. No official agency document mandates the half-cutoff
+ * remittance allocation. PH null = official odd-cent EE/ER rule unverified. */
+const employerCutoffExpected: Record<string, {
+  sss: number; ec: number; philHealth: number | null; pagIbig: number;
+}> = {
+  C01: { sss: 250, ec: 5, philHealth: 125, pagIbig: 15 },
+  C02: { sss: 250, ec: 5, philHealth: 125, pagIbig: 15 },
+  C03: { sss: 250, ec: 5, philHealth: 125, pagIbig: 52.50 },
+  C04: { sss: 275, ec: 5, philHealth: 125, pagIbig: 52.50 },
+  C05: { sss: 450, ec: 5, philHealth: 125, pagIbig: 90 },
+  C06: { sss: 500, ec: 5, philHealth: 125, pagIbig: 100 },
+  C07: { sss: 500, ec: 5, philHealth: null, pagIbig: 100 },
+  C08: { sss: 725, ec: 5, philHealth: 184.38, pagIbig: 100 },
+  C09: { sss: 750, ec: 15, philHealth: 184.38, pagIbig: 100 },
+  C10: { sss: 750, ec: 15, philHealth: 184.38, pagIbig: 100 },
+  C11: { sss: 1275, ec: 15, philHealth: 315.63, pagIbig: 100 },
+  C12: { sss: 1725, ec: 15, philHealth: 434.38, pagIbig: 100 },
+  C13: { sss: 1750, ec: 15, philHealth: 434.38, pagIbig: 100 },
+  C14: { sss: 1750, ec: 15, philHealth: null, pagIbig: 100 },
+  C15: { sss: 1750, ec: 15, philHealth: 1250, pagIbig: 100 },
+  C16: { sss: 1750, ec: 15, philHealth: 1250, pagIbig: 100 },
+  C17: { sss: 825, ec: 15, philHealth: 208.50, pagIbig: 100 },
+  C18: { sss: 1000, ec: 15, philHealth: 250, pagIbig: 100 },
+  C19: { sss: 1750, ec: 15, philHealth: 1250, pagIbig: 100 },
+};
+
 // Annex E, RR 11-2018, "effective January 1, 2023 and onwards".
 // The six "inside" cases and five boundaries span all six columns per frequency.
 type TaxVector = { frequency: "monthly" | "semi-monthly" | "annual"; taxable: number; expected: number; row: number; kind: "inside" | "boundary" };
@@ -114,6 +143,7 @@ function exact(actual: number, expected: number, description: string) {
 }
 
 test("19 independent SSS/PhilHealth/HDMF official-source monthly reference values", () => {
+  const monthlyEvidence: unknown[] = [];
   for (const c of workers) {
     const sss = computeSss(c.salary, SOURCE_DATE);
     exact(sss.monthlySalaryCredit, c.msc, c.id + " SSS MSC / circular row " + c.sssRow);
@@ -132,7 +162,27 @@ test("19 independent SSS/PhilHealth/HDMF official-source monthly reference value
     const hdmf = computePagIbig(c.salary, SOURCE_DATE);
     exact(hdmf.employee, c.pagEe, c.id + " HDMF employee");
     exact(hdmf.employer, c.pagEr, c.id + " HDMF employer");
+    const expected = {
+      msc: c.msc, sssEe: c.sssEe, sssEr: c.sssEr, ec: c.ec,
+      phPremium: c.phPremium, phEe: c.phEe, phEr: c.phEr,
+      hdmfEe: c.pagEe, hdmfEr: c.pagEr,
+    };
+    const observed = {
+      msc: sss.monthlySalaryCredit, sssEe: sss.employee, sssEr: sss.employer,
+      ec: sss.employerEC, phPremium: ph.total, phEe: ph.employee,
+      phEr: ph.employer, hdmfEe: hdmf.employee, hdmfEr: hdmf.employer,
+    };
+    const deltaCentavos = Object.fromEntries(Object.entries(expected).map(([key, value]) =>
+      [key, value === null ? null : centavos(observed[key as keyof typeof observed]) - centavos(value)],
+    ));
+    monthlyEvidence.push({
+      case: c.id, monthlySalary: c.salary, frequency: "semi-monthly",
+      officialTableRow: { sss: c.sssRow, philHealth: "2025 advisory basic-salary band", pagIbig: "Circular 460 section C" },
+      sourceStatus: c.phEe === null ? "SOURCE NOT VERIFIED (PH odd-cent EE/ER)" : "source verified",
+      expected, observed, deltaCentavos,
+    });
   }
+  console.log("STATUTORY_COMPARISON_MONTHLY_EVIDENCE " + JSON.stringify(monthlyEvidence));
 });
 
 test("BIR monthly and semi-monthly Annex E and annual Table 2: every boundary and bracket", () => {
@@ -180,6 +230,16 @@ test("DOLE basic/12 and BIR one shared 90,000 benefit pool: under and over", () 
   exact(over.taxableIncome, 315000, "over annual taxable");
   exact(over.taxDue, 9750, "over annual BIR column 2");
 });
+
+
+/** Read the persisted real-engine calculation trace, not a duplicate helper. */
+function traceNumber(entry: { trace: unknown }, key: string): number {
+  const inputs = (entry.trace as { inputs?: unknown } | null)?.inputs;
+  const raw = Array.isArray(inputs)
+    ? inputs.find((item) => typeof item === "string" && item.startsWith(key + "="))
+    : undefined;
+  return typeof raw === "string" ? Number(raw.slice(key.length + 1)) : Number.NaN;
+}
 
 function disposableCiDatabase(): boolean {
   // Even a developer's regular local/Neon DATABASE_URL MUST NOT be accessed.
@@ -259,11 +319,23 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
       const amount = (code: string) => Math.abs(Number(lines.find((line) => line.code === code)?.amount ?? 0));
       const gross = Number(entry.grossPay), sss = amount("SSS"), philHealth = amount("PHIC"), hdmf = amount("HDMF");
       const wht = amount("WHT"), net = Number(entry.netPay);
+      const employer = {
+        sss: traceNumber(entry, "sssEmployerCutoff"),
+        ec: traceNumber(entry, "sssEmployerEcCutoff"),
+        philHealth: traceNumber(entry, "philHealthEmployerCutoff"),
+        pagIbig: traceNumber(entry, "pagIbigEmployerCutoff"),
+      };
+      const erExpected = employerCutoffExpected[c.id];
+      assert.ok(erExpected, c.id + " employer reference missing");
       // Cutoff split is a PayrollPH policy; the official circulars certify
       // monthly rates only. Do not interpret this as agency-approved timing.
       exact(gross, c.gross, c.id + " cutoff gross");
       exact(sss, c.cutoffSss, c.id + " cutoff split SSS");
       exact(hdmf, c.cutoffPag, c.id + " cutoff split HDMF");
+      exact(employer.sss, erExpected.sss, c.id + " cutoff employer SSS");
+      exact(employer.ec, erExpected.ec, c.id + " cutoff employer-only EC");
+      exact(employer.pagIbig, erExpected.pagIbig, c.id + " cutoff employer HDMF");
+      if (erExpected.philHealth !== null) exact(employer.philHealth, erExpected.philHealth, c.id + " cutoff employer PH");
       if (c.cutoffPh !== null) exact(philHealth, c.cutoffPh, c.id + " cutoff split PH");
       if (c.cutoffWht !== null) exact(wht, c.cutoffWht, c.id + " BIR semi-monthly taxable pay");
       if (c.cutoffNet !== null) exact(net, c.cutoffNet, c.id + " reconciled net");
@@ -274,8 +346,8 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
       evidence.push({
         case: c.id, monthlySalary: c.salary, frequency: "semi-monthly",
         sourceStatus: c.phEe === null ? "SOURCE NOT VERIFIED (PH odd-cent EE/ER)" : "source verified",
-        expected: { gross: c.gross, sss: c.cutoffSss, philHealth: c.cutoffPh, pagIbig: c.cutoffPag, wht: c.cutoffWht, net: c.cutoffNet },
-        actual: { gross, sss, philHealth, pagIbig: hdmf, wht, net },
+        expected: { gross: c.gross, sss: c.cutoffSss, philHealth: c.cutoffPh, pagIbig: c.cutoffPag, wht: c.cutoffWht, net: c.cutoffNet, employer: erExpected },
+        actual: { gross, sss, philHealth, pagIbig: hdmf, wht, net, employer },
         deltaCentavos: {
           gross: centavos(gross) - centavos(c.gross),
           sss: centavos(sss) - centavos(c.cutoffSss),
@@ -283,6 +355,11 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
           pagIbig: centavos(hdmf) - centavos(c.cutoffPag),
           wht: c.cutoffWht === null ? null : centavos(wht) - centavos(c.cutoffWht),
           net: c.cutoffNet === null ? null : centavos(net) - centavos(c.cutoffNet),
+          employerSss: centavos(employer.sss) - centavos(erExpected.sss),
+          employerEc: centavos(employer.ec) - centavos(erExpected.ec),
+          employerPhilHealth: erExpected.philHealth === null ? null
+            : centavos(employer.philHealth) - centavos(erExpected.philHealth),
+          employerPagIbig: centavos(employer.pagIbig) - centavos(erExpected.pagIbig),
         },
       });
     }
