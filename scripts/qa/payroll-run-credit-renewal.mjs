@@ -119,7 +119,23 @@ function documents(m){
 }
 
 export function reconcilePayrollRenewal({write=false}={}){
-  const current=JSON.parse(readFileSync(MANIFEST,'utf8')),{manifest,credited}=applyPayrollRenewal(current);
+  const source=JSON.parse(readFileSync(MANIFEST,'utf8'));
+  const held=ORACLE_HELD_METHODS.filter(key=>{
+    const at=key.indexOf(' '),verb=key.slice(0,at),path='src/app/api/'+key.slice(at+1)+'/route.ts';
+    return source.allApiRouteFiles[path].methods.find(row=>row.name===verb)
+      ?.reviewedUncertified?.kind==='wage-registry-dependency-source-withdrawal';
+  });
+  if(held.length){
+    // An old sealed execution cannot certify changed wage-registry imports.
+    // Never write/publish a new renewal receipt or silently reinstate credits.
+    assert.equal(held.length,ORACLE_HELD_METHODS.length,
+      'Partial payroll-run dependency hold cannot be counted as current proof');
+    assert.equal(verifyOracleSourceHolds(source).size,held.length);
+    assert.equal(write,false,'Current wage source remains held; exact-head PG16 reproof is mandatory');
+    return {write:false,credited:0,held:held.length,
+      status:'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD',productionCertified:false};
+  }
+  const current=source,{manifest,credited}=applyPayrollRenewal(current);
   const {inventory,plan}=documents(manifest);
   if(write){writeFileSync(MANIFEST,JSON.stringify(manifest,null,2)+'\n');writeFileSync(INVENTORY,inventory);writeFileSync(PLAN,plan);}
   else{
