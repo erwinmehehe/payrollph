@@ -3,6 +3,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/qa/wage-registry-renewal-*'
       - 'src/app/api/payroll-runs/**'
       - 'src/lib/payroll-run-membership.ts'
       - 'scripts/qa/payroll-run-oracle*'

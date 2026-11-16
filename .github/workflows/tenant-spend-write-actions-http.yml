@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'scripts/qa/wage-registry-renewal-*'
       - '.github/workflows/tenant-spend-write-actions-http.yml'
       - 'scripts/qa/tenant-spend-write-actions-http.mjs'
       - 'tests/tenant-spend-full-method-candidate.test.mjs'

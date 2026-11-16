@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'scripts/qa/wage-registry-renewal-*'
       - '.github/workflows/tenant-identity-account-http.yml'
       - 'scripts/qa/tenant-identity-account-*.mjs'
       - 'tests/tenant-identity-account-*.test.mjs'

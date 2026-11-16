@@ -4,6 +4,7 @@ name: Studio keyless language isolation (fictional PG16, no model)
     branches:
       - main
     paths:
+      - 'scripts/qa/wage-registry-renewal-*'
       - .github/workflows/tenant-studio-language-qa.yml
       - scripts/qa/tenant-studio-language-*.mjs
       - tests/tenant-studio-language-contract.test.mjs

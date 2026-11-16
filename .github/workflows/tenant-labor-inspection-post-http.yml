@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/qa/wage-registry-renewal-*'
       - ".github/workflows/tenant-labor-inspection-post-http.yml"
       - "scripts/qa/tenant-labor-inspection-post-*.mjs"
       - "tests/tenant-labor-inspection-post.test.mjs"

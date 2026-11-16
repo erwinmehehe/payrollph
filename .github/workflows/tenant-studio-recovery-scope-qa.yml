@@ -4,6 +4,7 @@ name: Studio stored recovery scope (fictional PG16, no providers)
     branches:
       - main
     paths:
+      - 'scripts/qa/wage-registry-renewal-*'
       - 'src/lib/automation-recovery-scope.ts'
       - 'src/lib/automation-execution-recovery.ts'
       - 'scripts/qa/tenant-table-http.mjs'

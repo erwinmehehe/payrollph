@@ -3,6 +3,7 @@ name: BIR 1604-C Reviewed DAT Synthetic Browser QA
 on:
   pull_request:
     paths:
+      - 'scripts/qa/wage-registry-renewal-*'
       - 'src/lib/bir-1604c-*.ts'
       - 'src/lib/bir-2316-*.ts'
       - 'assets/bir/**'
