@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   WAGE_SOURCE_HELD_METHODS, verifyWageRegistrySourceHold,
   verifyAllWageRegistrySourceHolds, reviewedWageRegistrySourceWithdrawals,
+  historicWageRegistryProofView,
 } from "../scripts/qa/wage-registry-source-hold.mjs";
 
 const readManifest = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -28,6 +29,41 @@ test("all 23 previously credited wage-dependent methods are now held with zero c
     assert.equal(method.reviewedUncertified.coverageCredits, 0);
     assert.equal(method.reviewedUncertified.productionCertified, false);
   }
+});
+
+test("historical view restores only exactly verified old receipts without changing live holds", () => {
+  const live = readManifest();
+  const original = clone(live);
+  const historical = historicWageRegistryProofView(live);
+  assert.deepEqual(live, original, "Historical projection must not mutate the live manifest");
+  assert.equal(historical.metrics.gap, live.metrics.gap - 23);
+  assert.equal(historical.metrics.coveredAfter, live.metrics.coveredAfter + 23);
+  assert.equal(historical.metrics.methods, live.metrics.methods);
+  const changed = [];
+  for (const [path, file] of Object.entries(live.allApiRouteFiles)) {
+    for (const row of file.methods) {
+      const old = historical.allApiRouteFiles[path].methods.find(m => m.name === row.name);
+      if (old.status !== row.status) changed.push(path + " " + row.name);
+      if (row.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal") {
+        assert.equal(row.status, "GAP");
+        assert.equal(row.testedBy, null);
+        assert.equal(old.status, "COVERED");
+        assert.deepEqual(old.testedBy, row.reviewedUncertified.priorProof);
+      } else {
+        assert.equal(old.status, row.status, "Unrelated API methods must never be reclassified");
+        assert.deepEqual(old.testedBy, row.testedBy);
+      }
+    }
+  }
+  assert.deepEqual(changed.sort(), [...WAGE_SOURCE_HELD_METHODS].sort());
+  const forged = clone(live);
+  const [path, verb] = split(firstKey);
+  forged.allApiRouteFiles[path].methods.find(m => m.name === verb).reviewedUncertified.coverageCredits = 1;
+  assert.throws(() => historicWageRegistryProofView(forged),
+    /Expected values to be strictly equal|coverageCredits/);
+  const partial = clone(live);
+  partial.allApiRouteFiles[path].methods.find(m => m.name === verb).reviewedUncertified.kind = "unreviewed";
+  assert.throws(() => historicWageRegistryProofView(partial), /Partial or extra wage source holds/);
 });
 
 test("a missing hold, old credit, or changed source is rejected without awarding coverage", () => {

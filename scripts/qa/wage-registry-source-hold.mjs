@@ -88,6 +88,42 @@ export function verifyAllWageRegistrySourceHolds(manifest, read = readFileSync) 
 }
 
 /**
+ * Validation-only historical ledger projection for legacy source-sealed
+ * page/SSO verifiers. The live manifest is NEVER changed or re-credited.
+ * Exactly 23 source-pinned, zero-credit holds must verify first. This view
+ * explains past receipts; it does not approve the changed wage dependency.
+ */
+export function historicWageRegistryProofView(manifest, read = readFileSync) {
+  const currentRows = Object.values(manifest.allApiRouteFiles ?? {}).flatMap(file => file.methods);
+  const heldRows = currentRows.filter(row =>
+    row.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal");
+  if (heldRows.length === 0) return manifest;
+  assert.equal(heldRows.length, WAGE_SOURCE_HELD_METHODS.length,
+    "Partial or extra wage source holds are forbidden in historical view");
+  verifyAllWageRegistrySourceHolds(manifest, read);
+  assert.equal(manifest.metrics.methods, currentRows.length);
+  assert.equal(manifest.metrics.gap, currentRows.filter(row => row.status === "GAP").length);
+  assert.equal(manifest.metrics.coveredAfter, currentRows.filter(row => row.status === "COVERED").length);
+  assert.ok(manifest.metrics.gap >= WAGE_SOURCE_HELD_METHODS.length);
+  const view = structuredClone(manifest);
+  for (const key of WAGE_SOURCE_HELD_METHODS) {
+    const at = key.lastIndexOf(" "), path = key.slice(0, at), verb = key.slice(at + 1);
+    const row = view.allApiRouteFiles[path].methods.find(method => method.name === verb);
+    const priorProof = structuredClone(row.reviewedUncertified.priorProof);
+    row.status = "COVERED";
+    row.testedBy = priorProof;
+    delete row.reviewedUncertified;
+    row.reason = "HISTORICAL VIEW ONLY: previous source-bound proof; currently HELD pending fresh independent reproof.";
+  }
+  view.metrics.gap -= WAGE_SOURCE_HELD_METHODS.length;
+  view.metrics.coveredAfter += WAGE_SOURCE_HELD_METHODS.length;
+  view.acceptanceStatus = view.acceptanceStatus.replace(
+    /^NOT ACCEPTED: \d+ API methods/,
+    "NOT ACCEPTED: " + view.metrics.gap + " API methods");
+  return view;
+}
+
+/**
  * Only a complete, exact-source, zero-credit withdrawal of old COVERED
  * methods may reduce the tenant ledger. Compare each archived prior proof to
  * the PR base; no unrelated method or source-hash repin is exempt.

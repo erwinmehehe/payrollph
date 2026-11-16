@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,readdirSync} from 'node:fs';
 import {historicalSamlMetadataView,SAML_PUBLIC_PATH} from './tenant-saml-metadata-public-policy.mjs';
+import {historicWageRegistryProofView} from './wage-registry-source-hold.mjs';
 export const OIDC_START='src/app/api/auth/sso/start/route.ts';
 export const OIDC_BATCH_CALLBACK='src/app/api/auth/sso/callback/route.ts';
 export const OIDC_BATCH_RECEIPT='scripts/qa/tenant-oidc-batch-executed-receipt.json';
@@ -87,6 +88,9 @@ export function historicOidcBatchView(m,read=readFileSync){
  view.acceptanceStatus=view.acceptanceStatus.replace(/^NOT ACCEPTED: \d+ API methods/,'NOT ACCEPTED: '+view.metrics.gap+' API methods');
  // Keep page/payroll historical API counts separate from this later,
  // explicitly approved public classification. No OIDC credit is added.
- return view.allApiRouteFiles[SAML_PUBLIC_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN'
+ const samlHistorical = view.allApiRouteFiles[SAML_PUBLIC_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN'
   ?historicalSamlMetadataView(view,read):view;
+ // Historic five-page receipts predate #1989. Reconstruct ONLY fully
+ // source-verified, zero-credit wage withdrawals for past-ledger comparisons.
+ return historicWageRegistryProofView(samlHistorical,read);
 }
