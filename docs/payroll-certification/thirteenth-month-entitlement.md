@@ -2,7 +2,7 @@
 
 Status: pure library and golden tests only. Evidence label `SOLO_VERIFIED_DEV`. **Nothing calls this module yet**: no route, schema, payroll run, year-end, final-pay or DOLE-report behavior changes, no tenant-ledger pin moves, nothing is activated. Not a payroll certification.
 
-Code: `src/lib/thirteenth-month-entitlement.ts`. Tests: `tests/thirteenth-month-entitlement.test.ts` (15 hand-derived cases, mutation-checked: five deliberate bugs each fail at least one test).
+Code: `src/lib/thirteenth-month-entitlement.ts`. Tests: `tests/thirteenth-month-entitlement.test.ts` (20 hand-derived, adversarial and boundary cases; the original 15 were mutation-checked with five deliberate bugs).
 
 ## Rule encoded
 
@@ -12,7 +12,7 @@ Entitlement = 1/12 of BASIC salary actually earned in the calendar year, rounded
 | --- | --- | --- |
 | `BASIC`, `LATE` and `UT` (negative), `LEAVE-*` paid leave, `RETRO-*` only when the ORIGINAL cutoff is in the tax year | `OT`, `ND`, `HOLIDAY`, `HOLIDAY_UNWORKED`, `OTPREM-*`, `NDPREM-*`, `LEAVE_CONV-*`, retro from another year | `SSS`, `PHIC`, `HDMF`, `WHT`, `DM-*`, `UNPAID_MANDATORY`, 13th-month payout lines |
 
-An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`), an unverifiable amount is flagged, and a retro line with an unknown source year blocks. These match the behavior of `readBasicAndThirteenth` in `final-pay.ts`, which this module is meant to replace; the inclusion list was taken from that function, not re-derived from DOLE text.
+An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing or unverifiable line amounts now block (`LINE_AMOUNT_INVALID`), and a retro line with an unknown source year blocks. These match the behavior of `readBasicAndThirteenth` in `final-pay.ts`, which this module is meant to replace; the inclusion list was taken from that function, not re-derived from DOLE text.
 
 ## Negative liabilities (new behavior)
 
@@ -20,7 +20,9 @@ An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`), an unver
 - Each source (payroll, historical, final pay) is netted separately and floored at zero, so a data error in one cannot create credit against another.
 - Overpayment is reported (`overpaidCentavos`, flag `OVERPAID_NOT_RECOVERED_NEEDS_POLICY`). Nothing is deducted or recovered.
 - A net-negative basic base floors the entitlement at zero and is flagged.
-- Any invalid amount or an unsafe centavo bound blocks with a named reason instead of becoming zero.
+- Any invalid amount, unsafe retro adjustment ID, accumulated centavo overflow or unsupported basic-centavo bound blocks with a named reason. The entitlement calculation returns zero monetary outputs when blocked, not partial payment instructions.
+- If `sumBasicCentavos` returns any blockers, its basic and excluded-pay subtotals are **partial diagnostic values only**; callers must stop, not pass them on as earned salary. The new functions do not trigger payroll or authorize any payment.
+- The 1/12 result is computed directly from integer centavos, without converting the centavo source to floating-point pesos and back.
 
 ## Divergences in the current code (measured, not yet fixed)
 

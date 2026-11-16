@@ -85,6 +85,7 @@ test("unverifiable non-retro amounts are flagged, not treated as zero without a 
   const sum = sumBasicCentavos([{ code: "BASIC", amount: "1000.00" }, { code: "BASIC", amount: "12.345" }]);
   assert.equal(sum.basicCentavos, 100_000);
   assert.deepEqual(sum.reviewFlags, ["AMOUNT_NOT_VERIFIABLE_SKIPPED:BASIC"]);
+  assert.deepEqual(sum.blockers, ["LINE_AMOUNT_INVALID:BASIC"]);
 });
 
 test("retro basic counts only when the ORIGINAL cutoff is in the tax year; unknown year blocks", () => {
@@ -165,6 +166,8 @@ test("invalid inputs fail closed with blockers instead of guessing", () => {
   const badPayout = computeThirteenthMonth({ basicCentavos: 12_000_000, payouts: { payroll: ["12.345", Number.NaN] } });
   assert.deepEqual(badPayout.blockers, ["PAYOUT_AMOUNT_INVALID:payroll", "PAYOUT_AMOUNT_INVALID:payroll"]);
   assert.equal(badPayout.grantedCentavos, 0);
+  assert.equal(badPayout.stillDueCentavos, 0, "blockers must prevent a usable partial balance");
+  assert.equal(badPayout.entitlementCentavos, 0);
 
   const badBasic = computeThirteenthMonth({ basicCentavos: 100.5, payouts: {} });
   assert.deepEqual(badBasic.blockers, ["BASIC_NOT_INTEGER_CENTAVOS"]);
@@ -173,6 +176,68 @@ test("invalid inputs fail closed with blockers instead of guessing", () => {
   const tooLarge = computeThirteenthMonth({ basicCentavos: 100_000_000_000_001, payouts: {} });
   assert.equal(tooLarge.entitlementCentavos, 0);
   assert.equal(tooLarge.blockers.length, 1, "beyond the safe centavo bound it blocks instead of rounding");
+});
+
+
+test("missing BASIC amounts block rather than silently reducing earned salary", () => {
+  const sum = sumBasicCentavos([{ code: "BASIC", amount: "1000.00" }, { code: "BASIC" }]);
+  assert.deepEqual(sum.blockers, ["LINE_AMOUNT_INVALID:BASIC"]);
+  assert.equal(sum.basicCentavos, 100_000, "a blocked sum is diagnostic only");
+  assert.deepEqual(sum.reviewFlags, ["AMOUNT_NOT_VERIFIABLE_SKIPPED:BASIC"]);
+});
+
+test("retro adjustment ids must be safe integers before source-year lookup", () => {
+  let called = false;
+  const sum = sumBasicCentavos([{ code: "RETRO-9007199254740992", amount: "10.00" }],
+    { taxYear: 2026, retroSourceYear: () => { called = true; return 2026; } });
+  assert.equal(called, false);
+  assert.deepEqual(sum.blockers, ["RETRO_SOURCE_YEAR_UNVERIFIED:RETRO-9007199254740992"]);
+});
+
+test("basic and excluded-pay accumulators block on unsafe centavo totals", () => {
+  const large = "50000000000000.00"; // 5 quadrillion cents per verified line, under Number.MAX_SAFE_INTEGER
+  const basic = sumBasicCentavos([{ code: "BASIC", amount: large }, { code: "BASIC", amount: large }]);
+  assert.deepEqual(basic.blockers, ["BASIC_TOTAL_UNSAFE:BASIC"]);
+  const excluded = sumBasicCentavos([{ code: "OT", amount: large }, { code: "OT", amount: large }]);
+  assert.deepEqual(excluded.blockers, ["EXCLUDED_PAY_TOTAL_UNSAFE:OT"]);
+});
+
+test("unsafe payout, reversal and across-source totals never return usable balances", () => {
+  const large = "50000000000000.00";
+  const sameSource = computeThirteenthMonth({
+    basicCentavos: 12_000_000, payouts: { payroll: [large, large] },
+  });
+  assert.ok(sameSource.blockers.includes("PAYOUT_TOTAL_UNSAFE:payroll"));
+  assert.equal(sameSource.grantedCentavos, 0);
+  assert.equal(sameSource.stillDueCentavos, 0);
+
+  const acrossSources = computeThirteenthMonth({
+    basicCentavos: 12_000_000, payouts: { payroll: [large], historical: [large] },
+  });
+  assert.ok(acrossSources.blockers.includes("GRANTED_TOTAL_UNSAFE"));
+  assert.equal(acrossSources.grantedCentavos, 0);
+
+  const reversals = computeThirteenthMonth({
+    basicCentavos: 12_000_000, payouts: { payroll: ["-50000000000000.00", "-50000000000000.00"] },
+  });
+  assert.ok(reversals.blockers.includes("REVERSAL_TOTAL_UNSAFE:payroll"));
+  assert.equal(reversals.reversedCentavos, 0);
+});
+
+test("centavo rounding stays exact up to the supported one-trillion-peso basic boundary", () => {
+  for (const basicCentavos of [
+    0, 1, 5, 6, 11, 12, 13,
+    99_999_999_999_993, 99_999_999_999_994, 99_999_999_999_995,
+    99_999_999_999_999, 100_000_000_000_000,
+  ]) {
+    const got = computeThirteenthMonth({ basicCentavos, payouts: {} });
+    assert.deepEqual(got.blockers, [], `c=${basicCentavos}`);
+    assert.equal(got.entitlementCentavos, Number((BigInt(basicCentavos) + 6n) / 12n),
+      `c=${basicCentavos}`);
+  }
+  const beyond = computeThirteenthMonth({ basicCentavos: 100_000_000_000_001, payouts: {} });
+  assert.deepEqual(beyond.blockers, ["THIRTEENTH_BASIC_CENTAVOS_INVALID"]);
+  assert.equal(beyond.entitlementCentavos, 0);
 });
 
 test("end to end: lines -> base -> entitlement -> shortfall", () => {
