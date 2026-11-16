@@ -1,4 +1,4 @@
-import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
+import { roundedBasicPayBuckets, roundedGrossFromBuckets, splitFixedMonthlyBasic, statutoryTrueUpDecision } from "@/lib/payroll-money";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { loadApprovedPayrollExits, payrollEmploymentStatus, profileBeforeFutureRevision } from "@/lib/approved-exit-payroll";
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
@@ -2153,13 +2153,44 @@ export function calculateEmployeePay(input: {
   // The denominator remains the full cutoff while timeline coverage begins on
   // the actual employment start date, so a mid-cutoff hire receives only the
   // earned fraction of the semi-monthly salary.
-  const semiMonthlyBasic = fixedMonthlyBasicForTimeline(
+  const unroundedSemiMonthlyBasic = fixedMonthlyBasicForTimeline(
     timeline,
     input.periodStart,
     input.periodEnd,
     employeeStartDate,
     employmentEndDate,
   );
+  // #2003: Two independently rounded halves of an odd-cent fixed monthly
+  // salary can exceed the employee's contracted salary by PHP 0.01. Limit the
+  // deterministic first-up / second-remainder allocation to a verified stable
+  // full-month monthly rate and standard 1-15 / 16-month-end cutoffs. A final
+  // cutoff without a released first-cutoff ledger remains on the legacy path
+  // and independently raises STATUTORY_TRUE_UP_INPUT_MISSING below.
+  const salaryMonth = input.periodStart.slice(0, 7);
+  const salaryMonthStart = salaryMonth + "-01";
+  const salaryMonthEnd = new Date(Date.UTC(
+    Number(salaryMonth.slice(0, 4)), Number(salaryMonth.slice(5, 7)), 0,
+  )).toISOString().slice(0, 10);
+  const standardFirstCutoff =
+    input.periodStart === salaryMonthStart && input.periodEnd === salaryMonth + "-15";
+  const standardFinalCutoff =
+    input.periodStart === salaryMonth + "-16" && input.periodEnd === salaryMonthEnd;
+  const unchangedFullMonthSalary =
+    payProfile.payBasis === "monthly"
+    && timeline.length === 1
+    && employeeStartDate <= salaryMonthStart
+    && (!employmentEndDate || employmentEndDate >= salaryMonthEnd)
+    && !(input.payRevisions ?? []).some((revision) =>
+      revision.effectiveDate >= salaryMonthStart && revision.effectiveDate <= salaryMonthEnd
+    );
+  const useFixedSalaryCentavoSplit =
+    unchangedFullMonthSalary
+    && (standardFirstCutoff || (standardFinalCutoff && input.priorStatutory != null));
+  const semiMonthlyBasic = useFixedSalaryCentavoSplit
+    ? (standardFirstCutoff
+      ? splitFixedMonthlyBasic(payProfile.rateAmount).first
+      : splitFixedMonthlyBasic(payProfile.rateAmount).second)
+    : unroundedSemiMonthlyBasic;
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
 
@@ -3588,10 +3619,20 @@ export function calculateEmployeePay(input: {
   }
   const canTrueUpActualMonth = trueUp.canTrueUp;
 
+  // First-cutoff SSS is provisional: the *actual* month is determined by
+  // the released-cutoff ledger at month-end. For an unchanged fixed monthly
+  // contract, do not double the posted (rounded-up) half-salary. Project its
+  // exact contracted basic plus two times other eligible cutoff remuneration.
+  // This prevents false MSC bracket jumps at PHP 5,249.99 / 14,749.99 /
+  // 34,749.99 while preserving the existing estimate for variable and
+  // nonstandard payroll cases.
+  const firstCutoffSssEstimate = unchangedFullMonthSalary && standardFirstCutoff
+    ? Math.max(0, payProfile.rateAmount + (sssCutoffRemuneration - baseBasicPay) * 2)
+    : sssCutoffRemuneration * 2;
   const statutoryMonthlySssCompensation = roundToCents(
     canTrueUpActualMonth
       ? priorStatutory.sssRemuneration + sssCutoffRemuneration
-      : sssCutoffRemuneration * 2,
+      : firstCutoffSssEstimate,
   );
   const statutoryMonthlyPagIbigCompensation = roundToCents(
     canTrueUpActualMonth
@@ -3599,6 +3640,17 @@ export function calculateEmployeePay(input: {
       : pagIbigCutoffCompensation * 2,
   );
   const sssRule = computeSss(statutoryMonthlySssCompensation, input.payDate);
+  // Do not silently treat a clamped-to-zero second-cutoff collection as a
+  // reconciled month if an earlier released cutoff already exceeded the final
+  // actual-month SSS/EC/MPF obligation. Negative recovery/deductions require
+  // a separately approved process; block ordinary payroll approval instead.
+  if (canTrueUpActualMonth && (
+    roundToCents(priorStatutory.sssEmployee) > roundToCents(sssRule.employee)
+    || roundToCents(priorStatutory.sssEmployer) > roundToCents(sssRule.employer)
+    || roundToCents(priorStatutory.sssEmployerEc) > roundToCents(sssRule.employerEC)
+  )) {
+    flags.push("SSS_PRIOR_OVER_COLLECTION_REVIEW_REQUIRED: Released earlier cutoff exceeds the actual-month SSS/EC obligation. Do not treat zero true-up as reconciliation; independent payroll review and correction are required before approval.");
+  }
   // M-6 (PC 2020-0005; PhilHealth PA2025-0002): fixed monthly basic
   // salary only. Do not add OT, allowances, bonuses, 13th-month or retro pay,
   // and do not subtract lateness/absence from the statutory MBS base.
