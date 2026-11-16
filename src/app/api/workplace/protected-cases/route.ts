@@ -152,7 +152,9 @@ export async function POST(request: Request) {
   try { sealedStatement = sealWorkplaceStatement(statement); }
   catch { return Response.json({ error: "Private case encryption unavailable. No statement was stored." },
     { status: 503, headers: workplacePrivateHeaders }); }
-  const row = await db.transaction(async tx => {
+  let row: { id: number; status: string };
+  try {
+    row = await db.transaction(async tx => {
     // Serialize complaint intake with officer revocation. A revoked officer
     // must never become the only intake destination through a race.
     const [intakeOfficer] = await tx.select({ userId: workplaceCaseOfficers.userId })
@@ -182,8 +184,16 @@ export async function POST(request: Request) {
       resource: String(record.id),
       metadata: { caseId: record.id, legalEntityId: record.legalEntityId, private: true, status: "intake" },
     }, tx);
-    return record;
-  });
+    return { id: record.id, status: record.status };
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INTAKE_OFFICER_UNAVAILABLE") {
+      return Response.json({ error: "Selected independent intake officer is no longer available. Choose another approved officer." },
+        { status: 409, headers: workplacePrivateHeaders });
+    }
+    return Response.json({ error: "Protected intake could not be committed safely. No complaint was stored." },
+      { status: 503, headers: workplacePrivateHeaders });
+  }
   return Response.json({ caseId: row.id, status: row.status, intakeRecorded: true,
     guidance: "Contact the employer's designated independent complaint channel for urgent safety and legal assistance.",
   }, { status: 201, headers: workplacePrivateHeaders });
