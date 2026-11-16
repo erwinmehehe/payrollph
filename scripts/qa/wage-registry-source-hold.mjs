@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import {historicTransitiveWageProofView} from "./wage-registry-transitive-source-hold.mjs";
 
 export const WAGE_PROOF_SOURCE = "src/lib/wage-orders.ts";
 export const WATCH_PROOF_SOURCE = "src/lib/statutory-rule-watch.ts";
@@ -97,7 +98,7 @@ export function historicWageRegistryProofView(manifest, read = readFileSync) {
   const currentRows = Object.values(manifest.allApiRouteFiles ?? {}).flatMap(file => file.methods);
   const heldRows = currentRows.filter(row =>
     row.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal");
-  if (heldRows.length === 0) return manifest;
+  if (heldRows.length === 0) return historicTransitiveWageProofView(manifest, read);
   assert.equal(heldRows.length, WAGE_SOURCE_HELD_METHODS.length,
     "Partial or extra wage source holds are forbidden in historical view");
   verifyAllWageRegistrySourceHolds(manifest, read);
@@ -120,7 +121,7 @@ export function historicWageRegistryProofView(manifest, read = readFileSync) {
   view.acceptanceStatus = view.acceptanceStatus.replace(
     /^NOT ACCEPTED: \d+ API methods/,
     "NOT ACCEPTED: " + view.metrics.gap + " API methods");
-  return view;
+  return historicTransitiveWageProofView(view, read);
 }
 
 /**
