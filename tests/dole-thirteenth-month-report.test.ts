@@ -233,9 +233,9 @@ test("screening entitlement: whole-peso cases unchanged, unverified basic stays 
   // Sub-centavo basic cannot be verified: preserve the old displayed estimate
   // but never claim that the shortfall is verified or submission-ready.
   const subcent = oneWorker(100.0049, 0);
-  assert.equal(subcent.workers[0]?.screeningEntitlement, 8.33);
-  assert.equal(subcent.workers[0]?.screeningShortfall, null);
-  assert.equal(subcent.workers[0]?.screeningBasicVerified, false);
+  assert.equal(subcent.incompleteBasicRows[0]?.screeningEntitlement, 8.33);
+  assert.equal(subcent.incompleteBasicRows[0]?.screeningShortfall, null);
+  assert.equal(subcent.incompleteBasicRows[0]?.screeningBasicVerified, false);
   assert.equal(subcent.reviewRows.length, 0);
   assert.equal(subcent.incompleteBasicRows[0]?.employeeNo, "E1");
   assert.equal(subcent.readyToSubmit, false);
@@ -246,16 +246,16 @@ test("screening entitlement: whole-peso cases unchanged, unverified basic stays 
 test("invalid, unsupported, and non-finite basic amounts cannot silently clear a DOLE screen", () => {
   for (const basic of [100.015, 100.0049, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER, "100.02" as unknown as number]) {
     const report = oneWorker(basic, 8.33);
-    assert.equal(report.workers[0]?.basicSalaryComplete, false, String(basic));
-    assert.equal(report.workers[0]?.screeningBasicVerified, false, String(basic));
-    assert.equal(report.workers[0]?.screeningShortfall, null, String(basic));
+    assert.equal(report.incompleteBasicRows[0]?.basicSalaryComplete, false, String(basic));
+    assert.equal(report.incompleteBasicRows[0]?.screeningBasicVerified, false, String(basic));
+    assert.equal(report.incompleteBasicRows[0]?.screeningShortfall, null, String(basic));
     assert.equal(report.reviewRows.length, 0, String(basic));
     assert.deepEqual(report.incompleteBasicRows.map(row => row.employeeNo), ["E1"], String(basic));
     assert.equal(report.readyToSubmit, false, String(basic));
     assert.equal(report.report.employees[0]?.amountGranted, 8.33, String(basic));
     assert.equal(report.report.totalBenefitsGranted, 8.33, String(basic));
     if (typeof basic !== "number" || !Number.isFinite(basic)) {
-      assert.equal(report.workers[0]?.screeningEntitlement, null, String(basic));
+      assert.equal(report.incompleteBasicRows[0]?.screeningEntitlement, null, String(basic));
     }
   }
 });
@@ -266,7 +266,7 @@ test("a one-centavo rounding correction never alters reported grants, totals, or
   assert.equal(before.reviewRows.length, 0);
   assert.equal(after.reviewRows.length, 1);
   assert.equal(after.reviewRows[0]?.screeningShortfall, 0.01);
-  assert.equal(after.workers[0]?.screeningBasicVerified, true);
+  assert.equal(after.reviewRows[0]?.screeningBasicVerified, true);
   assert.equal(after.incompleteBasicRows.length, 0);
   assert.equal(after.readyToSubmit, true);
   // These constitute the DOLE payload. The basic salary is NOT part of it.
