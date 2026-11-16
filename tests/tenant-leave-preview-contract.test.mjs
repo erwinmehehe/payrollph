@@ -1,3 +1,4 @@
+import {historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -200,7 +201,7 @@ test("exact promoted POST identity retains verified evidence and server source b
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const record = Object.values(manifest.allApiRouteFiles).find(
     row => row.route === "leave/preview");
-  assert.equal(verifyPromotionCredits(manifest), 16);
+  assert.equal(verifyPromotionCredits(historicalWageCatalog(manifest)), 16);
   assert.equal(record?.methods?.find(method => method.name === "POST")?.status, "COVERED");
   const source = readFileSync("src/app/api/leave/preview/route.ts", "utf8");
   for (const condition of [

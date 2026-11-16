@@ -1,3 +1,4 @@
+import {historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 import test from 'node:test';
 import {historicalSamlMetadataView} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {historicalSsoResolveView} from '../scripts/qa/tenant-sso-resolve-public-policy.mjs';
@@ -33,7 +34,7 @@ test('changing any executed input, receipt or baseline SQL inventory requires a 
  assert.throws(()=>readOidcBatchExecution(readFileSync,p=>[...readdirSync(p),'9999_unexecuted.sql']),/SQL inventory changed/);
 });
 test('historical page/payroll view restores only the two sealed GAP rows, never the committed ledger',()=>{
- const m=historicalSsoResolveView(historicalSamlMetadataView(manifest())),before=structuredClone(m),old=historicOidcBatchView(m);
+ const m=historicalWageCatalog(historicalSsoResolveView(historicalSamlMetadataView(manifest()))),before=structuredClone(m),old=historicOidcBatchView(m);
  assert.deepEqual(m,before);assert.equal(old.metrics.gap,m.metrics.gap+2);
  assert.equal(old.metrics.coveredAfter,m.metrics.coveredAfter-2);
  assert.equal(verifyOidcCallbackHold(old),0);

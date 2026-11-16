@@ -1,3 +1,4 @@
+import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -95,8 +96,8 @@ test("unknown credit families never write or select unrelated pending rows", () 
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", before = readFileSync(file, "utf8");
   assert.throws(() => execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--family", "missing", "--check"], { stdio: "pipe" }));
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--family", "compliance-evidence", "--check"], { encoding: "utf8" }));
-  const manifest = JSON.parse(before), expected = rows.filter(row => {
-    const [verb, route] = row.key.split(" "); return manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(method => method.name === verb).status === "GAP";
+  const manifest = JSON.parse(before), held=verifiedWageCreditHolds(manifest), expected = rows.filter(row => {
+    const [verb, route] = row.key.split(" "); return !held.has(verb+" src/app/api/"+route+"/route.ts") && manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(method => method.name === verb).status === "GAP";
   }).length;
   assert.equal(report.newlyCredited, expected); assert.equal(readFileSync(file, "utf8"), before);
 });

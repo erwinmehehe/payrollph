@@ -45,7 +45,7 @@ test("MKT-01 operator GET stays distinct from archived Studio POST",()=>{
   assert.ok(checkpoints.length>0,"Historic Studio evidence note cannot silently disappear");
   assert.ok(checkpoints.every(([,covered,gap])=>Number(covered)>live.coveredAfter&&Number(gap)<live.gap),
     "Previous Studio snapshot must remain historical after source-wide withdrawal");
-  assert.equal(m.allApiRouteFiles[STUDIO_POST_PATH].methods[0].testedBy,null);
+  assert.equal(m.allApiRouteFiles[STUDIO_POST_PATH].methods.find(x=>x.name==='POST').testedBy,null);
   assert.equal(manifest().acceptanceStatus,m.acceptanceStatus);
 });
 

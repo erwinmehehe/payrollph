@@ -61,6 +61,9 @@ test("selection is idempotent, writes nothing in check mode and preserves curate
   try {
     // Exercise the actual writer, preserving unrelated legitimate branch credits.
     cpSync("scripts/qa", join(sandbox, "scripts/qa"), { recursive: true });
+    for(const source of ["src/lib/wage-orders.ts","src/lib/statutory-rule-watch.ts"]){
+      mkdirSync(sandbox + "/src/lib",{recursive:true});cpSync(source,join(sandbox,source));
+    }
     const overview = "docs/engineering/tenant-isolation-coverage-inventory.md";
     mkdirSync(dirname(join(sandbox, overview)), { recursive: true });
     cpSync(overview, join(sandbox, overview));

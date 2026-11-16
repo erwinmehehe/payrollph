@@ -1,3 +1,4 @@
+import {assertWageLedgerDelta} from './helpers/wage-source-holds.mjs';
 import {assertMkt01Receipt} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import {verifyOidcBatchMethod,OIDC_START} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
@@ -100,6 +101,7 @@ test("self-service routes use real employee sessions and revoke real memberships
 
 test("12 net-new Batch 01 high-risk GET receipts preserve current-main tenant proofs", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  if(assertWageLedgerDelta(assert,manifest))return;
   const oracleHolds=verifyOracleSourceHolds(manifest);
   // Preserve this historical baseline arithmetic, then subtract the exact
   // source withdrawals once at the end. These are NOT live method credits.

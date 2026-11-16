@@ -1,3 +1,4 @@
+import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -55,7 +56,7 @@ test("new GET proofs bind nonempty exact worker/classification and run/finding i
 test("path-only credit dry-run selects no unrelated pending methods and never edits the ledger", () => {
   const file = "scripts/qa/tenant-isolation-coverage-manifest.json", before = readFileSync(file, "utf8"), manifest = JSON.parse(before);
   const methods = [...tenantFamilyCatalog("read"), ...tenantFamilyCatalog("write")].filter(row => row.pathIds);
-  const held=verifyOracleSourceHolds(manifest);
+  const held=new Set([...verifyOracleSourceHolds(manifest),...verifiedWageCreditHolds(manifest)]);
   const expected = methods.filter(row => { const [verb, route] = row.key.split(" "),path="src/app/api/"+route+"/route.ts"; return !held.has(verb+" "+path)&&manifest.allApiRouteFiles[path].methods.find(method => method.name === verb).status === "GAP"; }).length;
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--only-path-ids", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, expected); assert.equal(readFileSync(file, "utf8"), before);

@@ -81,7 +81,7 @@ test("filing, approvals and BIR holds remain disjoint from unrelated billing/MKT
   assert.equal(method.testedBy,null);
   assert.equal(method.reviewedUncertified.kind,TRANSITIVE_HOLD_KIND);
  }
- const studio=m.allApiRouteFiles["src/app/api/automation-studio/route.ts"].methods[0];
+ const studio=m.allApiRouteFiles["src/app/api/automation-studio/route.ts"].methods.find(x=>x.name==="POST");
  assert.equal(verifyAllSealedWageHolds(m).size,5);
  assert.equal(studio.status,"GAP");
  assert.equal(studio.reviewedUncertified.kind,SEALED_WAGE_HOLD_KIND);

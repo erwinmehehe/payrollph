@@ -1,3 +1,5 @@
+import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
+import {historicalWageCatalog,assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-credit.mjs";
@@ -48,13 +50,17 @@ test("credit sweep only updates 16 distinct verified GAP methods with four sourc
   assert.equal(targets.length, 16);
   assert.equal(new Set(targets.map(([key]) => key)).size, targets.length);
   assertLiveTenantCounts(assert, manifest);
-  assert.equal(verifyPromotionCredits(manifest), targets.length);
+  assert.equal(verifyPromotionCredits(historicalWageCatalog(manifest)), targets.length);
   const credited = [...methods].filter(([, method]) =>
     method.testedBy?.verifiedMainCommit === base);
-  assert.equal(credited.length, targets.length, "no unrelated GAP method gets this credit");
+  const archived=historicalWageCatalog(manifest);
+  const held=verifiedWageCreditHolds(manifest);
+  const heldTargets=targets.filter(([key])=>{const at=key.indexOf(" ");return held.has(key.slice(0,at)+" src/app/api/"+key.slice(at+1)+"/route.ts");});
+  assert.equal(credited.length, targets.length-heldTargets.length, "Held historical citations are not active credits");
   for (const [key, pr, run] of targets) {
-    const method = methods.get(key);
-    assert.equal(method?.status, "COVERED", key);
+    const at=key.indexOf(" "),path="src/app/api/"+key.slice(at+1)+"/route.ts";
+    const method = archived.allApiRouteFiles[path].methods.find(x=>x.name===key.slice(0,at));
+    assert.equal(method?.status, "COVERED", key+" historical catalogue");
     const evidence = method.testedBy;
     assert.ok(evidence, key + " must contain distinct executed evidence");
     assert.equal(evidence.prNumber, pr, key);
@@ -224,7 +230,11 @@ test("already credited and partial-action methods are not double-counted", () =>
     "PATCH compliance/filing-validations/[id]",
   ];
   for (const key of excluded) {
-    if(key==='PATCH approvals/[id]'){assert.equal(verifyApprovalsCredit(manifest),1);continue;}
+    const at=key.indexOf(" "),path="src/app/api/"+key.slice(at+1)+"/route.ts";
+    if(verifiedWageCreditHolds(manifest).has(key.slice(0,at)+" "+path)){
+      assert.equal(methods.get(key)?.status,"GAP");assert.equal(methods.get(key)?.testedBy,null);continue;
+    }
+    if(key==='PATCH approvals/[id]'){assertCreditOrWageHold(assert,manifest,"src/app/api/approvals/[id]/route.ts","PATCH",verifyApprovalsCredit);continue;}
     if (key === "PATCH careers/admin") {
       // Independent executed PG16 method credit, not a credit from this older sweep.
       assert.equal(verifyCareersPatchCredit(manifest), 1);
@@ -393,7 +403,7 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   assert.ok(subtotalLines[0].includes(`**${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]} PRIVILEGED-OPERATIONS-TOKEN-ONLY + ${total.GAP} GAP = 406**`),
     "The frozen queue subtotal must reflect the actual source-linked statuses");
   const supplementary=doc.split("\n").filter(line=>line.startsWith("- HELD `"));
-  const sourceHolds=verifyOracleSourceHolds(manifest),outside=new Set();
+  const sourceHolds=new Set([...verifyOracleSourceHolds(manifest),...verifiedWageCreditHolds(manifest)]),outside=new Set();
   for(const line of supplementary){
     const identity=line.split("`")[1],[verb,url]=identity.split(" "),path="src/app"+url+"/route.ts";
     assert.ok(!seen.has(identity)&&!outside.has(identity),"Supplemental renewal must not duplicate a frozen method");

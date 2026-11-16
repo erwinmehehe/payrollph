@@ -22,6 +22,7 @@ import { createHash } from "node:crypto";
 import { METHODS as developmentMethods } from "./tenant-performance-development-actions.mjs";
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
+import { verifiedWageCreditHolds } from "./wage-registry-credit-holds.mjs";
 
 if (process.argv.includes("--root-planning")) {
   const {creditRoot}=await import("./tenant-root-planning-credit.mjs");
@@ -157,6 +158,13 @@ const SOURCES = [
 ];
 
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
+const wageHolds = verifiedWageCreditHolds(manifest);
+const wageHeldSelection = onlyKeys.find(key => {
+  const hit = Object.entries(manifest.allApiRouteFiles).find(([, route]) =>
+    key.endsWith(" " + route.route));
+  return hit && wageHolds.has(key.slice(0, key.indexOf(" ")) + " " + hit[0]);
+});
+if (wageHeldSelection) throw new Error(wageHeldSelection + ": wage-dependent source proof is HELD; fresh dedicated exact-source renewal required");
 const byKey = new Map(Object.entries(manifest.allApiRouteFiles).flatMap(([path, record]) =>
   record.methods.map((method) => [method.name + " " + record.route, { path, record, method }])));
 
@@ -179,6 +187,7 @@ for (const source of SOURCES) {
     const hit = byKey.get(row.key);
     if (!hit) throw new Error(row.key + ": not in the manifest");
     const { method } = hit;
+    if (wageHolds.has(method.name + " " + hit.path)) continue;
     // An explicit credit selection must not rewrite unrelated source-pinned receipts.
     // Only --refresh-links without a selection may intentionally repin existing rows.
     if (selectedKeys.size && !selectedKeys.has(row.key)) continue;

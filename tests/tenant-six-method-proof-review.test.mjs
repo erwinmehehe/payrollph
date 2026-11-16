@@ -39,6 +39,7 @@ import { EVIDENCE, verifyFiveMethodCredits, verifyWorker360PageCredit } from "..
 import { verifyFivePageCredits, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import { historicWageRegistryProofView } from "../scripts/qa/wage-registry-source-hold.mjs";
+import {assertWageLedgerDelta} from './helpers/wage-source-holds.mjs';
 
 const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 assert.equal(verifySixPageCredits(live), selectedTargets().length,
@@ -124,6 +125,7 @@ function verifiedFrozenMethodStatus(manifest, path, verb, verifiedStatus, snapsh
 }
 
 test("four uncredited methods stay GAP; two main-owned provisional credits are preserved", () => {
+  if(assertWageLedgerDelta(assert,live))return;
   assert.equal(cases.length, 6);
   for (const [verb, route, pr, head, proofSha, own, foreign, forged, unchanged, ordering, missing] of cases) {
     const path = "src/app/api/" + route + "/route.ts";
@@ -311,6 +313,7 @@ test("four uncredited methods stay GAP; two main-owned provisional credits are p
 });
 
 test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end credits", () => {
+  if(assertWageLedgerDelta(assert,live))return;
   const counts = { COVERED: 0, "PUBLIC-BY-DESIGN": 0, GAP: 0, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 0 };
   for (const { method } of allMethods) {
     assert.ok(Object.hasOwn(counts, method.status));

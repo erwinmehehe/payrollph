@@ -1,3 +1,4 @@
+import {historicalWageCatalog,wageHeldPriorProof} from './helpers/wage-source-holds.mjs';
 import { TARGETS, verifyFivePageCredits, historicWorker360ProofView, verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 /**
@@ -89,7 +90,9 @@ test("BI and labor download use existing HIGHER-ID victim-only DB records", () =
 function overviewHasLink(route, method, line) {
   const inventory = readFileSync("docs/engineering/tenant-isolation-coverage-inventory.md", "utf8");
   const row = inventory.split("\n").find(value => value.startsWith("| [`" + route + "` " + method + "]"));
-  return Boolean(row && row.includes("tenant-dl01-batch2-http.mjs#L" + line) && row.endsWith("**COVERED** |"));
+  const held=wageHeldPriorProof(manifest,"src/app/api/"+route+"/route.ts",method);
+  return Boolean(row && row.includes("tenant-dl01-batch2-http.mjs#L" + line) &&
+    (held ? row.endsWith("**GAP** (source HELD; older proof archived) |") : row.endsWith("**COVERED** |")));
 }
 
 test("four newly credited DL-01 methods have independently reviewable real HTTP/PG16 proof pins", () => {
@@ -101,7 +104,7 @@ test("four newly credited DL-01 methods have independently reviewable real HTTP/
     { method: "GET", route: "bi-exports", refs: [23, 254, 260, 264, 315, 126, 130], names: ["ownBi", "foreignBi", "forgedBi"], exists: "persistedVictimBiRun", order: "victimBiRun.id > f.ownRuns[1].id", forgedStatus: 400 },
   ];
   for (const spec of specs) {
-    const method = manifest.allApiRouteFiles["src/app/api/" + spec.route + "/route.ts"]
+    const method = historicalWageCatalog(manifest).allApiRouteFiles["src/app/api/" + spec.route + "/route.ts"]
       ?.methods.find(x => x.name === spec.method);
     assert.equal(method?.status, "COVERED", spec.route + ": missing reviewed method classification");
     const proof = method.testedBy;

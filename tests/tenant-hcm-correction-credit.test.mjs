@@ -30,6 +30,9 @@ test("selected credit writes preserve every unrelated method's proof provenance"
   const keys = ["return", "resubmit"].map(action => "POST hcm/effective-change-corrections/" + action);
   try {
     cpSync("scripts/qa", join(root, "scripts/qa"), { recursive: true });
+    for(const source of ["src/lib/wage-orders.ts","src/lib/statutory-rule-watch.ts"]){
+      mkdirSync(root + "/src/lib",{recursive:true});cpSync(source,join(root,source));
+    }
     cpSync("docs/engineering", join(root, "docs/engineering"), { recursive: true });
     mkdirSync(join(root, "node_modules"), { recursive: true });
     cpSync("node_modules/typescript", join(root, "node_modules/typescript"), { recursive: true });

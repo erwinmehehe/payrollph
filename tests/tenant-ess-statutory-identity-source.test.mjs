@@ -1,3 +1,4 @@
+import {historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -147,7 +148,7 @@ test("changed contribution route is source-pinned with two provisional proofs an
   assert.deepEqual(manifest.allApiRouteFiles["src/app/api/self/identifiers/route.ts"].methods
     .map(m => [m.name, m.status]), [["GET", "COVERED"], ["POST", "COVERED"]],
     "ESS identifier promotions retain their separately verified proof");
-  assert.equal(verifyPromotionCredits(manifest), 16);
+  assert.equal(verifyPromotionCredits(historicalWageCatalog(manifest)), 16);
   // Derive current counts; unrelated merged tenant batches must not break
   // these two ESS proof assertions or silently rewrite the security ledger.
   const tallies = Object.values(manifest.allApiRouteFiles)

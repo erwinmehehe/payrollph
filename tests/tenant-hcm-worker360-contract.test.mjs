@@ -1,3 +1,4 @@
+import {assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
@@ -251,8 +252,7 @@ test("new Worker 360 source requires separate exact-head legal-employer GET and 
   assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(m)), 2);
   assertLiveTenantCounts(assert, m);
   assert.equal(m.scopedPages.length, m.metrics.scopedPagesAndActions);
-  assert.equal(verifyStudioPostCredit(m), 1,
-    "Studio POST must retain only its separately sourced credit");
+  assertCreditOrWageHold(assert,m,"src/app/api/automation-studio/route.ts","POST",verifyStudioPostCredit);
   assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(m)), 16);
 });
 
