@@ -15,8 +15,18 @@ export type WageOrder = {
 };
 
 /**
- * Current private-sector regional wage screening references as of 2026-10-03,
- * verified against the official NWPC/RTWPB current-rate pages.
+ * Current private-sector regional wage screening references verified as of
+ * 2026-11-16 against official NWPC/RTWPB sources:
+ * - NWPC regional private-sector summary dated 2026-11-06:
+ *   https://nwpc.dole.gov.ph/wp-content/uploads/2026/11/4-Summary-of-Current-Regl-MWRs-Non-Agri-and-Agri-by-Region-November-6_2026.pdf
+ * - Region IV-A operative table (IVA-23, 2026-10-26):
+ *   https://nwpc.dole.gov.ph/region-iva/
+ * - Region VI and XII tables (new orders effective 2026-11-20 and
+ *   2026-11-22 respectively, NOT active at this verification date):
+ *   https://nwpc.dole.gov.ph/region-vi/
+ *   https://nwpc.dole.gov.ph/region-xii/
+ * - Region VII ROVII-27 official NWPC publication (2026-10-14):
+ *   https://nwpc.dole.gov.ph/central-visayas-workers-set-to-receive-%E2%82%B142-minimum-wage-increase-wage-review-in-other-regions-ongoing/
  *
  * IMPORTANT: several wage orders have sector, establishment-size, area, or
  * municipality tiers. This compact registry stores the HIGHEST rate currently
@@ -26,7 +36,10 @@ export type WageOrder = {
  * category is known.
  *
  * For tranches, effectiveOn is the date the stored high-tier rate became
- * effective. Future tranches are intentionally excluded.
+ * effective. Future tranches are intentionally excluded; announced VI-30
+ * (2026-11-20), XII-26 (2026-11-22), and V/BARMM second tranches
+ * (2026-12-01) are NOT active in this 2026-11-16 snapshot.
+ * Historical IV-A/VII high tiers are retained for dated screening.
  *
  * MWE classification is explicit on the employee record. A rate below this
  * screening reference may raise a human-review flag, but never changes MWE
@@ -38,12 +51,11 @@ export const WAGE_ORDERS: WageOrder[] = [
   { region: "I", dailyRate: 505, wageOrder: "WO-RB1-24", effectiveOn: "2025-11-19", verified: true },
   { region: "II", dailyRate: 500, wageOrder: "WO-RTWPB 2-24", effectiveOn: "2025-11-05", verified: true },
   { region: "III", dailyRate: 600, wageOrder: "WO-RBIII-26", effectiveOn: "2026-04-16", verified: true },
-  { region: "IV-A", dailyRate: 600, wageOrder: "WO-IVA-22", effectiveOn: "2025-10-05", verified: true },
+  { region: "IV-A", dailyRate: 645, wageOrder: "WO-IVA-23", effectiveOn: "2026-10-26", verified: true },
   { region: "IV-B", dailyRate: 455, wageOrder: "WO-RB-MIMAROPA-13", effectiveOn: "2026-01-01", verified: true },
   { region: "V", dailyRate: 455, wageOrder: "WO-RBV-23", effectiveOn: "2026-04-08", verified: true },
   { region: "VI", dailyRate: 550, wageOrder: "WO-RBVI-29", effectiveOn: "2025-11-19", verified: true },
-  // ROVII-27 is already published but takes effect only on 2026-10-14.
-  { region: "VII", dailyRate: 540, wageOrder: "WO-ROVII-26", effectiveOn: "2025-10-04", verified: true },
+  { region: "VII", dailyRate: 582, wageOrder: "WO-ROVII-27", effectiveOn: "2026-10-14", verified: true },
   { region: "VIII", dailyRate: 470, wageOrder: "WO-RB VIII-25", effectiveOn: "2026-06-01", verified: true },
   { region: "IX", dailyRate: 464, wageOrder: "WO-RIX-24", effectiveOn: "2026-06-01", verified: true },
   { region: "X", dailyRate: 500, wageOrder: "WO-RX-24", effectiveOn: "2026-05-01", verified: true },
@@ -82,9 +94,21 @@ export const ROVII27_EFFECTIVE_ON = "2026-10-14";
 export const ROVII27_SOURCE_URL =
   "https://nwpc.dole.gov.ph/central-visayas-workers-set-to-receive-%E2%82%B142-minimum-wage-increase-wage-review-in-other-regions-ongoing/";
 
+/**
+ * Verified preceding high-tier orders, kept only for work dated before the
+ * newer order. No historical tier auto-selection is implied.
+ */
+export const HISTORICAL_WAGE_ORDERS: WageOrder[] = [
+  { region: "IV-A", dailyRate: 600, wageOrder: "WO-IVA-22", effectiveOn: "2025-10-05", verified: true },
+  { region: "VII", dailyRate: 540, wageOrder: "WO-ROVII-26", effectiveOn: "2025-10-04", verified: true },
+];
+
+/** Published, source-verified effective-date markers for historical rule-watch notices. */
 export const FORTHCOMING_WAGE_ORDERS: WageOrder[] = [
   { region: "VII", dailyRate: REGION_VII_WAGE_TIERS[0].newDailyRate,
     wageOrder: "WO-ROVII-27", effectiveOn: ROVII27_EFFECTIVE_ON, verified: true },
+  { region: "IV-A", dailyRate: 645,
+    wageOrder: "WO-IVA-23", effectiveOn: "2026-10-26", verified: true },
 ];
 
 function verifiedWageDate(value: string): string {
@@ -116,7 +140,7 @@ export function wageOrderFor(region: string, asOfDate?: string, wageClass?: Regi
     }
     const tier = REGION_VII_WAGE_TIERS.find((item) => item.wageClass === wageClass);
     if (!tier) throw new Error("Invalid Region VII wage class; choose A or B.");
-    const active = date !== null && date >= ROVII27_EFFECTIVE_ON;
+    const active = date === null || date >= ROVII27_EFFECTIVE_ON;
     return {
       region: "VII",
       dailyRate: active ? tier.newDailyRate : tier.oldDailyRate,
@@ -126,6 +150,14 @@ export function wageOrderFor(region: string, asOfDate?: string, wageClass?: Regi
     };
   }
   if (date === null) return order;
+  // Use a source-verified preceding reference for a work period before the
+  // replacement order; the current default remains the latest verified rate.
+  if (date < order.effectiveOn) {
+    const preceding = HISTORICAL_WAGE_ORDERS
+      .filter((item) => item.region === normalized && item.effectiveOn <= date)
+      .sort((a, b) => b.effectiveOn.localeCompare(a.effectiveOn))[0];
+    if (preceding) return preceding;
+  }
   const applicable = FORTHCOMING_WAGE_ORDERS
     .filter((item) => item.region === normalized && item.effectiveOn <= date)
     .sort((a, b) => b.effectiveOn.localeCompare(a.effectiveOn))[0];
