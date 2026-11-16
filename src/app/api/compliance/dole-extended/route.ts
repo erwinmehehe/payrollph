@@ -118,7 +118,9 @@ export async function PATCH(request: Request) {
       const nextRef = portalReference || old.portalReference;
       if (!mayAdvanceDoleRecord(old.status as typeof DOLE_STATUSES[number], body.status as typeof DOLE_STATUSES[number], {
         hasReceipt: !!nextReceipt && !!nextRef,
-        independentReviewer: body.status === "independently_reviewed" && user.id !== old.recordedByUserId,
+        independentReviewer: body.status === "independently_reviewed" &&
+          user.id !== old.recordedByUserId && user.id !== old.outcomeRecordedByUserId &&
+          old.outcomeRecordedByUserId !== null,
       })) throw new Error("INVALID_TRANSITION");
       const [row] = await tx.update(doleExtendedReports).set({
         status: body.status as string, portalReference: nextRef, receiptSha256: nextReceipt,
