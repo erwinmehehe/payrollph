@@ -14,10 +14,13 @@ export function PrivateWorkplaceStatement({ organizationId, caseId }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
+  const inFlight = useRef<Set<AbortController>>(new Set());
 
-  useEffect(() => () => {
-    request.current?.abort();
-    request.current = null;
+  useEffect(() => {
+    const controllers = new Set<AbortController>();
+    // Capture the collection, not a changing ref value, for stable cleanup.
+    inFlight.current = controllers;
+    return () => { for (const controller of controllers) controller.abort(); };
   }, []);
 
   async function toggle() {
@@ -30,6 +33,7 @@ export function PrivateWorkplaceStatement({ organizationId, caseId }: {
     const controller = new AbortController();
     request.current?.abort();
     request.current = controller;
+    inFlight.current.add(controller);
     setBusy(true); setError("");
     try {
       const url = "/api/workplace/protected-cases?organizationId=" + organizationId + "&caseId=" + caseId;
@@ -51,6 +55,7 @@ export function PrivateWorkplaceStatement({ organizationId, caseId }: {
         setError(cause instanceof Error ? cause.message : "Could not retrieve confidential statement.");
       }
     } finally {
+      inFlight.current.delete(controller);
       if (request.current === controller) {
         request.current = null;
         setBusy(false);
