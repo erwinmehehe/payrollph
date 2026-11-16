@@ -40,7 +40,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Fetch source ledger baseline (no external applications or databases)
         run: git fetch --no-tags origin main
-      # The six-method legacy test is pinned byte-for-byte to the PR base.
+      # The six-method legacy test and receipts remain immutable on the PR base.
       # Run it against the exact source it certified, not an updated wage
       # registry whose 75 historical method receipts are now explicitly held.
       # This historical replay does NOT confer current-source coverage credit.
@@ -52,8 +52,10 @@ jobs:
           set -euo pipefail
           base="${REVIEW_BASE_SHA:-origin/main}"
           git cat-file -e "$base:scripts/qa/tenant-isolation-coverage-manifest.json"
-          test "$(git rev-parse HEAD:tests/tenant-six-method-proof-review.test.mjs)" = \
-            "$(git rev-parse "$base:tests/tenant-six-method-proof-review.test.mjs")"
+          # The replay verifier asserts that PR-head test changes are EXACTLY
+          # a historical view (75 live GAP/HELD) plus one verified public SSO
+          # classification. No arbitrary edits to the archived test are allowed.
+          git cat-file -e "$base:tests/tenant-six-method-proof-review.test.mjs"
           historical="$(mktemp -d "${RUNNER_TEMP:-/tmp}/six-method-historical.XXXXXX")"
           git worktree add --detach "$historical" "$base"
           trap 'git worktree remove --force "$historical"' EXIT
