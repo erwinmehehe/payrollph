@@ -1,6 +1,7 @@
 import { and, eq, or, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { userOrganizations, users, workplaceCaseOfficers, workplaceProtectedCases } from "@/db/schema";
+import { userOrganizations, users } from "@/db/schema";
+import { workplaceCaseOfficers, workplaceProtectedCases } from "@/db/workplace-compliance-schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
