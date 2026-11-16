@@ -232,11 +232,10 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   assert.equal(new URL(process.env.SECURITY_SMOKE_URL).hostname, "127.0.0.1");
   const gaps = methodGaps();
   assert.equal(gaps.length, manifest.metrics.gap, "No inaccurate method-level GAP baseline");
-  verifyBir2316HistoricalGapBaseline(gaps);
-  // This probe still executes real disposable PG16 own/victim/unchanged checks.
-  // The old 75 source-sealed receipt rows are read ONLY from a fully verified
-  // in-memory historical view; their live GAP/HELD status is never promoted.
+  // Validate all 75 current GAP/HELD classifications before examining old
+  // receipts. Historical proof cannot reactivate a withdrawn method.
   const historic = historicWageRegistryProofView(manifest);
+  verifyBir2316HistoricalGapBaseline(gaps, historic);
   const governancePath = "src/app/api/hcm/governance-readiness/route.ts";
   const governanceNow = manifest.allApiRouteFiles[governancePath]?.methods.find(x => x.name === "GET");
   if (governanceNow?.status === "GAP") {
@@ -454,7 +453,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
 /** Keep the historical statutory HTTP test's exact source-pinned request lines
  * stable when new independently reviewed BIR method evidence is introduced.
  * Called by the real signed-in PG16 harness, never an acceptance bypass. */
-function verifyBir2316HistoricalGapBaseline(gaps) {
+function verifyBir2316HistoricalGapBaseline(gaps, historic) {
   // Preserve the pre-#1353/#1361 baseline (149 covered / 335 gaps) while
   // crediting three separately exercised BIR 2316 document methods and
   // one distinct successful payroll accounting-close POST.
