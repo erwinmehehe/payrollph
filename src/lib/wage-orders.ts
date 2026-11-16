@@ -19,6 +19,9 @@ export type WageOrder = {
  * 2026-11-16 against official NWPC/RTWPB sources:
  * - NWPC regional private-sector summary dated 2026-11-06:
  *   https://nwpc.dole.gov.ph/wp-content/uploads/2026/11/4-Summary-of-Current-Regl-MWRs-Non-Agri-and-Agri-by-Region-November-6_2026.pdf
+ * - NWPC 2026-10-06 archived official summary for VI-29 and XII-25
+ *   rates still effective before the later published orders begin:
+ *   https://nwpc.dole.gov.ph/wp-content/uploads/2026/10/Summary-of-Current-Regl-MWRs-Non-Agri-and-Agri-by-Region-Oct_6_2026.pdf
  * - Region IV-A operative table (IVA-23, 2026-10-26):
  *   https://nwpc.dole.gov.ph/region-iva/
  * - Region VI and XII tables (new orders effective 2026-11-20 and
