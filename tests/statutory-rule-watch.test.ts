@@ -30,7 +30,7 @@ test("loaded Region VII ROVII-27 is scheduled before effectivity, never falsely 
 });
 
 test("wage-order verification becomes review-due after 90 days", () => {
-  assert.equal(buildStatutoryRuleWatch("2027-01-15").find((row) => row.family === "wage-orders" && row.currentVersion)?.status, "review-due");
+  assert.equal(buildStatutoryRuleWatch("2027-02-16").find((row) => row.family === "wage-orders" && row.currentVersion)?.status, "review-due");
 });
 
 test("loaded ROVII-27 no longer appears among missing statutory rule changes", () => {
