@@ -236,6 +236,7 @@ export async function verifyManifestDrivenStatutoryBatch(f, { request, expectSta
   // receipts. Historical proof cannot reactivate a withdrawn method.
   const historic = historicWageRegistryProofView(manifest);
   verifyBir2316HistoricalGapBaseline(gaps, historic);
+  // Preserve the exact existing four-method real-HTTP source-line receipt anchors.
   const governancePath = "src/app/api/hcm/governance-readiness/route.ts";
   const governanceNow = manifest.allApiRouteFiles[governancePath]?.methods.find(x => x.name === "GET");
   if (governanceNow?.status === "GAP") {
