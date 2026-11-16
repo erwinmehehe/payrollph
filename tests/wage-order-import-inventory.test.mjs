@@ -20,7 +20,7 @@ const importPattern = /\bfrom\s*["'][^"']*wage-orders(?:\.ts)?["']|\bimport\s*\(
 const symbolPattern = /\bwageOrderFor\b|\bWAGE_ORDERS\b/g;
 
 test("inventory every source, test and script importer of regional wage orders", () => {
-  const files = ["src", "tests", "scripts"].flatMap(sourceFiles).sort();
+  const files = ["src", "tests", "scripts", "services", "qa"].flatMap(sourceFiles).sort();
   const importers = [];
   const symbolReferences = [];
   for (const path of files) {
