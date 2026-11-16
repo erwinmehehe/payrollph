@@ -135,7 +135,8 @@ export async function PATCH(request: Request) {
       }, tx);
       return updated;
     });
-    return Response.json({ event: row }, { headers: workplacePrivateHeaders });
+    return Response.json({ event: row, independentHumanReview: row.status === "resolved",
+      artifactDigestVerified: false }, { headers: workplacePrivateHeaders });
   } catch (e) {
     return e instanceof Error && e.message === "NOT_FOUND" ? workplaceNotFound() :
       Response.json({ error: "Event cannot be closed without independent review and protected evidence." }, { status: 409 });

@@ -241,3 +241,23 @@ test("independent case transfer cannot be applied by one admin or a case partici
   assert.ok(!transfer.includes("openWorkplaceStatement("));
   assert.ok(console.includes('/api/workplace/case-reassignments'));
 });
+
+test("a self-reported digest never claims an unearned cryptographic verification", () => {
+  const schema = readFileSync("src/db/workplace-compliance-schema.ts", "utf8");
+  const candidate = readFileSync("docs/engineering/migration-candidates/0139_ph_workplace_compliance_foundation.sql", "utf8");
+  const training = readFileSync("src/pilots/workplace/api/osh-training.ts", "utf8");
+  const dole = readFileSync("src/pilots/workplace/api/dole-extended.ts", "utf8");
+  const osh = readFileSync("src/pilots/workplace/api/osh-events.ts", "utf8");
+  const ui = readFileSync("src/components/workplace-compliance-console.tsx", "utf8");
+  assert.ok(schema.includes('attestedByUserId: integer("attested_by_user_id")'));
+  assert.ok(schema.includes('attestedAt: timestamp("attested_at"'));
+  assert.ok(candidate.includes("attested_by_user_id integer REFERENCES users(id)"));
+  assert.ok(candidate.includes("attested_at timestamptz"));
+  assert.ok(training.includes('body.action !== "attest"'));
+  assert.ok(training.includes("old.attestedAt"));
+  assert.ok(training.includes("artifactDigestVerified: false"));
+  assert.ok(dole.includes("artifactDigestVerified: false"));
+  assert.ok(osh.includes("artifactDigestVerified: false"));
+  assert.ok(ui.includes('value="attest"'));
+  assert.ok(!training.includes("verifiedAt: new Date()"));
+});

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   )).orderBy(desc(oshTrainingRecords.completedOn), desc(oshTrainingRecords.id)).limit(100);
   return Response.json({
     records, topics: TRAINING_TOPICS,
-    note: "Completion and expiry evidence only. Applicability, accreditation and required refresher dates need qualified human review.",
+    note: "Operator-entered completion and digest only. Human attestation does not verify an original artifact or training provider. Applicability and dates need qualified review.",
   }, { headers: workplacePrivateHeaders });
 }
 
@@ -95,13 +95,13 @@ export async function PATCH(request: Request) {
   if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const demo = publicDemoMutationDenied(user.email, "Verifying training evidence");
+  const demo = publicDemoMutationDenied(user.email, "Recording human training attestation");
   if (demo) return demo;
   const body: Record<string, unknown> = await request.json().catch(() => ({}));
   const organizationId = positiveId(body.organizationId);
   const id = positiveId(body.id);
-  if (!organizationId || !id || body.action !== "verify") return Response.json({
-    error: "Valid organization, training record and verify action required.",
+  if (!organizationId || !id || body.action !== "attest") return Response.json({
+    error: "Valid organization, training record and attest action required.",
   }, { status: 400 });
   const guard = await workplaceAdmin(user.id, organizationId);
   if (guard.denied) return guard.denied;
@@ -118,22 +118,24 @@ export async function PATCH(request: Request) {
         eq(oshTrainingRecords.legalEntityId, guard.legalEntityId!),
       )).for("update").limit(1);
       if (!old) throw new Error("NOT_FOUND");
-      if (old.verifiedAt || old.recordedByUserId === user.id || !old.evidenceSha256) {
+      if (old.attestedAt || old.recordedByUserId === user.id || !old.evidenceSha256) {
         throw new Error("INDEPENDENT_PROOF_REQUIRED");
       }
-      const [verified] = await tx.update(oshTrainingRecords).set({
-        verifiedAt: new Date(), verifiedByUserId: user.id,
+      const [attested] = await tx.update(oshTrainingRecords).set({
+        attestedAt: new Date(), attestedByUserId: user.id,
       }).where(and(eq(oshTrainingRecords.id, id), eq(oshTrainingRecords.organizationId, organizationId))).returning();
       await recordAuditEvent({
-        organizationId, actor: user.name, action: "Training evidence independently reviewed",
-        resource: String(id), metadata: { trainingId: id, employeeId: old.employeeId, reviewed: true,
-          externalTrainingProviderAccredited: false },
+        organizationId, actor: user.name, action: "Training evidence second-person human attestation",
+        resource: String(id), metadata: { trainingId: id, employeeId: old.employeeId, humanAttestation: true,
+          artifactDigestVerified: false, externalTrainingProviderAccredited: false },
       }, tx);
-      return verified;
+      return attested;
     });
-    return Response.json({ record: row }, { headers: workplacePrivateHeaders });
+    return Response.json({ record: row, independentHumanAttestation: true,
+      artifactDigestVerified: false, providerAccreditationVerified: false },
+      { headers: workplacePrivateHeaders });
   } catch (e) {
     return e instanceof Error && e.message === "NOT_FOUND" ? workplaceNotFound() :
-      Response.json({ error: "Independent reviewer and existing protected evidence required." }, { status: 409 });
+      Response.json({ error: "A distinct human reviewer and a recorded digest are required; no original artifact was verified." }, { status: 409 });
   }
 }

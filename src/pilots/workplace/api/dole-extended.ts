@@ -144,7 +144,7 @@ export async function PATCH(request: Request) {
       }, tx);
       return row;
     });
-    return Response.json({ record, note: "Status is operator-reviewed evidence, not an API-verified agency receipt." }, { headers: workplacePrivateHeaders });
+    return Response.json({ record, note: "Human-reviewed evidence only, not an API-verified agency receipt or verified original artifact.", artifactDigestVerified: false }, { headers: workplacePrivateHeaders });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "";
     return msg === "NOT_FOUND" ? workplaceNotFound() :

@@ -74,8 +74,9 @@ export const oshTrainingRecords = pgTable("osh_training_records", {
   evidenceSha256: varchar("evidence_sha256", { length: 64 }),
   requirementSource: varchar("requirement_source", { length: 350 }),
   recordedByUserId: integer("recorded_by_user_id").notNull().references(() => users.id),
-  verifiedByUserId: integer("verified_by_user_id").references(() => users.id),
-  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  // Human countersignature only; neither storage nor digest content verified.
+  attestedByUserId: integer("attested_by_user_id").references(() => users.id),
+  attestedAt: timestamp("attested_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [
   foreignKey({

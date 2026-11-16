@@ -10,13 +10,13 @@ This branch preserves prototype implementations for three strictly default-OFF c
 
 **Planned future HTTP API (NOT REGISTERED):** `/api/compliance/dole-extended` (GET, POST, PATCH); prototype: `src/pilots/workplace/api/dole-extended.ts`.
 
-Tracks employer-scoped source evidence for Work Accident/Illness Reports, telecommuting, flexible work, construction safety, labor inspection and other DOLE submissions. The state flow is draft -> submitted_recorded -> accepted_recorded/rejected_recorded -> independently_reviewed. The separate human review requires a different user and the original receipt reference plus SHA-256. **An operator's entered agency outcome is not official verification**. The app never submits a filing to DOLE, does not infer statutory deadlines, and does not call a worksheet an agency upload template.
+Tracks employer-scoped source evidence for Work Accident/Illness Reports, telecommuting, flexible work, construction safety, labor inspection and other DOLE submissions. The state flow is draft -> submitted_recorded -> accepted_recorded/rejected_recorded -> independently_reviewed. The separate human review requires a different user and an operator-entered receipt reference plus SHA-256; **the original receipt is not cryptographically matched to the digest**. **An operator's entered agency outcome is not official verification**. The app never submits a filing to DOLE, does not infer statutory deadlines, and does not call a worksheet an agency upload template.
 
 ## 2. OSH incidents, corrective action, and training proof
 
 **Planned future APIs (NOT REGISTERED):** `/api/compliance/osh-events` and `/api/compliance/osh-training`; prototype handlers in `src/pilots/workplace/api/`.
 
-The incident register holds a worksite label, civil date, category, severity, corrective-action reference and evidence hash; it has no medical narrative or diagnoses. A separate authorized reviewer must close a case with private evidence. The training register tracks exact worker identity, course type/title, completed and optional expiration date, protected evidence hash and independent review. An employer's OSH officer decides legally required courses, risk categories, reporting duties, proof, and expiry rules; the software does not make those determinations.
+The incident register holds a worksite label, civil date, category, severity, corrective-action reference and evidence hash; it has no medical narrative or diagnoses. A separate authorized reviewer must close a case with operator-entered private evidence references; this is a human attestation, **not validation of an underlying original artifact**. The training register tracks worker identity, course title/topic, completion and optional expiry, an operator-entered SHA-256 digest and **second-person human attestation only**. `attestedByUserId`/`attestedAt` deliberately do not claim cryptographic original-artifact verification or provider accreditation. An employer's OSH officer decides legally required courses, risk categories, reporting duties, proof, and expiry rules; the software does not make those determinations.
 
 ## 3. Encrypted protected complaints and case officers
 
@@ -73,6 +73,7 @@ Prototype: `src/pilots/workplace/api/case-reassignments.ts`; future route `/api/
 - [ ] Test list replies never contain sealed/plain allegation statements, and one-record caseId detail reads deny foreign/non-assigned/revoked callers.
 - [ ] Restore and re-run original source-pinned proof checks from original unchanged blob rather than editing legacy manifests or issuing fictitious proof credit.
 - [ ] Independently review private storage, retention, deletion, case recusal and alternate reporting mechanisms.
+- [ ] Before claiming any electronically verified evidence, add a protected original-artifact repository and independently test digest matching. Current operator-provided SHA-256 values and second-person attestations are NOT cryptographic verification.
 
 ## External business signoff / open acceptance
 

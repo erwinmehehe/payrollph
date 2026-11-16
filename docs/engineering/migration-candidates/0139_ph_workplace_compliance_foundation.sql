@@ -76,8 +76,9 @@ CREATE TABLE osh_training_records (
   evidence_sha256 varchar(64),
   requirement_source varchar(350),
   recorded_by_user_id integer NOT NULL REFERENCES users(id),
-  verified_by_user_id integer REFERENCES users(id),
-  verified_at timestamptz,
+  -- Human countersignature only; no object/digest verification performed.
+  attested_by_user_id integer REFERENCES users(id),
+  attested_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT osh_training_entity_tenant_fk FOREIGN KEY (organization_id, legal_entity_id)
     REFERENCES legal_entities(organization_id, id) ON DELETE RESTRICT,

@@ -211,11 +211,11 @@ export function WorkplaceComplianceConsole({ organizationId, enabled }: {
         <Input name="evidenceSha256" title="Private training proof SHA-256" maxLength={64} />
         <Input name="requirementSource" title="Applicable source (HTTPS, optional)" type="url" />
       </WorkflowForm>
-      <Records rows={data.training?.records} fields={["id","employeeId","topic","courseTitle","completedOn","expiresOn","verifiedAt"]} />
+      <Records rows={data.training?.records} fields={["id","employeeId","topic","courseTitle","completedOn","expiresOn","attestedAt"]} />
       <div className="mt-4">
-        <WorkflowForm title="Independent verification of existing training proof" organizationId={organizationId}
+        <WorkflowForm title="Second-person training evidence attestation (original artifact not verified)" organizationId={organizationId}
           endpoint="/api/compliance/osh-training" method="PATCH" onSaved={reload}>
-          <input name="action" type="hidden" value="verify" />
+          <input name="action" type="hidden" value="attest" />
           <Input name="id" title="Training record ID" type="number" required />
         </WorkflowForm>
       </div>
