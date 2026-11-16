@@ -116,14 +116,17 @@ test("closure plan schedules every original GAP exactly once in priority order",
   assert.equal(scheduled.size, 406, "Frozen 2026-10-21 closure queue is 406 distinct method gaps");
   assert.deepEqual(sizes, [26, 26, 33, 33, 27, 39, 38, 39, 39, 40, 33, 33]);
   const oracleHolds = verifyOracleSourceHolds(manifest);
-  const wageHolds = new Set([
-    ...verifyAllWageRegistrySourceHolds(manifest),
-    ...verifyAllTransitiveWageHolds(manifest),
-    ...verifyAllSealedWageHolds(manifest),
-  ].map(key => {
+  // Direct holds use "path VERB"; transitive and sealed archives already use
+  // "VERB path". Normalize only the direct set, without broadening the allowlist.
+  const directWageHolds = verifyAllWageRegistrySourceHolds(manifest).map(key => {
     const at = key.lastIndexOf(" ");
     return key.slice(at + 1) + " " + key.slice(0, at);
-  }));
+  });
+  const wageHolds = new Set([
+    ...directWageHolds,
+    ...verifyAllTransitiveWageHolds(manifest),
+    ...verifyAllSealedWageHolds(manifest),
+  ]);
   assert.equal(wageHolds.size, 75, "Complete 75-method source withdrawal required");
   const supplemental = new Set([...plan.matchAll(/^- HELD `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — fresh exact-source PG16 HTTP required$/gm)]
     .map(match => match[1] + " " + match[2]));
