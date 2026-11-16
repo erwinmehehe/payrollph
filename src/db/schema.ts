@@ -6679,6 +6679,7 @@ export const doleExtendedReports = pgTable("dole_extended_reports", {
   receiptSha256: varchar("receipt_sha256", { length: 64 }),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   recordedByUserId: integer("recorded_by_user_id").notNull().references(() => users.id),
+  outcomeRecordedByUserId: integer("outcome_recorded_by_user_id").references(() => users.id),
   reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
