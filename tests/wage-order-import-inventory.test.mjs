@@ -12,12 +12,12 @@ function sourceFiles(folder) {
   return readdirSync(folder, { withFileTypes: true }).flatMap(entry => {
     const full = join(folder, entry.name);
     if (entry.isDirectory()) return sourceFiles(full);
-    return /\\.(?:ts|tsx|mjs|mts|js|jsx)$/.test(entry.name)
-      ? [full.replaceAll("\\\\", "/")] : [];
+    return /\.(?:ts|tsx|mjs|mts|js|jsx)$/.test(entry.name)
+      ? [full.replaceAll("\\", "/")] : [];
   });
 }
-const importPattern = /\\bfrom\\s*["'][^"']*wage-orders(?:\\.ts)?["']|\\bimport\\s*\\(\\s*["'][^"']*wage-orders(?:\\.ts)?["']/m;
-const symbolPattern = /\\bwageOrderFor\\b|\\bWAGE_ORDERS\\b/g;
+const importPattern = /\bfrom\s*["'][^"']*wage-orders(?:\.ts)?["']|\bimport\s*\(\s*["'][^"']*wage-orders(?:\.ts)?["']/m;
+const symbolPattern = /\bwageOrderFor\b|\bWAGE_ORDERS\b/g;
 
 test("inventory every source, test and script importer of regional wage orders", () => {
   const files = ["src", "tests", "scripts"].flatMap(sourceFiles).sort();
