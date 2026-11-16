@@ -1,5 +1,6 @@
 /** Exactly two protocol-method promotions from inspected real HTTPS/PG16 evidence. */
 import assert from 'node:assert/strict';
+import {SSO_RESOLVE_PATH,historicalSsoResolveView,assertSsoResolveHeldOrApproved} from './tenant-sso-resolve-public-policy.mjs';
 import {createHash} from 'node:crypto';
 import {readFileSync,readdirSync} from 'node:fs';
 import {historicalSamlMetadataView,SAML_PUBLIC_PATH} from './tenant-saml-metadata-public-policy.mjs';
@@ -63,7 +64,7 @@ export function verifyOidcBatchMethod(m,path,read=readFileSync){
  const priorSha=path===OIDC_START?'9c89b46b5895fc7717bc6ad66b0eed92acbf09ff3b3e077c19667e748c54f6bb':'49db0012b0ed94044ecd2d27e47b4ddad1d9e5db84b5bd012d455c279bdfe4f3';
  assert.equal(createHash('sha256').update(JSON.stringify(row.historicalOidcSourceWithdrawal)).digest('hex'),priorSha,'Original OIDC GAP history changed');
  const resolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods.find(x=>x.name==='POST');
- assert.equal(resolve.status,'GAP','Owner explicitly held anonymous resolve credit');assert.equal(resolve.testedBy,null);
+ assertSsoResolveHeldOrApproved(m,read);assert.equal(resolve.testedBy,null);
  return 1;
 }
 export function verifyOidcBatchCredits(m,read=readFileSync){
@@ -87,6 +88,9 @@ export function historicOidcBatchView(m,read=readFileSync){
  view.acceptanceStatus=view.acceptanceStatus.replace(/^NOT ACCEPTED: \d+ API methods/,'NOT ACCEPTED: '+view.metrics.gap+' API methods');
  // Keep page/payroll historical API counts separate from this later,
  // explicitly approved public classification. No OIDC credit is added.
- return view.allApiRouteFiles[SAML_PUBLIC_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN'
-  ?historicalSamlMetadataView(view,read):view;
+ // Each later, separately approved public label is reversed only after its own exact owner policy verifies.
+ let historic=view;
+ if(historic.allApiRouteFiles[SAML_PUBLIC_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN')historic=historicalSamlMetadataView(historic,read);
+ if(historic.allApiRouteFiles[SSO_RESOLVE_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN')historic=historicalSsoResolveView(historic,read);
+ return historic;
 }
