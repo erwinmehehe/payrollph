@@ -87,3 +87,31 @@ test("new APIs do not write raw statements to the audit metadata or call externa
   assert.ok(!dole.includes("fetch(\"https://reports.dole.gov.ph"));
   assert.ok(dole.includes("agencySubmissionPerformed: false"));
 });
+
+
+test("workplace schema is isolated from source-sealed payroll schema and included in sandbox Drizzle sources", () => {
+  const core = readFileSync("src/db/schema.ts", "utf8");
+  const isolated = readFileSync("src/db/workplace-compliance-schema.ts", "utf8");
+  const config = readFileSync("drizzle.config.ts", "utf8");
+  assert.doesNotMatch(core, /export const (doleExtendedReports|oshSafetyEvents|oshTrainingRecords|workplaceCaseOfficers|workplaceProtectedCases)\s*=/);
+  for (const table of ["doleExtendedReports", "oshSafetyEvents", "oshTrainingRecords", "workplaceCaseOfficers", "workplaceProtectedCases"]) {
+    assert.ok(isolated.includes("export const " + table + " = pgTable("), table);
+  }
+  assert.ok(config.includes("./src/db/workplace-compliance-schema.ts"));
+});
+
+test("private allegation narratives are retrieved only by one authorized detail read, not bulk case lists", () => {
+  const route = readFileSync("src/app/api/workplace/protected-cases/route.ts", "utf8");
+  const employee = readFileSync("src/components/employee-workplace-concern.tsx", "utf8");
+  const console = readFileSync("src/components/workplace-compliance-console.tsx", "utf8");
+  assert.ok(route.includes('getAll("caseId")'));
+  assert.ok(route.includes("requestedCaseId ? 1 : 50"));
+  assert.ok(route.includes("caseId"));
+  assert.ok(route.includes("requestedCaseId") && route.includes("authorized.map(presentCase)"));
+  assert.ok(route.includes("requireSensitiveActionMfa(session)"));
+  assert.ok(route.includes("mayReadProtectedCase({"));
+  assert.ok(employee.includes("<PrivateWorkplaceStatement"));
+  assert.ok(console.includes("<PrivateWorkplaceStatement"));
+  assert.ok(!employee.includes("{c.statement}"));
+  assert.ok(!console.includes("String(r.statement ??"));
+});
