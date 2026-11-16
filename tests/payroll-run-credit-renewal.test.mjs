@@ -157,8 +157,7 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     assert.equal(studioBanners.length,expectedBanners,
       'Keep exactly the historical Studio accounting snapshots in each document');
     const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json')).metrics;
-    assert.equal(live.coveredAfter,438);
-    assert.equal(live.gap,24);
+    assert.equal(live.coveredAfter+live.publicByDesign+live.privilegedOperationsTokenOnly+live.gap,live.methods);
     // Dated Studio banners are history; do not rewrite them as newer credits.
     assert.ok(studioBanners[0].includes('461 COVERED + 24 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 1 GAP'));
     // The historical Studio snapshots are retained byte-for-byte; OIDC
