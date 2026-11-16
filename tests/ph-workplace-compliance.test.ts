@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import {
   phCivilDate, positiveId, limitedText, isOneOf, validDateRange, sha256Digest,
   mayAdvanceDoleRecord, mayReadProtectedCase, mayTransitionProtectedCase,
@@ -162,7 +162,6 @@ test("protected intake and reviewer assignment lock active officer records in th
 
 
 test("unreviewed workplace HTTP and SSR entrypoints remain unregistered until two-employer HTTP proof", () => {
-  const { existsSync } = require("node:fs") as typeof import("node:fs");
   for (const path of [
     "src/app/api/compliance/dole-extended/route.ts",
     "src/app/api/compliance/osh-events/route.ts",
