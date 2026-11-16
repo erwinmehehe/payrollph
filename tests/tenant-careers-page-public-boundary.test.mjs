@@ -107,7 +107,7 @@ test("public Careers relabel fails closed on invented approval, evidence or priv
     x=>{x.scopedPages.push({path:"src/app/unsafe/page.tsx",status:"PUBLIC-BY-DESIGN"});},
   ]) {
     const changed=structuredClone(input); mutate(changed);
-    assert.throws(()=>verifyCareersPublicPage(changed),/CAREERS_PUBLIC_REFUSED|expected|Expected|equal|page|21|status/i);
+    assert.throws(()=>verifyCareersPublicPage(changed),/CAREERS_PUBLIC_REFUSED|Unaccepted private credit|expected|Expected|equal|page|21|status/i);
   }
 });
 
