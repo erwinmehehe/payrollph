@@ -93,11 +93,14 @@ test("workplace schema is isolated from source-sealed payroll schema and include
   const core = readFileSync("src/db/schema.ts", "utf8");
   const isolated = readFileSync("src/db/workplace-compliance-schema.ts", "utf8");
   const config = readFileSync("drizzle.config.ts", "utf8");
+  const sandboxConfig = readFileSync("drizzle.workplace-pilot.config.ts", "utf8");
   assert.doesNotMatch(core, /export const (doleExtendedReports|oshSafetyEvents|oshTrainingRecords|workplaceCaseOfficers|workplaceProtectedCases)\s*=/);
   for (const table of ["doleExtendedReports", "oshSafetyEvents", "oshTrainingRecords", "workplaceCaseOfficers", "workplaceProtectedCases"]) {
     assert.ok(isolated.includes("export const " + table + " = pgTable("), table);
   }
-  assert.ok(config.includes("./src/db/workplace-compliance-schema.ts"));
+  assert.ok(!config.includes("./src/db/workplace-compliance-schema.ts"));
+  assert.ok(sandboxConfig.includes("./src/db/workplace-compliance-schema.ts"));
+  assert.ok(sandboxConfig.includes("assertIsolatedDbPushTarget(process.env.DATABASE_URL, process.env)"));
 });
 
 test("private allegation narratives are retrieved only by one authorized detail read, not bulk case lists", () => {
