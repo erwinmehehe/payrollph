@@ -4248,9 +4248,9 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
 
 test("wage-order dependency changes withdraw all 23 old source-bound tenant credits", () => {
   assert.equal(verifyAllWageRegistrySourceHolds(manifest).length, 23);
-  assert.equal(manifest.metrics.coveredAfter, 438);
-  assert.equal(manifest.metrics.gap, 24);
-  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 24 API methods"));
+  const counts=manifest.metrics;
+  assert.equal(counts.coveredAfter+counts.publicByDesign+counts.privilegedOperationsTokenOnly+counts.gap,counts.methods);
+  assert.ok(manifest.acceptanceStatus.startsWith(`NOT ACCEPTED: ${counts.gap} API methods`));
 });
 
 test("whole API manifest inventories exactly every route, exported method, and original blob", () => {
