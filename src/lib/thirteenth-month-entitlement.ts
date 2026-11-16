@@ -3,8 +3,8 @@ import { storedMoneyCentavos } from "./stored-money-centavos";
 /**
  * Single source for the PD 851 13th-month entitlement arithmetic.
  *
- * Pure, integer-centavo, no I/O. It is not wired into year-end, final pay or the
- * DOLE report yet; those three still compute their own copies (see the
+ * Pure, integer-centavo, no I/O. The DOLE report uses its entitlement arithmetic
+ * for screening; year-end and final pay retain their separate paths (see the
  * "Divergences" section of docs/payroll-certification/thirteenth-month-entitlement.md).
  *
  * Rule encoded (DOLE minimum): entitlement = 1/12 of BASIC salary actually earned in the
