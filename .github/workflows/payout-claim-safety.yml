@@ -52,7 +52,9 @@ concurrency:
 
 jobs:
   payout-claim:
-    runs-on: ubuntu-latest
+    # Pinned Playwright 1.55.0 cannot install Chromium on ubuntu-26.04.
+    # Keep this synthetic UI proof on a supported runner until browser is upgraded.
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     env:
       CI: "true"
