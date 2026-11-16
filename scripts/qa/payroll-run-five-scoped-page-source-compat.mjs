@@ -17,6 +17,7 @@ import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { verifyOidcBatchCredits, historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
 import { expectedSixPageManifest, historicSixPageView, selectedTargets } from "./tenant-six-scoped-page-credit.mjs";
 import { expectedFourPageManifest, historicFourPageView, selectedTargets as selectedFourTargets } from "./tenant-four-scoped-page-credit.mjs";
+import { verifyCareersPublicPage } from "./tenant-careers-public-page-classification.mjs";
 
 const PROBE = "scripts/qa/tenant-scoped-page-probes.mjs";
 const GENERATOR = "scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -79,7 +80,19 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   const live = JSON.parse(String(read(MANIFEST)));
   const liveCovered = live.scopedPages.filter(p => p.status === "COVERED").length;
   const liveOpen = live.scopedPages.filter(p => p.status === "GAP").length;
-  const fourExpanded = liveCovered === 20 && liveOpen === 1;
+  const publicPages = live.scopedPages.filter(p => p.status === "PUBLIC-BY-DESIGN");
+  // The sole new class is the previously owner-approved anonymous Careers
+  // board. Verify its exact source/predicate/client/PG16 fixture/workflow;
+  // it never counts as a twenty-first private page credit.
+  if (publicPages.length) {
+    assert.deepEqual(publicPages.map(p=>p.path), ["src/app/careers/page.tsx"],
+      "PAGE_COMPAT_REFUSED: unreviewed public page label");
+    assert.equal(verifyCareersPublicPage(live, read), 1,
+      "PAGE_COMPAT_REFUSED: public Careers historical replay must be sealed");
+  }
+  const fourExpanded = liveCovered === 20 &&
+    (liveOpen === 1 && publicPages.length === 0 ||
+     liveOpen === 0 && publicPages.length === 1);
   let sixLedger = live;
   if (fourExpanded) {
     assert.equal(fourProbe, true,
@@ -135,6 +148,17 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   let generator = String(read(GENERATOR));
   // Reconstruct the exact six-page-aware historical generator before any
   // immutable payroll compiler source hash is reused.
+  if (publicPages.length === 1) {
+    // This is the *only* reviewed delta to the old five-page generator.
+    // Reconstruct its exact prior byte hash, rather than changing any
+    // historical execution receipt or accepting an arbitrary new module.
+    assert.equal(renewalBlob(generator), "8cc67f5af25a9f51e35ca6468b566daefb5ad489",
+      "PAGE_COMPAT_REFUSED: unreviewed zero-GAP public Careers generator");
+    generator = uniqueSwap(generator, "import { verifyCareersPublicPage } from \"./tenant-careers-public-page-classification.mjs\";\n", "");
+    generator = uniqueSwap(generator, "  if (gaps === 0) {\n    // The sole public Careers SSR is anonymous by owner-approved design.\n    // Validate the exact page, predicate, client, proof/workflow SHA and\n    // unchanged 20 private-page evidence before allowing zero GAP labels.\n    // This never confers employer-private rights or security acceptance.\n    assert.equal(verifyCareersPublicPage(m, read), 1,\n      \"SCOPED_PAGE_REFUSED: sole public Careers page requires source-sealed approval\");\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      \"SCOPED_PAGE_REFUSED: twenty private page proofs must remain exact\");\n    return gaps;\n  }\n", "");
+    assert.equal(renewalBlob(generator), REVIEWED_FOUR_GENERATOR_BLOB,
+      "PAGE_COMPAT_REFUSED: generator must reconstruct identical pre-public proof code");
+  }
   if (fourExpanded) {
     assert.equal(renewalBlob(generator), REVIEWED_FOUR_GENERATOR_BLOB,
       "PAGE_COMPAT_REFUSED: unknown four-page-aware historical generator");

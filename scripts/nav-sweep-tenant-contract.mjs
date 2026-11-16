@@ -3,6 +3,7 @@
  * This does NOT reclassify page/action GAPs or substitute for a role browser run.
  */
 import assert from "node:assert/strict";
+import { verifyCareersPublicPage } from "./qa/tenant-careers-public-page-classification.mjs";
 
 export const NAV_TENANT_ORIGIN = "http://127.0.0.1:3000";
 
@@ -180,8 +181,20 @@ export function verifyNavCoverage(manifest, observations) {
   assert.deepEqual(manifest.scopedPages.map(p => p.path).sort(),
     Object.keys(NAV_TENANT_ROUTE_BY_FILE).sort(),
     "Manifest drift requires review of the exact outbound localhost route allowlist");
-  assert.ok(manifest.scopedPages.some(p => p.status === "GAP"),
-    "A default-off page cannot be silently awarded new coverage");
+  const gaps = manifest.scopedPages.filter(p => p.status === "GAP").length;
+  if (gaps === 0) {
+    // No private page was silently promoted: Careers is the *one*
+    // independently tracked anonymous, published-only page classification.
+    // Fail closed on any invented public label, source/proof/CI input drift
+    // or a missing private-page receipt before accepting the navigation set.
+    assert.equal(verifyCareersPublicPage(manifest), 1,
+      "NAV_TENANT_REFUSED: only the exact owner-reviewed public Careers page may close the last GAP");
+  } else {
+    assert.ok(gaps > 0,
+      "A default-off page cannot be silently awarded new coverage");
+    assert.equal(manifest.scopedPages.filter(p => p.status === "PUBLIC-BY-DESIGN").length, 0,
+      "NAV_TENANT_REFUSED: mixed or partial public-page overlay not accepted");
+  }
   assert.equal(observations.length, manifest.scopedPages.length * 2);
   const expected = new Set();
   for (const page of manifest.scopedPages) for (const attacker of ["ATTA", "ATTB"])

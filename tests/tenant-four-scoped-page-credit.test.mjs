@@ -52,15 +52,16 @@ test("new page-only ledger is generator-exact, no historical or API status chang
   const original = historic();
   assert.deepEqual(counts(live), {
     covered: counts(original).covered + selectedTargets().length,
-    gap: counts(original).gap - selectedTargets().length,
+    gap: counts(original).gap - selectedTargets().length - 1, // Careers is public, never private COVERED
   });
   assert.deepEqual(counts(original), {covered:16, gap:5});
   assert.equal(verifySixPageCredits(original), 6);
   assert.equal(verifyFivePageCredits(original), 5);
   assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(original)), 16);
   assert.equal(counts(live).covered, counts(original).covered + selectedTargets().length);
-  assert.equal(counts(live).gap, counts(original).gap - selectedTargets().length);
-  assert.equal(counts(live).covered + counts(live).gap, 21);
+  assert.equal(counts(live).gap, counts(original).gap - selectedTargets().length - 1);
+  assert.equal(counts(live).covered + counts(live).gap +
+    live.scopedPages.filter(p => p.status === "PUBLIC-BY-DESIGN").length, 21);
   assert.equal(original.scopedPages.length, 21);
   assert.deepEqual(live.allApiRouteFiles, original.allApiRouteFiles,
     "No API method, history, tax, payment, payout or token-only credit may change");
@@ -68,7 +69,8 @@ test("new page-only ledger is generator-exact, no historical or API status chang
   assert.deepEqual(live.sourceTraceCandidates, original.sourceTraceCandidates);
   assert.deepEqual(live.proofPolicy, original.proofPolicy);
   const selected = new Set(selectedTargets().map(t => t.path));
-  for (const p of original.scopedPages.filter(p => !selected.has(p.path))) {
+  for (const p of original.scopedPages.filter(p =>
+    !selected.has(p.path) && p.path !== "src/app/careers/page.tsx")) {
     assert.deepEqual(live.scopedPages.find(row => row.path === p.path), p,
       "Unrelated page/receipt changed: " + p.path);
   }
@@ -106,7 +108,7 @@ test("fail closed on false/foreign page credits and mutation of receipt/provenan
     const changed = structuredClone(live);
     mutation(changed);
     assert.throws(() => verifyFourPageCredits(changed),
-      /FOUR_PAGE_REFUSED|FIVE_PAGE_CREDIT_REFUSED|expected|Expected|strict|GAP|21/i);
+      /CAREERS_PUBLIC_REFUSED|FOUR_PAGE_REFUSED|FIVE_PAGE_CREDIT_REFUSED|expected|Expected|strict|GAP|21/i);
   }
 });
 test("SSO second-pass fixture may withdraw only nineteen sealed payroll methods, not page proof credits", () => {
@@ -122,7 +124,7 @@ test("SSO second-pass fixture may withdraw only nineteen sealed payroll methods,
   process.env.GITHUB_ACTIONS = "true";
   process.env.TENANT_SECOND_PASS_MODE = "isolated-ci-only";
   try {
-    assert.equal(verifyCurrentScopedPageGapCount(fixture), 1);
+    assert.equal(verifyCurrentScopedPageGapCount(fixture), 0);
     const changedPage = structuredClone(fixture);
     changedPage.scopedPages.find(p => p.path === TARGETS[0].path).reason += " TAMPER";
     assert.throws(() => verifyCurrentScopedPageGapCount(changedPage),
