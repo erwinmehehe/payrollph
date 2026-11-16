@@ -1,4 +1,5 @@
 import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
+import {baseTenantManifest} from './helpers/tenant-counts.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -168,7 +169,9 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json')).metrics;
     assert.equal(live.coveredAfter+live.publicByDesign+live.privilegedOperationsTokenOnly+live.gap,live.methods);
     // The dated studio banner is historical, not the current PR #1989 ledger.
-    const baseText=execFileSync('git',['show','origin/main:'+file],{encoding:'utf8'});
+    const base=baseTenantManifest();
+    assert.ok(base,'Historical banner comparison requires the fetched comparison base');
+    const baseText=execFileSync('git',['show',base.ref+':'+file],{encoding:'utf8'});
     const baseBanner=baseText.split('\n').find(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
     assert.equal(studioBanners[0],baseBanner,'Historical Studio checkpoint must equal main byte-for-byte');
     // The historical Studio snapshots are retained byte-for-byte; OIDC

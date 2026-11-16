@@ -1,4 +1,5 @@
 import { verifyMergedProofCredits } from "../scripts/qa/tenant-merged-proof-credits.mjs";
+import { assertWageLedgerDelta } from "./helpers/wage-source-holds.mjs";
 import { isVerifiedOracleRenewal, isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -103,6 +104,9 @@ test("the client refuses incomplete read and re-reads after write before showing
 test("new method-level tenant proof survives CI/source drift (GET and POST)", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   verifyMergedProofCredits(manifest);
+  // The source withdrawal must retain every exact prior citation without
+  // pretending the archived BIR/remittance proofs still certify current source.
+  if (assertWageLedgerDelta(assert, manifest)) return;
   const path = "src/app/api/compliance/remittance-month-close/route.ts";
   const record = manifest.allApiRouteFiles[path];
   // Pin the current ledger exactly: the two DL-01 vault methods and eight
