@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { storedMoneyCentavos } from "./stored-money-centavos";
+import { computeThirteenthMonth } from "./thirteenth-month-entitlement";
 
 export type DoleThirteenthWorker = {
   employeeId: number;
@@ -21,6 +23,21 @@ export type DoleReportingProfile = {
 
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
+/**
+ * Screening entitlement = 1/12 of basic, exact integer-centavo half-up (the shared PD 851 module).
+ * The previous float path (round2(basic / 12)) was one centavo low in 0.87% of amounts.
+ * A basic amount that cannot be proven to whole centavos keeps the legacy float result rather
+ * than being invented or zeroed; the report only screens, it never pays.
+ */
+function screeningEntitlementPesos(basicSalaryEarned: number): number {
+  const basic = Math.max(0, basicSalaryEarned);
+  const centavos = storedMoneyCentavos(basic);
+  if (centavos === null) return round2(basic / 12);
+  const result = computeThirteenthMonth({ basicCentavos: centavos, payouts: {} });
+  if (result.blockers.length > 0) return round2(basic / 12);
+  return result.entitlementCentavos / 100;
+}
+
 export function buildDoleThirteenthMonthReport(input: {
   taxYear: number;
   establishmentName: string;
@@ -34,7 +51,7 @@ export function buildDoleThirteenthMonthReport(input: {
         + Math.max(0, worker.historicalThirteenthPaid)
         + Math.max(0, worker.finalPayThirteenthPaid),
       );
-      const screeningEntitlement = round2(Math.max(0, worker.basicSalaryEarned) / 12);
+      const screeningEntitlement = screeningEntitlementPesos(worker.basicSalaryEarned);
       const screeningShortfall = round2(Math.max(0, screeningEntitlement - amountGranted));
       return {
         ...worker,

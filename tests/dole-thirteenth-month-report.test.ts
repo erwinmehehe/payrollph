@@ -205,3 +205,31 @@ test("Compliance Center exposes report summary, source download, OCP link and st
   assert.ok(ui.includes("Previous submission evidence is stale."));
   assert.ok(ui.includes("Record OCP submission"));
 });
+
+const roundingProfile = {
+  establishmentAddress: "Angeles City, Pampanga", principalBusiness: "Software",
+  contactName: "Payroll Lead", contactPosition: "Finance Manager", contactPhone: "09171234567",
+};
+const oneWorker = (basicSalaryEarned: number, payrollThirteenthPaid: number) => buildDoleThirteenthMonthReport({
+  taxYear: 2026, establishmentName: "Acme", profile: roundingProfile,
+  workers: [{ employeeId: 1, employeeNo: "E1", employeeName: "A", basicSalaryEarned, payrollThirteenthPaid,
+    historicalThirteenthPaid: 0, finalPayThirteenthPaid: 0, basicSalaryComplete: true }],
+});
+
+test("screening entitlement uses exact centavo half-up (basic 100.02 -> 8.34, not the old float 8.33)", () => {
+  // 10,002 centavos / 12 = 833.5 -> 834. Granted 8.33 leaves a real 0.01 shortfall the old float path hid.
+  const result = oneWorker(100.02, 8.33);
+  assert.equal(result.reviewRows.length, 1);
+  assert.equal(result.reviewRows[0]?.screeningEntitlement, 8.34);
+  assert.equal(result.reviewRows[0]?.screeningShortfall, 0.01);
+  // Granted exactly the exact entitlement: no shortfall.
+  assert.equal(oneWorker(100.02, 8.34).reviewRows.length, 0);
+});
+
+test("screening entitlement: whole-peso cases unchanged and unverifiable basic keeps the legacy float result", () => {
+  assert.equal(oneWorker(120000, 0).reviewRows[0]?.screeningEntitlement, 10000);
+  // Sub-centavo basic cannot be proven to whole centavos: legacy rounding is kept, never zeroed or invented.
+  assert.equal(oneWorker(100.0049, 0).reviewRows[0]?.screeningEntitlement, 8.33);
+  // Negative basic floors at zero.
+  assert.equal(oneWorker(-500, 0).reviewRows.length, 0);
+});

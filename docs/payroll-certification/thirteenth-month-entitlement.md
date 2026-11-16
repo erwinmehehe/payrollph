@@ -34,8 +34,12 @@ An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`), an unver
 - Overpayment recovery: not asserted. The module reports it and stops.
 - Resignation and separation proration rules are not encoded here; final pay keeps its own path.
 
+## Rewired so far
+
+- `src/lib/dole-thirteenth-month-report.ts` (pure builder): the 1/12 screening figure now uses this module (exact centavo half-up). Effect: where basic is a whole-centavo amount, the screening entitlement can be 0.01 higher than before in 0.87% of cases, so a one-centavo shortfall the float path hid is now listed in `reviewRows`. The report's `amountGranted`, `totalBenefitsGranted` and `reportHash` are unchanged (they come from granted amounts, not the entitlement). A basic that cannot be proven to whole centavos keeps the legacy float result.
+- Not changed: per-line reversal handling lives in the server reader (`readBasicAndThirteenth` in `final-pay.ts`), so reversals are still dropped there.
+
 ## Not built yet
 
-- Rewiring `year-end.ts`, `final-pay.ts`, `dole-thirteenth-month-report*.ts` and the routes that import them. Those files carry tenant-ledger pins and need blob repins and inventory rows, so each needs its own proof.
-- The `KNOWN DIVERGENCE` test in the suite asserts today's floating-point value; it must be updated when the report is rewired.
+- Rewiring `year-end.ts`, `final-pay.ts`, `dole-thirteenth-month-report-server.ts` and the routes that import them. Those files carry tenant-ledger pins and need blob repins and inventory rows, so each needs its own proof.
 - A database-backed reproduction of the possible double count (item 3 above).
