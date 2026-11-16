@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, date, foreignKey, index, integer, pgTable, serial, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import { boolean, check, date, foreignKey, index, integer, pgTable, serial, text, timestamp, unique, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { employees, legalEntities, organizations, users } from "@/db/schema";
 
 /** Additive, default-off Philippine workplace compliance pilot tables. */
