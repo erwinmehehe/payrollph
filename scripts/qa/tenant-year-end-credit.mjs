@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import {TRANSITIVE_HOLD_KIND, verifyAllTransitiveWageHolds} from "./wage-registry-transitive-source-hold.mjs";
 
 // Renewed 2026-11-13: proof run on the push-to-main merge commit of #1957 (one de minimis ceiling shared by imported and
 // calculated pay in the year-end settlement). Supersedes run 43178709246 (#1945) and the original #1804 run 42254117862.
@@ -183,7 +184,26 @@ export function verifyYearEndHold(manifest, read = readFileSync) {
   return 0;
 }
 
-/** Either state, fail-closed: returns the number of credits the manifest may carry for the pair (2 or 0). */
+/** Later NWPC wage-source changes withdraw both #1804 year-end receipts.
+ * The full 47-method source-exact hold must verify before returning zero. */
+export function isWageYearEndHeld(manifest) {
+  const methods=manifest.allApiRouteFiles?.[ROUTE]?.methods;
+  return Boolean(methods?.length===2&&methods.every(row=>
+    row.status==="GAP"&&row.testedBy===null&&row.reviewedUncertified?.kind===TRANSITIVE_HOLD_KIND));
+}
+export function verifyWageYearEndHold(manifest,read=readFileSync) {
+  assert.ok(isWageYearEndHeld(manifest),"Year-end wage-source holds must be a complete GET/POST pair");
+  const held=verifyAllTransitiveWageHolds(manifest,read);
+  for(const verb of ["GET","POST"]){
+    assert.ok(held.has(verb+" "+ROUTE),"Unverified new wage source cannot inherit old year-end "+verb+" receipt");
+    const method=manifest.allApiRouteFiles[ROUTE].methods.find(row=>row.name===verb);
+    assert.equal(method.reviewedUncertified.coverageCredits,0);
+    assert.equal(method.reviewedUncertified.productionCertified,false);
+  }
+  return 0;
+}
+/** Return 2 only for valid current receipts; return 0 for fully verified source holds. */
 export function verifyYearEndPairState(manifest, read = readFileSync) {
+  if(isWageYearEndHeld(manifest))return verifyWageYearEndHold(manifest,read);
   return isYearEndHeld(manifest) ? verifyYearEndHold(manifest, read) : verifyYearEndCredits(manifest, read);
 }
