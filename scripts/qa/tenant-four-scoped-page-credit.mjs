@@ -4,6 +4,8 @@
  * SOLO_VERIFIED_DEV_RECOVERY status. All historical evidence stays immutable.
  */
 import assert from "node:assert/strict";
+import { CAREERS_PAGE, PUBLIC_NOTE, publicCareersPage, historicalCareersPageView,
+  verifyCareersPublicPage } from "./tenant-careers-public-page-classification.mjs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -187,6 +189,20 @@ function citation(t, previousReason, lines) {
   };
 }
 export function expectedFourPageManifest(input, read = readFileSync) {
+  const page=input.scopedPages.find(x=>x.path===CAREERS_PAGE);
+  if (page?.status==="PUBLIC-BY-DESIGN") {
+    // Validate and rewind exactly one anonymous public-page classification.
+    // Preserve the original four/six/five-page generation without rewriting
+    // any historical private-tenant evidence.
+    const historical=historicalCareersPageView(input,read);
+    const expected=expectedFourPageManifest(historical,read);
+    const original=expected.scopedPages.find(x=>x.path===CAREERS_PAGE);
+    Object.assign(original,publicCareersPage(original));
+    expected.acceptanceStatus=expected.acceptanceStatus.replace(
+      /^NOT ACCEPTED: (\d+) API methods and 1 page\/action GAPs remain/,
+      "NOT ACCEPTED: $1 API methods and 0 page/action GAPs remain") + PUBLIC_NOTE;
+    return expected;
+  }
   const {selected, anchors} = verifyFourInputs(read);
   const m = structuredClone(input);
   assert.equal(m.scopedPages.length, 21, "FOUR_PAGE_REFUSED: original page count changed");
@@ -245,7 +261,7 @@ export function expectedFourPageManifest(input, read = readFileSync) {
 }
 export function historicFourPageView(input, read = readFileSync) {
   const {selected, anchors} = verifyFourInputs(read);
-  const historical = structuredClone(input);
+  const historical = historicalCareersPageView(input,read);
   for (const t of selected) {
     const row = historical.scopedPages.find(p => p.path === t.path);
     assert.equal(row?.status, "COVERED", "FOUR_PAGE_REFUSED: missing selected receipt");
@@ -278,7 +294,7 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
   // previously source-sealed API methods. No status change is allowed in the
   // committed ledger, and this branch never awards any API-method credit.
   // Compare every byte of the fixture with a replay from the exact PR HEAD.
-  if (gaps === 1 && manifest.metrics.gap === 20 &&
+  if ((gaps === 1 || gaps === 0) && manifest.metrics.gap === 20 &&
       process.env.CI === "true" &&
       process.env.GITHUB_ACTIONS === "true" &&
       process.env.TENANT_SECOND_PASS_MODE === "isolated-ci-only") {
@@ -288,8 +304,8 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
     const head = JSON.parse(headText);
     assert.equal(head.metrics.gap, 1,
       "FOUR_PAGE_REFUSED: only the current 1-GAP API ledger may be replayed");
-    assert.equal(head.scopedPages.filter(p => p.status === "GAP").length, 1,
-      "FOUR_PAGE_REFUSED: exactly one legitimate uncredited page must remain");
+    assert.equal(head.scopedPages.filter(p => p.status === "GAP").length, gaps,
+      "FOUR_PAGE_REFUSED: only the committed public Careers classification may change the page-GAP count");
     const expected = structuredClone(head);
     let held = 0;
     for (const file of Object.values(expected.allApiRouteFiles))
@@ -323,6 +339,7 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
       "FOUR_PAGE_REFUSED: committed four/six/five page proofs must all verify");
     return gaps;
   }
+  if(gaps===0) assert.equal(verifyCareersPublicPage(manifest,read),1);
   assert.equal(verifyFourPageCredits(manifest, read), selectedTargets(read).length,
     "FOUR_PAGE_REFUSED: live inventory requires current four-page proof receipts");
   return gaps;
