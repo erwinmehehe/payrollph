@@ -239,8 +239,15 @@ test("screening entitlement: whole-peso cases unchanged, unverified basic stays 
   assert.equal(subcent.reviewRows.length, 0);
   assert.equal(subcent.incompleteBasicRows[0]?.employeeNo, "E1");
   assert.equal(subcent.readyToSubmit, false);
-  // The existing negative-basic floor is unchanged.
-  assert.equal(oneWorker(-500, 0).reviewRows.length, 0);
+  // Negative earned basic may indicate an unmatched reversal or source error.
+  // Preserve the legacy zero display but NEVER treat that source as verified.
+  const negative = oneWorker(-500, 0);
+  assert.equal(negative.reviewRows.length, 0);
+  assert.equal(negative.incompleteBasicRows.length, 1);
+  assert.equal(negative.incompleteBasicRows[0]?.screeningEntitlement, 0);
+  assert.equal(negative.incompleteBasicRows[0]?.screeningShortfall, null);
+  assert.equal(negative.incompleteBasicRows[0]?.screeningBasicVerified, false);
+  assert.equal(negative.readyToSubmit, false);
 });
 
 test("invalid, unsupported, and non-finite basic amounts cannot silently clear a DOLE screen", () => {
