@@ -6,24 +6,6 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
-  phDoleExtended: {
-    env: "PH_DOLE_EXTENDED_REPORTS_ENABLED",
-    owner: "PH Compliance / DPO",
-    risk: "Extended DOLE employer filing evidence is sensitive; recorded portal claims do not prove agency acceptance",
-    approval: "Reviewed 0139 migration, employer/role isolation, source-specific official guidance and real DOLE portal evidence; no automatic submissions",
-  },
-  phOshRecords: {
-    env: "PH_OSH_RECORDS_ENABLED",
-    owner: "PH OSH / HR Operations / DPO",
-    risk: "Workplace safety and employee training records contain sensitive employee and safety metadata",
-    approval: "Reviewed 0139 migration, no diagnosis in audit, tenant tests, safety-officer and privacy review, field UAT; not statutory reporting certification",
-  },
-  phProtectedCases: {
-    env: "PH_PROTECTED_WORKPLACE_CASES_ENABLED",
-    owner: "DPO / CODI / Labor Counsel",
-    risk: "Gender-based harassment and workplace investigations require independent intake, minimized encrypted statements, limited assigned officers and human due process",
-    approval: "Reviewed 0139 migration, key provisioning, appointed impartial officers, protected case access, conflict review, retaliation safeguards and independent legal/DPO assessment; not CODI certification",
-  },
   payrollCalculationHistory: {
     env: "PAYROLL_CALCULATION_HISTORY_ENABLED",
     owner: "Philippine Payroll / Database Operations",
