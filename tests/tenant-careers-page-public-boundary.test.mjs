@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {CLASSIFIED_REASON, PUBLIC_BOUNDARY, ORIGINAL_GAP_REASON,
+  verifyCareersPublicPage, historicalCareersPageView,
+} from "../scripts/qa/tenant-careers-public-page-classification.mjs";
 
 const PAGE = "src/app/careers/page.tsx";
 const PROOF = "scripts/qa/tenant-careers-page-public-boundary-http.mjs";
@@ -62,15 +65,17 @@ test("proof uses only original fictional PG16 employers, real anonymous HTML and
     "New public SSR proof must be read-only and not alter publication approvals");
 });
 
-test("Careers SSR source and proof remain explicit, unaccepted manifest GAPs", () => {
+test("Careers SSR is owner-approved PUBLIC-BY-DESIGN, not private COVERED", () => {
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const page = manifest.scopedPages.find(entry => entry.path === PAGE);
   assert.ok(page);
   assert.equal(manifest.scopedPages.length, 21);
-  assert.equal(page.status, "GAP");
+  assert.equal(page.status, "PUBLIC-BY-DESIGN");
   assert.equal(page.testedBy, undefined);
   assert.equal(page.blob, sha(PAGE), "No silent page source drift without renewed review");
-  assert.ok(page.reason.startsWith("Still GAP: public Careers"));
+  assert.equal(page.reason, CLASSIFIED_REASON);
+  assert.deepEqual(page.publicBoundary, PUBLIC_BOUNDARY);
+  assert.equal(verifyCareersPublicPage(manifest), 1);
   assert.deepEqual(page.reviewedUncertified, {
     kind: "public-careers-SSR-GET-PG16-canonical-selector-unaccepted",
     originalPageBlobSha: "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3",
@@ -81,6 +86,29 @@ test("Careers SSR source and proof remain explicit, unaccepted manifest GAPs", (
     independentlyAccepted: false, productionCertified: false,
   });
   assert.equal(manifest.metrics.scopedPagesAndActions, 21);
+  assert.equal(manifest.scopedPages.filter(x=>x.status==="COVERED").length,20);
+  assert.equal(manifest.scopedPages.filter(x=>x.status==="PUBLIC-BY-DESIGN").length,1);
+  assert.equal(manifest.scopedPages.filter(x=>x.status==="GAP").length,0);
+  const historical=historicalCareersPageView(manifest);
+  const original=historical.scopedPages.find(x=>x.path===PAGE);
+  assert.equal(original.status,"GAP");
+  assert.equal(original.reason,ORIGINAL_GAP_REASON);
+  assert.equal(original.publicBoundary,undefined);
+});
+test("public Careers relabel fails closed on invented approval, evidence or private credit", () => {
+  const input=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json"));
+  for (const mutate of [
+    x=>{x.scopedPages.find(p=>p.path===PAGE).status="COVERED";},
+    x=>{x.scopedPages.find(p=>p.path===PAGE).publicBoundary.ownerApprovalDate="2050-01-01";},
+    x=>{x.scopedPages.find(p=>p.path===PAGE).publicBoundary.proofBlobSha="0".repeat(40);},
+    x=>{x.scopedPages.find(p=>p.path===PAGE).testedBy={file:"fabricated"};},
+    x=>{x.scopedPages.find(p=>p.path===PAGE).publicBoundary.independentlyAccepted=true;},
+    x=>{x.scopedPages.find(p=>p.path===PAGE).publicBoundary.privateCoverageCredits=1;},
+    x=>{x.scopedPages.push({path:"src/app/unsafe/page.tsx",status:"PUBLIC-BY-DESIGN"});},
+  ]) {
+    const changed=structuredClone(input); mutate(changed);
+    assert.throws(()=>verifyCareersPublicPage(changed),/CAREERS_PUBLIC_REFUSED|Unaccepted private credit|expected|Expected|equal|page|21|status/i);
+  }
 });
 
 test("dedicated careers workflow retains original publish/unpublish and proves exact-head page SSR", () => {

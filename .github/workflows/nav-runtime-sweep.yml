@@ -105,7 +105,9 @@ concurrency:
 jobs:
   nav-runtime-sweep:
     name: Browser navigation runtime sweep
-    runs-on: ubuntu-latest
+    # Playwright 1.55.0 Chromium headless shell is unavailable on ubuntu-26.04.
+    # Keep the isolated browser proof on a supported, explicit runner image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
       CI: "true"
