@@ -20,6 +20,7 @@ CREATE TABLE dole_extended_reports (
   receipt_sha256 varchar(64),
   submitted_at timestamptz,
   recorded_by_user_id integer NOT NULL REFERENCES users(id),
+  outcome_recorded_by_user_id integer REFERENCES users(id),
   reviewed_by_user_id integer REFERENCES users(id),
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
