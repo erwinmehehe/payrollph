@@ -317,11 +317,20 @@ jobs:
           set -e
           grep -E '^not ok|^# (tests|pass|fail|skipped|duration_ms)' /tmp/signup-tenant-guards.tap || true
           exit "$result"
-      - name: Run the repository repin tool and check (no category changes)
+      - name: Run the repository repin tool against this PR base (no category changes)
         if: always()
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          node scripts/qa/tenant-manifest-repin.mjs --base efd875a246bb38345ef805ea64363472af72414f --write
-          node scripts/qa/tenant-manifest-repin.mjs --base efd875a246bb38345ef805ea64363472af72414f
+          # The historic RED baseline above is only for signup behavior.
+          # Tenant proof citations must be compared to the actual PR base;
+          # using the older frozen baseline misidentifies already reviewed
+          # separation 403 -> opaque 404 denial evidence as unreviewed drift.
+          test -n "$PR_BASE_SHA"
+          git cat-file -e "$PR_BASE_SHA:scripts/qa/tenant-isolation-coverage-manifest.json"
+          node scripts/qa/tenant-manifest-repin.mjs --base "$PR_BASE_SHA" --write
+          node scripts/qa/tenant-manifest-repin.mjs --base "$PR_BASE_SHA"
           git diff --stat
+          git diff --exit-code -- scripts/qa/tenant-isolation-coverage-manifest.json docs/engineering/tenant-isolation-coverage-inventory.md
