@@ -35,8 +35,10 @@ export function EmployeeWorkplaceConcern({ organizationId }: { organizationId: n
   }, [organizationId]);
   useEffect(() => {
     let active = true;
-    void reload().catch(e => { if (active) setError(e instanceof Error ? e.message : "Failed to load."); });
-    return () => { active = false; };
+    const handle = window.setTimeout(() => {
+      void reload().catch(e => { if (active) setError(e instanceof Error ? e.message : "Failed to load."); });
+    }, 0);
+    return () => { active = false; window.clearTimeout(handle); };
   }, [reload]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,7 +63,7 @@ export function EmployeeWorkplaceConcern({ organizationId }: { organizationId: n
   }
   return <div className="space-y-5">
     <aside className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-      Do not use this form if you require immediate emergency assistance. Follow your employer's
+      Do not use this form if you require immediate emergency assistance. Follow your employer&apos;s
       safety and independent CODI reporting instructions. Sensitive attachments are not accepted
       here; use the approved private evidence channel. Submission is authenticated, not anonymous.
     </aside>
@@ -92,7 +94,7 @@ export function EmployeeWorkplaceConcern({ organizationId }: { organizationId: n
       <button type="submit" className="rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white disabled:opacity-50"
         disabled={busy || officers.length === 0}>{busy ? "Encrypting and recording…" : "Submit confidential case"}</button>
       {officers.length === 0 ? <p className="text-sm text-amber-900">
-        No approved intake officer is available. Contact the employer's independent complaint channel.
+        No approved intake officer is available. Contact the employer&apos;s independent complaint channel.
       </p> : null}
       {notice ? <p role="status" className="rounded-md bg-emerald-50 p-3 text-sm">{notice}</p> : null}
       {error ? <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
