@@ -145,3 +145,17 @@ test("original source-sealed release registry is not modified by workplace pilot
   assert.ok(workplace.includes('workplacePilotFlagEnabled(flag)'));
   assert.ok(workplace.includes('criticalReleaseFlagEnabled("multiEntity")'));
 });
+
+
+test("protected intake and reviewer assignment lock active officer records in the same transaction", () => {
+  const route = readFileSync("src/app/api/workplace/protected-cases/route.ts", "utf8");
+  assert.ok(route.includes("INTAKE_OFFICER_UNAVAILABLE"));
+  assert.ok(route.includes("REVIEWER_UNAVAILABLE"));
+  assert.ok(route.includes('eq(workplaceCaseOfficers.active, true)'));
+  assert.ok(route.includes('eq(userOrganizations.active, true)'));
+  assert.ok(route.includes('.for("update").limit(1)'));
+  assert.ok(route.includes('actor: "confidential-case-intake"'));
+  assert.ok(route.includes('actor: "confidential-case-review"'));
+  assert.ok(!route.includes('actor: "protected-case-user:"'));
+  assert.ok(!route.includes('actor: "protected-case-officer:"'));
+});
