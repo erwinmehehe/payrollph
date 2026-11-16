@@ -66,22 +66,22 @@ All money amounts are **PHP**, to two decimals where material. `SSS MSC / EE / E
 
 ### Real-engine first-cutoff comparison (employer + employee)
 
-Cutoff **expected** is a manual application of the monthly official values, PayrollPH's stated 50/50 collection convention and BIR **Annex E semi-monthly** bracket. Cell format `cutoff employee SSS / PhilHealth / Pag-IBIG / BIR WHT / net`. `Gross` and loan show the arithmetic context. **Engine** and **difference in centavos** remain **NOT RUN**, not zeros, until the disposable-Postgres job prints and asserts those actual fields.
+Cutoff **expected** is a manual application of the monthly official values, PayrollPH's stated 50/50 collection convention and BIR **Annex E semi-monthly** bracket. Cell format `cutoff employee SSS / PhilHealth / Pag-IBIG / BIR WHT / net`. C03/C08/C12 are PROVISIONAL software-projection estimates from the separately documented rounded-gross basis, not an agency-approved half of the contractual monthly SSS obligation. `Gross` and loan show the arithmetic context. **Engine** and **difference in centavos** remain **NOT RUN**, not zeros, until the disposable-Postgres job prints and asserts those actual fields.
 
 | Case | Salary / month | Cutoff gross | Frequency | Official-derived cutoff expected (SSS / PH / HDMF / WHT / net) | Engine observed | Δ centavos | Status |
 | --- | ---: | ---: | --- | --- | --- | --- | --- |
 | C01 | 1,500.00 | 750.00 | Semi-monthly | 125.00 / 125.00 / 7.50 / 0.00 / 492.50 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C02 | 1,500.01 | 750.01 | Semi-monthly | 125.00 / 125.00 / 15.00 / 0.00 / 485.01 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
-| C03 | 5,249.99 | 2,625.00 | Semi-monthly | 125.00 / 125.00 / 52.50 / 0.00 / 2,322.50 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C03 | 5,249.99 | 2,625.00 | Semi-monthly | 137.50 / 125.00 / 52.50 / 0.00 / 2,310.00 (PROVISIONAL projection) | NOT RUN | NOT COMPUTED | MONTH-END SOURCE PARITY OPEN #2003 |
 | C04 | 5,250.00 | 2,625.00 | Semi-monthly | 137.50 / 125.00 / 52.50 / 0.00 / 2,310.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C05 | 9,000.00 | 4,500.00 | Semi-monthly | 225.00 / 125.00 / 90.00 / 0.00 / 4,060.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C06 | 10,000.00 | 5,000.00 | Semi-monthly | 250.00 / 125.00 / 100.00 / 0.00 / 4,525.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C07 | 10,000.20 | 5,000.10 | Semi-monthly | 250.00 / NOT VERIFIED / 100.00 / NOT VERIFIED / NOT VERIFIED | NOT RUN | NOT COMPUTED | SOURCE NOT VERIFIED (PH split) |
-| C08 | 14,749.99 | 7,375.00 | Semi-monthly | 362.50 / 184.38 / 100.00 / 0.00 / 6,728.12 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C08 | 14,749.99 | 7,375.00 | Semi-monthly | 375.00 / 184.38 / 100.00 / 0.00 / 6,715.62 (PROVISIONAL projection) | NOT RUN | NOT COMPUTED | MONTH-END SOURCE PARITY OPEN #2003 |
 | C09 | 14,750.00 | 7,375.00 | Semi-monthly | 375.00 / 184.38 / 100.00 / 0.00 / 6,715.62 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C10 | 14,750.01 | 7,375.01 | Semi-monthly | 375.00 / 184.38 / 100.00 / 0.00 / 6,715.63 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C11 | 25,250.00 | 12,625.00 | Semi-monthly | 637.50 / 315.63 / 100.00 / 173.23 / 11,398.64 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
-| C12 | 34,749.99 | 17,375.00 | Semi-monthly | 862.50 / 434.38 / 100.00 / 834.17 / 15,143.95 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C12 | 34,749.99 | 17,375.00 | Semi-monthly | 875.00 / 434.38 / 100.00 / 832.29 / 15,133.33 (PROVISIONAL projection) | NOT RUN | NOT COMPUTED | MONTH-END SOURCE PARITY OPEN #2003 |
 | C13 | 34,750.00 | 17,375.00 | Semi-monthly | 875.00 / 434.38 / 100.00 / 832.29 / 15,133.33 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C14 | 77,777.00 | 38,888.50 | Semi-monthly | 875.00 / NOT VERIFIED / 100.00 / NOT VERIFIED / NOT VERIFIED | NOT RUN | NOT COMPUTED | SOURCE NOT VERIFIED (PH split) |
 | C15 | 100,000.00 | 50,000.00 | Semi-monthly | 875.00 / 1,250.00 / 100.00 / 7,881.20 / 39,893.80 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
@@ -98,16 +98,16 @@ These **separate employer liabilities are not employee deductions**. Each expect
 | --- | --- | --- | --- | --- |
 | C01 | 250.00 / 5.00 / 125.00 / 15.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C02 | 250.00 / 5.00 / 125.00 / 15.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
-| C03 | 250.00 / 5.00 / 125.00 / 52.50 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C03 | 275.00 / 5.00 / 125.00 / 52.50 (PROVISIONAL projection) | NOT RUN | NOT COMPUTED | MONTH-END SOURCE PARITY OPEN #2003 |
 | C04 | 275.00 / 5.00 / 125.00 / 52.50 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C05 | 450.00 / 5.00 / 125.00 / 90.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C06 | 500.00 / 5.00 / 125.00 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C07 | 500.00 / 5.00 / **NOT VERIFIED** / 100.00 | NOT RUN | NOT COMPUTED | PH share SOURCE NOT VERIFIED; other components pending |
-| C08 | 725.00 / 5.00 / 184.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C08 | 750.00 / 15.00 / 184.38 / 100.00 (PROVISIONAL projection) | NOT RUN | NOT COMPUTED | MONTH-END SOURCE PARITY OPEN #2003 |
 | C09 | 750.00 / 15.00 / 184.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C10 | 750.00 / 15.00 / 184.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C11 | 1,275.00 / 15.00 / 315.63 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
-| C12 | 1,725.00 / 15.00 / 434.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
+| C12 | 1,750.00 / 15.00 / 434.38 / 100.00 (PROVISIONAL projection) | NOT RUN | NOT COMPUTED | MONTH-END SOURCE PARITY OPEN #2003 |
 | C13 | 1,750.00 / 15.00 / 434.38 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
 | C14 | 1,750.00 / 15.00 / **NOT VERIFIED** / 100.00 | NOT RUN | NOT COMPUTED | PH share SOURCE NOT VERIFIED; other components pending |
 | C15 | 1,750.00 / 15.00 / 1,250.00 / 100.00 | NOT RUN | NOT COMPUTED | PENDING EXECUTION |
@@ -198,9 +198,23 @@ An owner-supplied plan reportedly lists **six** unverified rates, **but that exa
 
 Separately, **four source-watch date fields are null** in `src/lib/statutory-rule-watch.ts`: `RULE_FAMILY_LAST_VERIFIED.sss`, `.philhealth`, `.pagibig`, `["bir-withholding"]`. This PR **does not update their source-verification dates** or replace independent signing. `wage-orders` carries an older date but category applicability requires employer-locality evidence. The absence of an exact six-item plan is an explicit **provenance gap** for the owner to resolve; this work closes **zero** of those broad practice/rounding approval holds.
 
+## First-cutoff source vs product projection — three observed table-boundary cases
+
+**Established on previous exact head `7061051`:** PG16 and PG18 both fail C03: first-cutoff employee SSS was **PHP 137.50** rather than the initial **PHP 125.00** fixture. The SSS table itself is correct at either compensation: the **contracted monthly pay** is PHP 5,249.99 (MSC PHP 5,000; employee EE PHP 250/month), but the engine's **first-cutoff projection** doubles the already-centavo-rounded PHP 2,625.00 gross to PHP 5,250.00 (MSC PHP 5,500; employee EE PHP 275/month). At the first cutoff, the configured 50/50 estimate is PHP 137.50. This is **not** evidence that the agency mandates the first-cutoff deduction. It is a difference between *monthly source based on contracted pay* and *interim software estimate based on projected actual gross*.
+
+The same one-cent projection crosses two more SSS compensation-row boundaries:
+
+| Case | Contract monthly basic (2025 official monthly source) | Round first cutoff gross; double as projected monthly | Source EE monthly from contract | Projected SSS EE monthly | Interim EE first cutoff / ER first cutoff / EC first cutoff | WHT / net at first cutoff |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| C03 | PHP 5,249.99 | PHP 2,625.00 × 2 = PHP 5,250.00 | PHP 250.00 | PHP 275.00 | 137.50 / 275.00 / 5.00 | 0.00 / 2,310.00 |
+| C08 | PHP 14,749.99 | PHP 7,375.00 × 2 = PHP 14,750.00 | PHP 725.00 | PHP 750.00 | 375.00 / 750.00 / 15.00 | 0.00 / 6,715.62 |
+| C12 | PHP 34,749.99 | PHP 17,375.00 × 2 = PHP 34,750.00 | PHP 1,725.00 | PHP 1,750.00 | 875.00 / 1,750.00 / 15.00 | 832.29 / 15,133.33 |
+
+These three **literal projected-first-cutoff software-policy expectations** are entered separately in the real-engine test. Their **original source-based 2025 monthly salary/bracket oracles remain unchanged** and are still asserted by the pure statutory tests. A green provisional comparison cannot be counted as agency acceptance, cannot claim the monthly payroll is exact, and does not prove the next cutoff corrects the total. Separate independent full-month gross-centavo carry, SSS true-up, tax, net and employer/liability acceptance is required in [#2003](https://github.com/erwinmehehe/payrollph/issues/2003) and two-month follow-up [#1999](https://github.com/erwinmehehe/payrollph/issues/1999). No production logic, historical receipts or tenant proof is modified here.
+
 ## DISAGREES — finding ledger
 
-**No DISAGREES is established without an observed real-engine value tied to an exact official table row.** Do not infer that a matching repository table or a previous golden fixture proves AGREES. A hypothetical failure is not a verified discrepancy; the executed test is expected to fail loudly for previously undocumented differences, with the failing case and observed amounts retained in CI. Do **not** modify `src/**` or silently switch to skipped/expected-failure assertions. If CI identifies a real difference, record **worker / S,P,H,T source row / official hand value / real engine value / signed difference in centavos / legal interpretation / observed CI SHA** here, and then pin the repo's **documented knownFinding expected-current** convention in a separate test-only revision, or keep a test-only doc finding where appropriate.
+**Observed first-cutoff difference is not an official MONTHLY-rate disagreement:** C03 at head `7061051`, source-contracted PHP 5,249.99 vs first-cutoff software projection PHP 5,250.00, expected PHP 125.00 from half the contracted monthly SSS employee share vs engine PHP 137.50 based on projected monthly remuneration (delta +1,250 centavos). Both SSS table rows are internally correct for their respective monthly bases; the full-month pay-cent carry and posting must be independently accepted in #2003. No agency has certified the software's provisional cutoff allocation.\n\n**No DISAGREES is established without an observed real-engine value tied to an exact official table row.** Do not infer that a matching repository table or a previous golden fixture proves AGREES. A hypothetical failure is not a verified discrepancy; the executed test is expected to fail loudly for previously undocumented differences, with the failing case and observed amounts retained in CI. Do **not** modify `src/**` or silently switch to skipped/expected-failure assertions. If CI identifies a real difference, record **worker / S,P,H,T source row / official hand value / real engine value / signed difference in centavos / legal interpretation / observed CI SHA** here, and then pin the repo's **documented knownFinding expected-current** convention in a separate test-only revision, or keep a test-only doc finding where appropriate.
 
 **Known non-resolution, not DISAGREES:** PhilHealth C07 and C14 odd-centavo EE/ER assignment. Formula verifies the total premium; the split's *statutory* oracle is **SOURCE NOT VERIFIED**, so even matching the engine's chosen centavos cannot be counted as AGREES.
 
