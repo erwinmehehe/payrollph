@@ -131,19 +131,21 @@ function withCurrentHeading(doc, m) {
   };
   doc = stripMkt(doc);
   let preceding = "";
+  const wage = "> **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD (NO NEW CREDITS):** ";
+  const wageHold = doc.startsWith(wage);
   const sso = "> **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** ";
   const payroll = "> **PAYROLL RUN ORACLE — RENEWED:** ";
   const studio = "> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** ";
-  for (const prefix of [sso, payroll, studio]) {
+  for (const prefix of [wage, sso, payroll, studio]) {
     if (!doc.startsWith(prefix)) continue;
     const at = doc.indexOf("\n\n");
     assert.ok(at > 0, "Reviewed accounting banner missing separator: " + prefix);
     let banner = doc.slice(0, at);
-    if (prefix === payroll) banner = payroll +
+    if (prefix === payroll && !wageHold) banner = payroll +
       "19 source-sealed provisional method renewals; " +
       m.metrics.coveredAfter + " COVERED / " + m.metrics.gap +
       " GAP. SOLO_VERIFIED_DEV_RECOVERY; independent and production acceptance PENDING.";
-    if (prefix === studio) banner = studio +
+    if (prefix === studio && !wageHold) banner = studio +
       m.metrics.methods + " methods = " + m.metrics.coveredAfter + " COVERED + " +
       m.metrics.publicByDesign + " PUBLIC-BY-DESIGN + " +
       m.metrics.privilegedOperationsTokenOnly + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " +
@@ -218,7 +220,8 @@ export function regeneratedClosure(doc, m) {
       (count.GAP ? "INCOMPLETE" : "PROVISIONAL — NOT ACCEPTED") + " |";
   }
   assert.equal(frozenMethods, 406, "frozen batch membership/size changed");
-  const i = lines.findIndex(s => s.startsWith("Frozen subtotal ("));
+  const i = lines.findIndex(s => s.startsWith("Frozen subtotal (") ||
+    s.startsWith("Current frozen subtotal after PR #1989 source withdrawal:"));
   assert.ok(i >= 0, "frozen subtotal missing");
   const x = m.metrics;
   const outside = [
@@ -228,14 +231,18 @@ export function regeneratedClosure(doc, m) {
     [x.gap - fresh.GAP, "GAP"]
   ];
   assert.ok(outside.every(([n]) => Number.isSafeInteger(n) && n >= 0));
-  lines[i] = "Frozen subtotal (2026-11-11 classification proposal): **" +
+  const wageCurrent = lines[i].startsWith("Current frozen subtotal after PR #1989 source withdrawal:");
+  lines[i] = (wageCurrent
+    ? "Current frozen subtotal after PR #1989 source withdrawal: **"
+    : "Frozen subtotal (2026-11-11 classification proposal): **") +
     fresh.COVERED + " COVERED + " + fresh["PUBLIC-BY-DESIGN"] + " PUBLIC-BY-DESIGN + " +
     fresh["PRIVILEGED-OPERATIONS-TOKEN-ONLY"] + " PRIVILEGED-OPERATIONS-TOKEN-ONLY + " +
     fresh.GAP + " GAP = 406**. Relative to the live " + x.methods +
     "-method ledger, the other **" + (x.methods - 406) + " methods** are **" +
     outside.filter(([n]) => n > 0).map(([n, s]) => n + " " + s).join(" + ") +
     "**. " + incomplete + " batches remain INCOMPLETE; " +
-    provisional.join(", ") + " remain PROVISIONAL — NOT ACCEPTED.";
+    provisional.join(", ") + " remain PROVISIONAL — NOT ACCEPTED." +
+    (wageCurrent ? " Historical pre-withdrawal figures remain in dated sections." : "");
   block = lines.join("\n");
   return doc.slice(0, start) + block + doc.slice(end);
 }
