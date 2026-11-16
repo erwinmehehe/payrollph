@@ -142,7 +142,10 @@ function historicallySealedDocumentCallerReceipt(reference) {
   });
   assert.equal(receipt.pins["src/lib/wage-orders.ts"], PRIOR_WAGE_BLOB_SHA);
   assert.equal(gitBlobSha(readFileSync("src/lib/wage-orders.ts")), NEW_WAGE_BLOB_SHA);
-  assert.equal(archivedWageManifest.metrics.coveredAfter - manifest.metrics.coveredAfter, 75);
+  const exactHeldCount = Object.values(manifest.allApiRouteFiles).flatMap(file => file.methods)
+    .filter(method => method.reviewedUncertified?.kind?.startsWith("wage-registry")).length;
+  assert.equal(archivedWageManifest.metrics.coveredAfter - manifest.metrics.coveredAfter, exactHeldCount,
+    "The archived ledger can project only methods with verified source-sealed holds");
   assert.throws(() => verifyDocumentCallerReproof(reference),
     /Executed caller input changed: src\/lib\/wage-orders\.ts/,
     "The old job must NOT pass source-current document-caller proof");
