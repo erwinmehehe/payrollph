@@ -227,6 +227,10 @@ test("official IV-A IVA-23 uses the new high tier only from 26 October 2026", ()
   assert.equal(crossing.below, true);
   assert.equal(wageOrderFor("IV-A").dailyRate, 645, "undated registry uses current high tier");
   assert.equal(wageOrderFor("IV-A", "2026-10-25").dailyRate, 600, "historic order remains date-addressable");
+  assert.throws(() => wageOrderFor("IV-A", "2025-10-04"), /No verified wage-order history/,
+    "do not silently back-apply IVA-23 or IVA-22 before verified coverage");
+  assert.throws(() => wageOrderFor("VII", "2025-10-03"), /No verified wage-order history/,
+    "do not silently back-apply ROVII-27 or ROVII-26 before verified coverage");
   assert.throws(() => wageScreenForWorkPeriod(620 * 22, "NOT-A-REGION", 22, "2026-10-25", "2026-10-26"),
     /Unknown Philippine wage region/);
 });
