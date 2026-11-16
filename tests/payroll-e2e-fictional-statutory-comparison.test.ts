@@ -11,6 +11,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { nationalHolidayCalendarForDate } from "../src/lib/wage-orders";
 import { annualize } from "../src/lib/annualization";
 import { computeFinalPay } from "../src/lib/final-pay";
 import {
@@ -23,7 +24,14 @@ import {
 } from "../src/lib/payroll-rules";
 
 const SOURCE_DATE = "2025-11-15";
-const PERIOD = { periodStart: "2025-11-01", periodEnd: "2025-11-15", payDate: SOURCE_DATE };
+// Keep the 2025 official-source reference vectors unchanged. The production
+// payroll engine correctly requires a certified NATIONAL holiday pack, and
+// its only approved calendar is for 2026. The independent real-engine test
+// therefore runs a separate July 2026 fictional cutoff, during which the
+// cited NCR-26 P695/day MWE reference was still in force (before NCR-27's
+// 2026-07-25 effectivity). This is an engineering comparison, not 2026 agency
+// acceptance. Never invent a 2025 calendar or disable the engine's guard.
+const ENGINE_PERIOD = { periodStart: "2026-07-01", periodEnd: "2026-07-15", payDate: "2026-07-15" };
 
 // Official source keys: SSS-2024-006 p.1 compensation row; PH-2025-0002
 // p.1 basic-salary band; HDMF-460 pp.1-2; BIR-RR11-2018 Annex E p.1.
@@ -248,7 +256,14 @@ function disposableCiDatabase(): boolean {
     && process.env.DEMO_MODE === "false";
 }
 
-test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL only", {
+test("fixture selects a real supported 2026 national-holiday rule pack (not a 2025 bypass)", () => {
+  const national = nationalHolidayCalendarForDate(ENGINE_PERIOD.periodEnd);
+  assert.ok(national.length > 0, "A certified national holiday calendar must be present");
+  assert.equal(national.filter((row) => row.date >= ENGINE_PERIOD.periodStart && row.date <= ENGINE_PERIOD.periodEnd).length, 0,
+    "July 1-15, 2026 must remain a holiday-free national fixture; reselect if official coverage changes");
+});
+
+test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL (July 2026)", {
   skip: disposableCiDatabase() ? false : "Requires GitHub Actions CI with disposable localhost app_db; never Neon/production",
 }, async () => {
   const { eq } = await import("drizzle-orm");
@@ -261,7 +276,7 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
   let organizationId: number | null = null;
   try {
     const [org] = await db.insert(organizations).values({
-      name: "Disposable statutory comparison 2025", legalName: "Fictional Inc.",
+      name: "Disposable statutory comparison July 2026", legalName: "Fictional Inc.",
       plan: "Core", statutoryDeductionTiming: "split",
     }).returning();
     organizationId = org.id;
@@ -301,8 +316,8 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
       }
     }
     const [run] = await db.insert(payrollRuns).values({
-      organizationId: org.id, periodLabel: "Statutory comparison November 2025",
-      scopeLabel: "All locations", status: "Draft", ...PERIOD,
+      organizationId: org.id, periodLabel: "Statutory comparison July 2026",
+      scopeLabel: "All locations", status: "Draft", ...ENGINE_PERIOD,
     }).returning();
     await enqueuePayrollRun(run.id, 25);
     await drainPayrollQueue(10, run.id);
@@ -345,6 +360,8 @@ test("19 worker real-engine reconciliation on isolated GitHub Actions PostgreSQL
       }
       evidence.push({
         case: c.id, monthlySalary: c.salary, frequency: "semi-monthly",
+        referenceSourceDate: SOURCE_DATE, executedEnginePeriod: ENGINE_PERIOD,
+        evidenceBoundary: "2025 official table figures rechecked against July 2026 fictional engine; NOT a 2026 agency certificate",
         sourceStatus: c.phEe === null ? "SOURCE NOT VERIFIED (PH odd-cent EE/ER)" : "source verified",
         expected: { gross: c.gross, sss: c.cutoffSss, philHealth: c.cutoffPh, pagIbig: c.cutoffPag, wht: c.cutoffWht, net: c.cutoffNet, employer: erExpected },
         actual: { gross, sss, philHealth, pagIbig: hdmf, wht, net, employer },
