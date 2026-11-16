@@ -9,6 +9,10 @@ test("F-09 posted amounts are exact centavos, not fractional cents or non-finite
   assert.equal(postedCentavos(-250.01), -25001);
   assert.equal(postedCentavos(0), 0);
   assert.equal(postedCentavos(12.345), null);
+  assert.equal(postedCentavos(0.0000000005), null);
+  assert.equal(postedCentavos(0.30000000000000004), null);
+  assert.equal(postedCentavos(-0.001), null);
+  assert.equal(postedCentavos(0.30), 30);
   assert.equal(postedCentavos(Number.NaN), null);
   assert.equal(postedCentavos(Number.POSITIVE_INFINITY), null);
   assert.equal(postedCentavos(Number.MAX_SAFE_INTEGER), null);
