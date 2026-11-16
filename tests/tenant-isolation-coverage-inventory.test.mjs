@@ -22,6 +22,7 @@ import { verifyReceiptCredits } from "../scripts/qa/tenant-receipt-credit.mjs";
 import { verifyRootCredits } from "../scripts/qa/tenant-root-planning-credit.mjs";
 import { verifyEmailCredit } from "../scripts/qa/tenant-email-verification-credit.mjs";
 import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-credit.mjs";
+import { verifyCareersPublicPage } from "../scripts/qa/tenant-careers-public-page-classification.mjs";
 import { verifyBillingSubscriptionCredits } from "../scripts/qa/tenant-billing-subscription-credit.mjs";
 import { verifyMigrationPostCredit } from "../scripts/qa/tenant-migrations-post-credit.mjs";
 import { verifyDocumentCallerReproof } from "../scripts/qa/tenant-document-caller-reproof-verify.mjs";
@@ -7015,13 +7016,19 @@ test("page and server-action inventory cannot silently omit new or changed busin
       // Public Careers is deliberately anonymous; being public does NOT make
       // a caller-controlled employer selector safe or confer private tenant
       // authorization. Preserve the original source receipt and the 17
-      // outstanding page/action GAPs. This exact version has uncredited
+      // historic page/action GAPs. This exact version has an owner-approved public
       // fictional PG16 published-only SSR proof, pending independent review.
       if (path === "src/app/careers/page.tsx") {
         const originalPageBlobSha = "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3";
         const pageBlobSha = "8e56412c909b7d70a5c33a21d3df52a79a693d4f";
         const reviewed = entry.reviewedUncertified;
-        assert.equal(entry.status, "GAP", "Public Careers is not a private method-coverage credit");
+        // This test deliberately inspects historicSixPageView(liveManifest).
+        // The historical public-Careers GAP must remain intact; the separate
+        // live manifest has the exact approved public-only classification.
+        assert.equal(entry.status, "GAP", "Historical uncredited Careers SSR proof is immutable");
+        assert.equal(verifyCareersPublicPage(liveManifest), 1);
+        assert.equal(liveManifest.scopedPages.find(p => p.path === path)?.status,
+          "PUBLIC-BY-DESIGN", "Only the live page may carry the reviewed public label");
         assert.equal(entry.testedBy, undefined, "Unaccepted synthetic proof cannot certify a page");
         assert.equal(baseline.app[path], originalPageBlobSha);
         assert.equal(current, pageBlobSha, "Careers page changed: renew real SSR+privacy evidence");
@@ -7086,7 +7093,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
         assert.match(workflow, /github\.event\.pull_request\.head\.sha/);
         assert.match(workflow, /node --import tsx scripts\/qa\/tenant-careers-page-public-boundary-http\.mjs/);
         assert.ok(workflow.includes("'src/app/careers/page.tsx'"));
-        continue; // Public page is a pinned unaccepted GAP, not a new COVERED page.
+        continue; // Approved public-only page, never private COVERED or independent acceptance.
       }
 
       // #1876 People/HR pages: exact-source, feature-ON, disposable

@@ -1,6 +1,7 @@
 import { TARGETS, verifyFivePageCredits, verifyCurrentScopedPageGapCount, historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { selectedTargets, verifySixPageCredits } from "../scripts/qa/tenant-six-scoped-page-credit.mjs";
 import {selectedTargets as selectedFour, verifyFourPageCredits} from "../scripts/qa/tenant-four-scoped-page-credit.mjs";
+import {CAREERS_PAGE,verifyCareersPublicPage} from "../scripts/qa/tenant-careers-public-page-classification.mjs";
 /**
  * All-API structural check: every direct/delegated route-to-DB call must show
  * an employer-scoped access mechanism OR a source-SHA-pinned exception with a
@@ -162,6 +163,15 @@ test("all scoped pages stay source-pinned; six further pages require independent
       assert.ok(!page.testedBy, page.path + ": a GAP must not claim accepted HTTP evidence");
       continue;
     }
+    if (page.path === CAREERS_PAGE) {
+      assert.equal(page.status,"PUBLIC-BY-DESIGN",
+        "The anonymous job listing is not a private tenant-access credit");
+      assert.equal(verifyCareersPublicPage(manifest),1);
+      assert.equal(page.testedBy,undefined);
+      continue;
+    }
+    assert.equal(page.status,"COVERED",
+      page.path + ": unreviewed third page classification");
     if (TARGETS.some(target => target.path === page.path) ||
         six.some(target => target.path === page.path) ||
         four.some(target => target.path === page.path)) {
