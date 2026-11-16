@@ -30,6 +30,33 @@ export function roundedBasicPayBuckets(workedPay: number, unworkedHolidayPay: nu
   return { worked, unworkedHoliday, total: roundedGrossFromBuckets([worked, unworkedHoliday]) };
 }
 
+/**
+ * Divide an unchanged, fixed monthly salary into standard semi-monthly cutoffs
+ * in integer centavos. First cutoff gets the odd centavo; the final cutoff
+ * receives the exact remainder. This is a *payroll allocation convention*,
+ * not an SSS-mandated contribution split. Caller must verify a full unchanged
+ * monthly contract, actual standard cutoffs, and the released first-cutoff
+ * ledger before applying the final-cutoff amount.
+ */
+export function splitFixedMonthlyBasic(monthlySalary: number): {
+  first: number; second: number; monthly: number;
+} {
+  const cents = Math.round((monthlySalary + Number.EPSILON) * 100);
+  if (
+    !Number.isFinite(monthlySalary) || monthlySalary < 0
+    || !Number.isSafeInteger(cents)
+    || Math.abs(monthlySalary * 100 - cents) > 0.000001
+  ) {
+    throw new Error("Fixed monthly salary must be an exact, safe nonnegative centavo amount.");
+  }
+  const firstCents = Math.ceil(cents / 2);
+  return {
+    first: firstCents / 100,
+    second: (cents - firstCents) / 100,
+    monthly: cents / 100,
+  };
+}
+
 /** The prior-cutoff ledger may contain all zeroes and must still be used. */
 export function statutoryTrueUpDecision(input: {
   isFinalCutoffOfMonth: boolean;
