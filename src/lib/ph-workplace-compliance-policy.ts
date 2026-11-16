@@ -88,6 +88,11 @@ export function mayAdvanceDoleRecord(current: DoleRecordStatus, next: DoleRecord
   return true;
 }
 
+/** Appointed investigators/reviewers require MFA even with a global employee role. */
+export function protectedCaseDetailRequiresMfa(userRole: string, isAppointedOfficer: boolean): boolean {
+  return isAppointedOfficer || userRole !== "employee";
+}
+
 /** Case data is never available by default to owners, admins or HR. */
 export function mayReadProtectedCase(input: {
   viewerId: number;
