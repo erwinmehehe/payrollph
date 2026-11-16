@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {TRANSITIVE_HOLD_KIND,readTransitiveWageHoldArchive,verifyAllTransitiveWageHolds} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
+import {SEALED_WAGE_HOLD_KIND,readSealedWageHoldArchive,verifyAllSealedWageHolds} from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 import {
   WAGE_SOURCE_HELD_METHODS, verifyWageRegistrySourceHold,
   verifyAllWageRegistrySourceHolds, reviewedWageRegistrySourceWithdrawals,
@@ -38,8 +39,9 @@ test("historical view restores only exactly verified old receipts without changi
   const historical = historicWageRegistryProofView(live);
   assert.deepEqual(live, original, "Historical projection must not mutate the live manifest");
   assert.equal(verifyAllTransitiveWageHolds(live).size,47);
-  assert.equal(historical.metrics.gap, live.metrics.gap - 70);
-  assert.equal(historical.metrics.coveredAfter, live.metrics.coveredAfter + 70);
+  assert.equal(verifyAllSealedWageHolds(live).size,5);
+  assert.equal(historical.metrics.gap, live.metrics.gap - 75);
+  assert.equal(historical.metrics.coveredAfter, live.metrics.coveredAfter + 75);
   assert.equal(historical.metrics.methods, live.metrics.methods);
   const changed = [];
   for (const [path, file] of Object.entries(live.allApiRouteFiles)) {
@@ -47,7 +49,8 @@ test("historical view restores only exactly verified old receipts without changi
       const old = historical.allApiRouteFiles[path].methods.find(m => m.name === row.name);
       if (old.status !== row.status) changed.push(path + " " + row.name);
       if (row.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal" ||
-          row.reviewedUncertified?.kind === TRANSITIVE_HOLD_KIND) {
+          row.reviewedUncertified?.kind === TRANSITIVE_HOLD_KIND ||
+          row.reviewedUncertified?.kind === SEALED_WAGE_HOLD_KIND) {
         assert.equal(row.status, "GAP");
         assert.equal(row.testedBy, null);
         assert.equal(old.status, "COVERED");
@@ -59,7 +62,8 @@ test("historical view restores only exactly verified old receipts without changi
     }
   }
   const transitive=readTransitiveWageHoldArchive().methods.map(e=>e.path+" "+e.verb);
-  assert.deepEqual(changed.sort(), [...WAGE_SOURCE_HELD_METHODS,...transitive].sort());
+  const sealed=readSealedWageHoldArchive().methods.map(e=>e.path+" "+e.verb);
+  assert.deepEqual(changed.sort(), [...WAGE_SOURCE_HELD_METHODS,...transitive,...sealed].sort());
   const forged = clone(live);
   const [path, verb] = split(firstKey);
   forged.allApiRouteFiles[path].methods.find(m => m.name === verb).reviewedUncertified.coverageCredits = 1;

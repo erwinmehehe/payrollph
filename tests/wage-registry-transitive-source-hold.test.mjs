@@ -12,10 +12,10 @@ test("47 transitive source-dependent credits are withdrawn, source-sealed and un
   const m=read(),a=readTransitiveWageHoldArchive();
   assert.equal(a.methods.length,47);
   assert.equal(verifyAllTransitiveWageHolds(m).size,47);
-  assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap],[391,71]);
+  assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap],[386,76]);
   const historic=historicWageRegistryProofView(m);
-  assert.equal(historic.metrics.coveredAfter,m.metrics.coveredAfter+70);
-  assert.equal(historic.metrics.gap,m.metrics.gap-70);
+  assert.equal(historic.metrics.coveredAfter,m.metrics.coveredAfter+75);
+  assert.equal(historic.metrics.gap,m.metrics.gap-75);
   for(const e of a.methods){
     const current=m.allApiRouteFiles[e.path].methods.find(x=>x.name===e.verb);
     const prior=historic.allApiRouteFiles[e.path].methods.find(x=>x.name===e.verb);

@@ -91,8 +91,6 @@ test("only historical zero-credit holds can stand for changed transitive wage ru
     }))});
   }
   const selected=readTransitiveWageHoldArchive().methods.map(e=>e.verb+" "+e.path).sort();
-  const actual=impacted.flatMap(row=>row.methods.filter(m=>
-    m.status==="GAP" && m.held===false).map(m=>m.verb+" "+row.route));
   // The archive itself is verified above; compare all previously COVERED
   // source-dependent methods to the exactly sealed 47 zero-credit withdrawals.
   const coveredAfterWithdrawal=selected.filter(key=>{

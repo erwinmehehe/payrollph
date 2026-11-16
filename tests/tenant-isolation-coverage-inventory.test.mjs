@@ -7,6 +7,7 @@ import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import { verifyWageRegistrySourceHold, verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
 import {verifyAllTransitiveWageHolds,TRANSITIVE_HOLD_KIND,readTransitiveWageHoldArchive} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
+import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 import {assertHistoricalHttpWorkflowCheckout,historicalHttpWorkflowCheckoutSource} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -279,6 +280,12 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status==="GAP" && method.reviewedUncertified?.kind===SEALED_WAGE_HOLD_KIND){
+    const checked=verifyAllSealedWageHolds(manifest);
+    const at=key.lastIndexOf(" "),path=key.slice(0,at),verb=key.slice(at+1);
+    assert.ok(checked.has(verb+" "+path),"Source-seal credit has not been reviewed for withdrawal");
+    return true;
+  }
   if(method.status==="GAP" && method.reviewedUncertified?.kind===TRANSITIVE_HOLD_KIND){
     const exact=verifyAllTransitiveWageHolds(manifest);
     const i=key.lastIndexOf(" "), path=key.slice(0,i),verb=key.slice(i+1);
@@ -4258,6 +4265,7 @@ test("wage-order dependency withdrawal requires all 23 historical tenant proofs 
   assert.equal(verifyAllWageRegistrySourceHolds(manifest).length, 23);
   assert.equal(verifyAllTransitiveWageHolds(manifest).size, 47);
   assert.equal(readTransitiveWageHoldArchive().methods.length,47);
+  assert.equal(verifyAllSealedWageHolds(manifest).size,5);
   const totals = manifest.metrics;
   assert.equal(totals.coveredAfter + totals.publicByDesign + totals.privilegedOperationsTokenOnly + totals.gap,
     totals.methods);
