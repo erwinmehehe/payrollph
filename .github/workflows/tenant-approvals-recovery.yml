@@ -9,6 +9,8 @@ name: Approvals PATCH recovery — complete PG16 proof gate
     branches:
       - main
     paths:
+      - 'src/lib/wage-orders.ts'
+      - 'src/lib/statutory-rule-watch.ts'
       - .github/workflows/tenant-approvals-recovery.yml
       - scripts/qa/tenant-approval*.mjs
       - scripts/qa/tenant-money-lifecycle-http.mjs

@@ -8,6 +8,8 @@ name: Studio dependency receipt renewal (fictional PG16 HTTP)
       - synchronize
       - reopened
     paths:
+      - 'src/lib/wage-orders.ts'
+      - 'src/lib/statutory-rule-watch.ts'
       - .github/workflows/tenant-studio-dependency-renewal.yml
       - src/lib/automation.ts
       - src/lib/automation-recovery-scope.ts
