@@ -5,6 +5,7 @@ import {verifySamlPublicClassification} from '../scripts/qa/tenant-saml-metadata
 import { assertOracleCallerCompatible } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleRegressionReceipt } from "../scripts/qa/payroll-run-oracle-source-compat.mjs";
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from "../scripts/qa/payroll-run-oracle-hold.mjs";
+import { verifyWageRegistrySourceHold, verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
 import {assertHistoricalHttpWorkflowCheckout,historicalHttpWorkflowCheckoutSource} from '../scripts/qa/payroll-run-credit-renewal-workflow-compat.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -125,6 +126,7 @@ function readableLines(path) {
   return readFileSync(path, "utf8").split("\n");
 }
 function isVerifiedRunWithdrawal(path, verb, data = manifest) {
+  if (verifyWageRegistrySourceHold(data, path, verb)) return true;
   if(isVerifiedOracleRenewal(data,path,verb))return true; // New executed cohort replaces the historical receipt check.
   const row=data.allApiRouteFiles[path]?.methods.find(item=>item.name===verb);
   if(row?.status!=="GAP" || row.reviewedUncertified?.kind!=="payroll-run-membership-oracle-source-withdrawal") return false;
@@ -275,6 +277,12 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status === "GAP" && method.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal"){
+    const at=key.lastIndexOf(" "),path=key.slice(0,at),verb=key.slice(at+1);
+    assert.ok(verifyWageRegistrySourceHold(manifest,path,verb),
+      "No stale wage-order proof may retain COVERED status");
+    return true;
+  }
   if(key===OIDC_START+' GET'&&method.status==='COVERED'){
     assert.equal(verifyOidcBatchMethod(manifest,OIDC_START),1);
     assert.equal(currentBlob,method.testedBy.routeBlobSha);return true;
@@ -4237,6 +4245,13 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       key + ": new/changed route must have real cross-tenant proof or a documented public-by-design review");
   }
 }
+
+test("wage-order dependency changes withdraw all 23 old source-bound tenant credits", () => {
+  assert.equal(verifyAllWageRegistrySourceHolds(manifest).length, 23);
+  assert.equal(manifest.metrics.coveredAfter, 438);
+  assert.equal(manifest.metrics.gap, 24);
+  assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: 24 API methods"));
+});
 
 test("whole API manifest inventories exactly every route, exported method, and original blob", () => {
   assert.equal(manifest.baseCommit, BASE);
