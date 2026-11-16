@@ -9,8 +9,9 @@ import { useEffect, useRef, useState } from "react";
 export function PrivateWorkplaceStatement({ organizationId, caseId }: {
   organizationId: number; caseId: number;
 }) {
-  const [open, setOpen] = useState(false);
-  const [statement, setStatement] = useState("");
+  const scopeKey = organizationId + ":" + caseId;
+  const [revealed, setRevealed] = useState<{ scopeKey: string; statement: string } | null>(null);
+  const open = revealed?.scopeKey === scopeKey;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
@@ -18,16 +19,16 @@ export function PrivateWorkplaceStatement({ organizationId, caseId }: {
 
   useEffect(() => {
     const controllers = new Set<AbortController>();
-    // Capture the collection, not a changing ref value, for stable cleanup.
+    // Abort old requests on unmount or case/employer scope changes.
     inFlight.current = controllers;
     return () => { for (const controller of controllers) controller.abort(); };
-  }, []);
+  }, [scopeKey]);
 
   async function toggle() {
     if (busy) return;
     if (open) {
       request.current?.abort();
-      setStatement(""); setOpen(false); setError("");
+      setRevealed(null); setError("");
       return;
     }
     const controller = new AbortController();
@@ -48,8 +49,8 @@ export function PrivateWorkplaceStatement({ organizationId, caseId }: {
       if (!record || record.id !== caseId || typeof record.statement !== "string") {
         throw new Error("Private statement could not be verified.");
       }
-      setStatement(record.statement);
-      setOpen(true);
+      // Bind the decrypted value to the exact employer/case requested.
+      setRevealed({ scopeKey, statement: record.statement });
     } catch (cause) {
       if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : "Could not retrieve confidential statement.");
@@ -69,7 +70,7 @@ export function PrivateWorkplaceStatement({ organizationId, caseId }: {
       {busy ? "Checking access…" : open ? "Hide and clear private statement" : "Open private statement"}
     </button>
     {open ? <p className="whitespace-pre-wrap rounded-md border border-slate-200 p-3 text-sm text-slate-900">
-      {statement}
+      {revealed?.statement}
     </p> : null}
     {error ? <p role="alert" className="text-xs text-red-800">{error}</p> : null}
   </div>;
