@@ -86,3 +86,38 @@ export function verifyAllWageRegistrySourceHolds(manifest, read = readFileSync) 
   assert.equal(seen.length, 23);
   return seen;
 }
+
+/**
+ * Only a complete, exact-source, zero-credit withdrawal of old COVERED
+ * methods may reduce the tenant ledger. Compare each archived prior proof to
+ * the PR base; no unrelated method or source-hash repin is exempt.
+ * Return keys in the standard "VERB path" tally format.
+ */
+export function reviewedWageRegistrySourceWithdrawals(before, after, read = readFileSync) {
+  const declared = WAGE_SOURCE_HELD_METHODS.filter(key => {
+    const at = key.lastIndexOf(" "), path = key.slice(0, at), verb = key.slice(at + 1);
+    return after.allApiRouteFiles?.[path]?.methods.find(x => x.name === verb)
+      ?.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal";
+  });
+  if (declared.length === 0) return new Set();
+  assert.equal(declared.length, WAGE_SOURCE_HELD_METHODS.length,
+    "Partial wage-registry security withdrawal cannot silently downgrade tenant coverage");
+  verifyAllWageRegistrySourceHolds(after, read);
+  const held = new Set();
+  for (const key of declared) {
+    const at = key.lastIndexOf(" "), path = key.slice(0, at), verb = key.slice(at + 1);
+    const old = before.allApiRouteFiles?.[path];
+    const now = after.allApiRouteFiles?.[path];
+    const prior = old?.methods.find(x => x.name === verb);
+    const current = now?.methods.find(x => x.name === verb);
+    assert.equal(old?.gitBlobSha, now?.gitBlobSha,
+      "A changed API route needs its own new independent proof: " + key);
+    assert.equal(prior?.status, "COVERED", "Only source-credited previous methods may be withdrawn: " + key);
+    assert.equal(current?.status, "GAP");
+    assert.equal(current.testedBy, null);
+    assert.deepEqual(current.reviewedUncertified.priorProof, prior.testedBy,
+      "Historical wage dependency proof must exactly match the PR's base");
+    held.add(verb + " " + path);
+  }
+  return held;
+}
