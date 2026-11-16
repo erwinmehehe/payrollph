@@ -93,6 +93,10 @@ export async function PATCH(request: Request) {
   if (guard.denied) return guard.denied;
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
+  const rate = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id, action: "ph-osh-update", resourceId: id, limit: 20, windowMs: 300_000,
+  });
+  if (rate) return rate;
   const sha = body.evidenceSha256 == null ? null : sha256Digest(body.evidenceSha256);
   const correctiveActionRef = limitedText(body.correctiveActionRef, 160);
   if ((body.evidenceSha256 != null && !sha) || correctiveActionRef === null) {
