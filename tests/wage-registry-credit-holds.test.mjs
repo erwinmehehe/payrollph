@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
-import {execFileSync} from 'node:child_process';
 import test from 'node:test';
 import {verifiedWageCreditHolds,wageHeldPriorProof} from '../scripts/qa/wage-registry-credit-holds.mjs';
-import {assertWageLedgerDelta} from './helpers/wage-source-holds.mjs';
+import {assertWageLedgerDelta,historicalWageCatalog} from './helpers/wage-source-holds.mjs';
 const load=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
 test('all 75 current holds are disjoint, zero-credit and retain immutable prior evidence',()=>{
  const m=load(),before=structuredClone(m),held=verifiedWageCreditHolds(m);
@@ -44,12 +43,13 @@ test('the current-ledger guard rejects unrelated edits, false counts and borrowe
 });
 
 test('historical wage bytes do not conceal a newly changed statutory watch',()=>{
- // Pin this test's real pre-withdrawal input, so it remains meaningful when
- // origin/main eventually contains this PR's 75 holds and updated registry.
- const historicalMain='d7393966e6b2ea14430fc76b558e5cf1fb77735c';
- const m=load(),base=JSON.parse(execFileSync('git',
-   ['show',historicalMain+':scripts/qa/tenant-isolation-coverage-manifest.json'],{maxBuffer:16<<20}));
- const historicalRead=p=>execFileSync('git',['show',historicalMain+':'+p],{maxBuffer:16<<20});
+ // Real pre-withdrawal bytes, checked by the guard's immutable Git blob pins.
+ // A fixture keeps this regression valid after merge and in shallow CI clones.
+ const fixture=JSON.parse(readFileSync('tests/fixtures/wage-registry-prewithdrawal-inputs.json','utf8'));
+ assert.equal(fixture.schema,'payrollph-wage-version-coherence-fixture-v1');
+ assert.equal(fixture.sourceCommit,'d7393966e6b2ea14430fc76b558e5cf1fb77735c');
+ const m=load(),base=historicalWageCatalog(m);
+ const historicalRead=p=>{assert.ok(Object.hasOwn(fixture.inputs,p));return Buffer.from(fixture.inputs[p]);};
  assert.equal(verifiedWageCreditHolds(base,historicalRead).size,0);
  assert.throws(()=>verifiedWageCreditHolds(base,p=>p==='src/lib/statutory-rule-watch.ts'
    ?readFileSync(p):historicalRead(p)),/changed statutory watch/);
