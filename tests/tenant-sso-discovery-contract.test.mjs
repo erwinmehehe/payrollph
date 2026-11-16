@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifySsoResolveClassification } from "../scripts/qa/tenant-sso-resolve-public-classification.mjs";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import test from "node:test";
@@ -74,7 +75,10 @@ test("real HTTP proof has two employer positives, a higher-ID victim, a cross-or
   const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const entry = manifest.allApiRouteFiles[routeFile];
   assert.equal(entry.gitBlobSha, gitBlobSha(route));
-  assert.equal(entry.methods.find(m => m.name === "POST")?.status, "GAP");
+  // GAP, or the owner-approved public label verified exactly (approval, route pin and executed PG16 receipt).
+  const resolveRow = entry.methods.find(m => m.name === "POST");
+  if (resolveRow?.status === "PUBLIC-BY-DESIGN") verifySsoResolveClassification(manifest);
+  else assert.equal(resolveRow?.status, "GAP");
   const start = runner.indexOf("requireDisposableSsoDiscovery();");
   const dbImport = runner.indexOf('import("../../src/db/index.ts")');
   assert.ok(start >= 0 && dbImport > start, "DB import must follow explicit disposable-only guard");

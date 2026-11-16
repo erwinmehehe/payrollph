@@ -1,5 +1,7 @@
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifySamlPublicClassification} from '../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
+import {SSO_RESOLVE_PATH} from '../scripts/qa/tenant-sso-resolve-public-policy.mjs';
+import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
 import {SAML_PUBLIC_PATH} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {ORACLE_HELD_METHODS,isVerifiedOracleSupersession,isVerifiedOracleRenewal,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
@@ -947,6 +949,9 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   const samlPublicLabels=m.allApiRouteFiles[SAML_PUBLIC_PATH].methods[0].status==='PUBLIC-BY-DESIGN'?verifySamlPublicClassification(m):0;
   assert.equal(expectedStatuses[SAML_PUBLIC_PATH].GET,'GAP');
   if(samlPublicLabels)expectedStatuses[SAML_PUBLIC_PATH].GET='PUBLIC-BY-DESIGN';
+  const ssoPublicLabels=m.allApiRouteFiles[SSO_RESOLVE_PATH].methods[0].status==='PUBLIC-BY-DESIGN'?verifySsoResolveClassification(m):0;
+  assert.equal(expectedStatuses[SSO_RESOLVE_PATH].POST,'GAP');
+  if(ssoPublicLabels)expectedStatuses[SSO_RESOLVE_PATH].POST='PUBLIC-BY-DESIGN';
   assert.deepEqual(methodStatuses(m), expectedStatuses,
     "Preserves inherited exact-source credits and credits only the separately proven operator GET");
   const expectedCounts = {
@@ -969,7 +974,7 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
   expectedCounts.COVERED-=oracleHolds.size;expectedCounts.GAP+=oracleHolds.size;
   expectedCounts.COVERED += mkt01Credits;
   expectedCounts.GAP -= mkt01Credits;
-  expectedCounts['PUBLIC-BY-DESIGN']+=samlPublicLabels;expectedCounts.GAP-=samlPublicLabels;
+  expectedCounts['PUBLIC-BY-DESIGN']+=samlPublicLabels+ssoPublicLabels;expectedCounts.GAP-=samlPublicLabels+ssoPublicLabels;
   assert.deepEqual(counts, expectedCounts,
     "The source-revoked year-end pair remains GAP; three exact-head method receipts are added");
   assert.equal(m.metrics.methods, allMethods.length);
@@ -986,10 +991,10 @@ test("six-method review permits only 3 #1728 compliance and 4 #1730 year-end cre
     return plan.includes('- `'+verb+' /api/'+m.allApiRouteFiles[path].route+'` — [source]');
   }).length;
   const frozenCovered = 367 - yearEndHeldMethods + studioCredits + approvalCredits + readinessGetCredits + filingPatchCredits + checkoutCredits + exportsPostCredits + oidcCallbackCredits + oidcStartCredits + xenditPostCredits - frozenOracleHolds + mkt01Credits;
-  const frozenPublic = 7 + architecturePublic.length + samlPublicLabels;
+  const frozenPublic = 7 + architecturePublic.length + samlPublicLabels + ssoPublicLabels;
   const frozenPrivileged = 11 + 1; // The HCM SLA worker is token-only, never a tenant-method credit.
   const frozenGaps = 21 + yearEndHeldMethods - studioCredits - approvalCredits - readinessGetCredits - filingPatchCredits - checkoutCredits - exportsPostCredits
-    - architecturePublic.length - 1 - oidcCallbackCredits - oidcStartCredits - xenditPostCredits + frozenOracleHolds - mkt01Credits - samlPublicLabels; // Each OIDC and MKT-01 credit requires its own current-source receipt.
+    - architecturePublic.length - 1 - oidcCallbackCredits - oidcStartCredits - xenditPostCredits + frozenOracleHolds - mkt01Credits - samlPublicLabels - ssoPublicLabels; // Each OIDC and MKT-01 credit requires its own current-source receipt.
   assert.equal(frozenCovered + frozenPublic + frozenPrivileged + frozenGaps, 406,
     "The original frozen batch population must not change");
   assert.equal(frozenGaps+oracleHolds.size-frozenOracleHolds, m.metrics.gap, "Frozen and supplementary renewals cannot hide GAPs");
@@ -1626,7 +1631,7 @@ test("frozen credit guard rejects an uncited or unproved method", () => {
   const uncoveredPath = "src/app/api/auth/sso/resolve/route.ts";
   const unproved = structuredClone(m);
   const held = unproved.allApiRouteFiles[uncoveredPath].methods.find(row => row.name === "POST");
-  assert.equal(held.status, "GAP");
+  assert.ok(["GAP", "PUBLIC-BY-DESIGN"].includes(held.status), "resolve is held or carries only its approved public label");
   held.status = "COVERED";
   held.testedBy = { file: "scripts/qa/tenant-fabricated-credit.mjs" };
   assert.throws(() => verifiedFrozenMethodStatus(unproved, uncoveredPath, "POST", "GAP"),

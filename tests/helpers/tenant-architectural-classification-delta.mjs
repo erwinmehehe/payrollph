@@ -6,6 +6,8 @@ import { reviewedWorker360LegalEmployerSupersession,reviewedOidcSourceSupersessi
 import { verifyOracleSourceHolds } from "../../scripts/qa/payroll-run-oracle-hold.mjs";
 import {verifySamlPublicClassification} from '../../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
 import {SAML_PUBLIC_PATH} from '../../scripts/qa/tenant-saml-metadata-public-policy.mjs';
+import {verifySsoResolveClassification} from '../../scripts/qa/tenant-sso-resolve-public-classification.mjs';
+import {SSO_RESOLVE_PATH} from '../../scripts/qa/tenant-sso-resolve-public-policy.mjs';
 
 const PUBLIC = [
   ["src/app/api/setup/route.ts", "GET"],
@@ -186,6 +188,13 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
     if(key==='GET '+SAML_PUBLIC_PATH&&current.method.status==='PUBLIC-BY-DESIGN'){
       assert.ok(['GAP','PUBLIC-BY-DESIGN'].includes(old.method.status));
       assert.equal(verifySamlPublicClassification(afterManifest,read),1);
+      assert.equal(current.route.gitBlobSha,old.route.gitBlobSha,'Public classification cannot change runtime source');
+      if(old.method.status==='GAP'){changes.gapRelabels++;changes.publicByDesign++;}
+      continue;
+    }
+    if(key==='POST '+SSO_RESOLVE_PATH&&current.method.status==='PUBLIC-BY-DESIGN'){
+      assert.ok(['GAP','PUBLIC-BY-DESIGN'].includes(old.method.status));
+      assert.equal(verifySsoResolveClassification(afterManifest,read),1);
       assert.equal(current.route.gitBlobSha,old.route.gitBlobSha,'Public classification cannot change runtime source');
       if(old.method.status==='GAP'){changes.gapRelabels++;changes.publicByDesign++;}
       continue;

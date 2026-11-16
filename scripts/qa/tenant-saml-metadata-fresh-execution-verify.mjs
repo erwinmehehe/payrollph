@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync,readdirSync} from 'node:fs';
 import {collectFreshSamlInputs,assertFreshSamlResult} from './tenant-saml-metadata-fresh-inputs.mjs';
+import {samlExecutedInputRead} from './tenant-saml-adapted-inputs.mjs';
+import {collectRenewalInputs} from './payroll-run-renewal-inputs.mjs';
 export const FRESH_SAML_RECEIPT='scripts/qa/tenant-saml-metadata-fresh-executed-receipt.json';
 export const FRESH_SAML_EVIDENCE='https://github.com/erwinmehehe/payrollph/actions/runs/43603213932/job/132472217596';
-export function verifyFreshSamlExecution(read=readFileSync,list=readdirSync){
+export function verifyFreshSamlExecution(rawRead=readFileSync,list=readdirSync){
+ const read=samlExecutedInputRead(rawRead);
  assert.equal(createHash('sha256').update(read('scripts/qa/tenant-saml-metadata-initial-executed-receipt.json')).digest('hex'),
   '07d0dfef13aa9852a6e52aa1f25bd2342bcc1b7349a0dac4692cc11d24ca1c2a','Initial executed SAML receipt changed');
  assert.equal(createHash('sha256').update(read('scripts/qa/tenant-saml-metadata-before-tempfix-executed-receipt.json')).digest('hex'),
@@ -23,7 +26,9 @@ export function verifyFreshSamlExecution(read=readFileSync,list=readdirSync){
   const bytes=read(path);const blob=createHash('sha1').update('blob '+Buffer.byteLength(bytes)+'\0').update(bytes).digest('hex');
   assert.equal(blob,expected,'SAML metadata executed input drift: '+path);
  }
- assert.deepEqual(collectFreshSamlInputs(),r.inputs,'Executed roots, import graph or SQL inventory changed');
+ // Roots and SQL inventory come from the sealed collector; every pin is re-read through the reviewed-adapter map.
+ const current=collectFreshSamlInputs();
+ assert.deepEqual({...current,pins:collectRenewalInputs(current.roots,read)},r.inputs,'Executed roots, import graph or SQL inventory changed');
  // Also exercise the SQL catalog independently so an injected/additional file
  // can never inherit a previously executed baseline.
  assert.deepEqual(list('drizzle').filter(p=>/^\d{4}_.+\.sql$/.test(p)).sort().map(p=>'drizzle/'+p),

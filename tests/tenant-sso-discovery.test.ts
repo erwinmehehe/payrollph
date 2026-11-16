@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { ssoDiscoveryEmail } from "../src/lib/tenant-sso-discovery";
+import { verifySsoResolveClassification } from "../scripts/qa/tenant-sso-resolve-public-classification.mjs";
 
 const routeFile = "src/app/api/auth/sso/resolve/route.ts";
 const manifestFile = "scripts/qa/tenant-isolation-coverage-manifest.json";
@@ -51,6 +52,9 @@ test("SSO resolve always binds the verified domain to its own enabled OIDC provi
   const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
   const rec = manifest.allApiRouteFiles[routeFile];
   assert.equal(rec.gitBlobSha, gitBlobSha(src), "source drift requires re-inventory");
-  assert.equal(rec.methods.find((method: { name: string }) => method.name === "POST")?.status, "GAP",
-    "source hardening does not claim full tenant method certification");
+  const resolveRow = rec.methods.find((method: { name: string }) => method.name === "POST");
+  if (resolveRow?.status === "PUBLIC-BY-DESIGN") verifySsoResolveClassification(manifest);
+  else {
+    assert.equal(resolveRow?.status, "GAP", "source hardening does not claim full tenant method certification");
+  }
 });
