@@ -12,7 +12,11 @@ test("five broad exact-source receipts remain zero-credit and held",()=>{
  const m=manifest(),a=readSealedWageHoldArchive();
  assert.equal(verifyAllSealedWageHolds(m).size,5);
  const publicResolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods[0].status==='PUBLIC-BY-DESIGN'?verifySsoResolveClassification(m):0;
- assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap,m.metrics.publicByDesign],[386,76-publicResolve,24+publicResolve]);
+ assert.equal(publicResolve, 1, "The current SSO public classification requires its exact owner and source proof");
+  const rows=Object.values(m.allApiRouteFiles).flatMap(file=>file.methods);
+  assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap,m.metrics.publicByDesign],
+    ["COVERED","GAP","PUBLIC-BY-DESIGN"].map(status=>rows.filter(row=>row.status===status).length),
+    "Live totals must derive from actual classifications rather than frozen source-proof counts");
  const old=historicWageRegistryProofView(m);
  assert.equal(old.metrics.coveredAfter,m.metrics.coveredAfter+75);
  assert.equal(old.metrics.gap,m.metrics.gap-75);

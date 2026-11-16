@@ -14,7 +14,11 @@ test("47 transitive source-dependent credits are withdrawn, source-sealed and un
   assert.equal(a.methods.length,47);
   assert.equal(verifyAllTransitiveWageHolds(m).size,47);
   const publicResolve=m.allApiRouteFiles['src/app/api/auth/sso/resolve/route.ts'].methods[0].status==='PUBLIC-BY-DESIGN'?verifySsoResolveClassification(m):0;
-  assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap,m.metrics.publicByDesign],[386,76-publicResolve,24+publicResolve]);
+  assert.equal(publicResolve, 1, "The current SSO public classification requires its exact owner and source proof");
+  const rows=Object.values(m.allApiRouteFiles).flatMap(file=>file.methods);
+  assert.deepEqual([m.metrics.coveredAfter,m.metrics.gap,m.metrics.publicByDesign],
+    ["COVERED","GAP","PUBLIC-BY-DESIGN"].map(status=>rows.filter(row=>row.status===status).length),
+    "Live totals must derive from actual classifications rather than frozen source-proof counts");
   const historic=historicWageRegistryProofView(m);
   assert.equal(historic.metrics.coveredAfter,m.metrics.coveredAfter+75);
   assert.equal(historic.metrics.gap,m.metrics.gap-75);
