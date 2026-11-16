@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, oshTrainingRecords } from "@/db/schema";
+import { employees } from "@/db/schema";
+import { oshTrainingRecords } from "@/db/workplace-compliance-schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
