@@ -31,6 +31,7 @@ test("47 transitive source-dependent credits are withdrawn, source-sealed and un
     assert.deepEqual(prior.testedBy,e.priorProof);
   }
   assert.equal(reviewedTransitiveWageWithdrawals(historic,m).size,47);
+  assert.equal(reviewedTransitiveWageWithdrawals(m,m).size,0);
   assert.equal(reviewedTransitiveWageWithdrawals(historic,historic).size,0);
 });
 test("missing hold, invented new credit, modified archive and changed wage code fail closed",()=>{

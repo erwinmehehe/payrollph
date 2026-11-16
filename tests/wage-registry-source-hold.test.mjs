@@ -107,6 +107,7 @@ test("only the exact historical base method proof may be downgraded", () => {
     delete old.reviewedUncertified;
   }
   assert.equal(reviewedWageRegistrySourceWithdrawals(before, main).size, 23);
+  assert.equal(reviewedWageRegistrySourceWithdrawals(main, main).size, 0);
   const altered = clone(before);
   const [path, verb] = split(firstKey);
   altered.allApiRouteFiles[path].methods.find(m => m.name === verb).testedBy.scope = "fabricated approval";

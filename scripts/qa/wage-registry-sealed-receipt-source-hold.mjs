@@ -70,6 +70,14 @@ export function reviewedSealedWageWithdrawals(before,after,read=readFileSync){
  for(const e of a.methods){
   const file=before.allApiRouteFiles[e.path],old=file?.methods.find(x=>x.name===e.verb);
   assert.equal(file?.gitBlobSha,e.routeBlobSha);
+  if(old?.status==="GAP"){
+    const current=after.allApiRouteFiles[e.path].methods.find(x=>x.name===e.verb);
+    assert.equal(old.testedBy,null,"Inherited sealed hold has no credit");
+    assert.deepEqual(old.reviewedUncertified,current.reviewedUncertified);
+    assert.equal(old.reason,current.reason);
+    held.delete(e.verb+" "+e.path);
+    continue;
+  }
   assert.equal(old?.status,"COVERED");
   assert.deepEqual(old.testedBy,e.priorProof);
  }

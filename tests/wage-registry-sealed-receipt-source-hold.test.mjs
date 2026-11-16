@@ -28,6 +28,7 @@ test("five broad exact-source receipts remain zero-credit and held",()=>{
   assert.deepEqual(before.testedBy,e.priorProof);
  }
  assert.equal(reviewedSealedWageWithdrawals(old,m).size,5);
+ assert.equal(reviewedSealedWageWithdrawals(m,m).size,0);
  assert.equal(reviewedSealedWageWithdrawals(old,old).size,0);
 });
 test("invented approval, removed hold or changed archive fails closed",()=>{

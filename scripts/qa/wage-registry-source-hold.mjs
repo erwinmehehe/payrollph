@@ -150,9 +150,17 @@ export function reviewedWageRegistrySourceWithdrawals(before, after, read = read
     const current = now?.methods.find(x => x.name === verb);
     assert.equal(old?.gitBlobSha, now?.gitBlobSha,
       "A changed API route needs its own new independent proof: " + key);
-    assert.equal(prior?.status, "COVERED", "Only source-credited previous methods may be withdrawn: " + key);
     assert.equal(current?.status, "GAP");
     assert.equal(current.testedBy, null);
+    if (prior?.status === "GAP") {
+      // A complete inherited hold is not a newly withdrawn method.
+      assert.equal(prior.testedBy, null, "Inherited wage hold has no credit");
+      assert.deepEqual(prior.reviewedUncertified, current.reviewedUncertified,
+        "Prior wage hold changed without source review: " + key);
+      assert.equal(prior.reason, current.reason);
+      continue;
+    }
+    assert.equal(prior?.status, "COVERED", "Only source-credited previous methods may be withdrawn: " + key);
     assert.deepEqual(current.reviewedUncertified.priorProof, prior.testedBy,
       "Historical wage dependency proof must exactly match the PR's base");
     held.add(verb + " " + path);

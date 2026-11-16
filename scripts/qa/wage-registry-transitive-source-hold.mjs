@@ -84,6 +84,14 @@ export function reviewedTransitiveWageWithdrawals(before,after,read=readFileSync
   for(const e of a.methods){
     const file=before.allApiRouteFiles[e.path],prior=file?.methods.find(x=>x.name===e.verb);
     assert.equal(file?.gitBlobSha,e.routeBlobSha,"Prior route SHA changed");
+    if(prior?.status==="GAP"){
+      const current=after.allApiRouteFiles[e.path].methods.find(x=>x.name===e.verb);
+      assert.equal(prior.testedBy,null,"Inherited transitive hold has no credit");
+      assert.deepEqual(prior.reviewedUncertified,current.reviewedUncertified);
+      assert.equal(prior.reason,current.reason);
+      held.delete(e.verb+" "+e.path);
+      continue;
+    }
     assert.equal(prior?.status,"COVERED","Only base credits may be withdrawn");
     assert.deepEqual(prior.testedBy,e.priorProof,"Prior proof must match PR base");
   }
