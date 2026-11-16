@@ -63,17 +63,48 @@ export async function GET(request: Request) {
       eq(workplaceProtectedCases.investigatorUserId, session.id),
       eq(workplaceProtectedCases.reviewerUserId, session.id))
     : eq(workplaceProtectedCases.createdByUserId, session.id);
+  const params = new URL(request.url).searchParams;
+  const caseSelectors = params.getAll("caseId");
+  if (caseSelectors.length > 1 || (caseSelectors.length === 1 && !positiveId(caseSelectors[0]))) {
+    return Response.json({ error: "One valid caseId required." }, { status: 400, headers: workplacePrivateHeaders });
+  }
+  const requestedCaseId = caseSelectors.length ? positiveId(caseSelectors[0]) : null;
+  // List views are metadata-only. Decrypt a single statement ONLY on a
+  // deliberate authenticated case-detail request; never bulk-prefetch allegations.
+  if (requestedCaseId) {
+    if (session.role !== "employee") {
+      const mfa = requireSensitiveActionMfa(session);
+      if (mfa) return mfa;
+    }
+    const limit = await enforceSensitiveActionRateLimit(request, {
+      userId: session.id, action: "ph-protected-case-private-read",
+      resourceId: requestedCaseId, limit: 20, windowMs: 300_000,
+    });
+    if (limit) return limit;
+  }
   const records = await db.select().from(workplaceProtectedCases).where(and(
     eq(workplaceProtectedCases.organizationId, organizationId),
     eq(workplaceProtectedCases.legalEntityId, legalEntityId), rolePredicate,
-  )).orderBy(desc(workplaceProtectedCases.createdAt)).limit(50);
+    requestedCaseId ? eq(workplaceProtectedCases.id, requestedCaseId) : undefined,
+  )).orderBy(desc(workplaceProtectedCases.createdAt)).limit(requestedCaseId ? 1 : 50);
+  const authorized = records.filter(row => mayReadProtectedCase({
+    viewerId: session.id, creatorId: row.createdByUserId,
+    investigatorId: officer ? row.investigatorUserId : -1,
+    reviewerId: officer ? row.reviewerUserId : null,
+  }));
+  if (requestedCaseId && authorized.length !== 1) return workplaceNotFound();
   try {
     return Response.json({
-      cases: records.filter(row => mayReadProtectedCase({
-        viewerId: session.id, creatorId: row.createdByUserId,
-        investigatorId: officer ? row.investigatorUserId : -1,
-        reviewerId: officer ? row.reviewerUserId : null,
-      })).map(presentCase),
+      cases: requestedCaseId
+        ? authorized.map(presentCase)
+        : authorized.map(row => ({
+          id: row.id, organizationId: row.organizationId, legalEntityId: row.legalEntityId,
+          caseKind: row.caseKind, createdByUserId: row.createdByUserId,
+          reporterEmployeeId: row.reporterEmployeeId,
+          investigatorUserId: row.investigatorUserId, reviewerUserId: row.reviewerUserId,
+          status: row.status, incidentOn: row.incidentOn, createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        })),
       note: "Private case intake and process record only. Neither an automated CODI determination nor a legal outcome.",
     }, { headers: workplacePrivateHeaders });
   } catch {
