@@ -247,7 +247,7 @@ test("every verified current, historical and dated wage reference has an order a
   for (const entry of allRows) {
     if (!entry.verified) continue;
     assert.match(entry.wageOrder, /^WO-[A-Z0-9 -]+$/, entry.region + ": missing wage order number");
-    assert.match(entry.effectiveOn, /^\\d{4}-\\d{2}-\\d{2}$/, entry.region + ": missing effective date");
+    assert.match(entry.effectiveOn, /^\d{4}-\d{2}-\d{2}$/, entry.region + ": missing effective date");
     assert.equal(new Date(entry.effectiveOn + "T00:00:00Z").toISOString().slice(0, 10), entry.effectiveOn,
       entry.region + ": invalid effective date");
   }
