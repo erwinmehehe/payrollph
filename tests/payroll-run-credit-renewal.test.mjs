@@ -81,22 +81,27 @@ test('each sealed fresh input set equals the full locked-compiler import closure
       // independent synthetic execution receipts verify completely.
       assert.equal(mktCredit,1,"Operator-only MKT-01 receipt required");
       assert.equal(verifyOidcBatchCredits(manifest),2,"Both OIDC protocol receipts required");
+      // The additional Careers module and the modified page-accounting files
+      // below must be byte-identical to this single reviewed, reversible
+      // public-boundary delta. None can enter an old executed receipt.
       // Historical payroll receipts cannot absorb the six-page closure. The
       // separate six-page compat verifier has already source-validated every
       // candidate and reconstructed the immutable 10/11 ledger.
       const reviewedPageOnlyImports = new Map([
         ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          '6d41c7f76cce4c6835994912b56a35eeb4315109'],
+          '8cc67f5af25a9f51e35ca6468b566daefb5ad489'],
         ['scripts/qa/tenant-six-scoped-page-credit.mjs',
           'ecedd3988aebfde1549b69e67b704c8db30b1999'],
         ['scripts/qa/tenant-four-scoped-page-credit.mjs',
-          '43f4b303e6c2fd957f3301f4a5418584bda26306'],
+          '940b7e4a311cd86471f1a807fb6ae9a3ab05d3ff'],
         ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
-          '56c6f539f4e21c91533e8ca85fbc61c2dbbf77cc'],
+          'a4e8495c12af012a37141d8f417b25d9fd410adc'],
         ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
           'c7f5986f71d1e68df93ba391b891ade2685857fa'],
         ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
           '6b71ba5a442e263064b260e260abbc6334d4a04c'],
+        ['scripts/qa/tenant-careers-public-page-classification.mjs',
+          'fb1baa69d38353160d18e70bfe518c39ca0c56dc'],
         ['scripts/qa/tenant-saml-metadata-privacy-verify.mjs','adb087454e668257a9f149dbe7574ce2f7042557'],
         ['scripts/qa/tenant-saml-metadata-public-policy.mjs','13571ec83005ee6220ee99a9649482597d61c682'],
       ]);
