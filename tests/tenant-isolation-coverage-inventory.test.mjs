@@ -7022,8 +7022,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
         const originalPageBlobSha = "06cfcd7cd0d0458b4a9d8e9e61e03129396541e3";
         const pageBlobSha = "8e56412c909b7d70a5c33a21d3df52a79a693d4f";
         const reviewed = entry.reviewedUncertified;
-        assert.equal(entry.status, "PUBLIC-BY-DESIGN", "Public Careers remains anonymous, not a private method-coverage credit");
-        assert.equal(verifyCareersPublicPage(manifest),1);
+        // This test deliberately inspects historicSixPageView(liveManifest).
+        // The historical public-Careers GAP must remain intact; the separate
+        // live manifest has the exact approved public-only classification.
+        assert.equal(entry.status, "GAP", "Historical uncredited Careers SSR proof is immutable");
+        assert.equal(verifyCareersPublicPage(liveManifest), 1);
+        assert.equal(liveManifest.scopedPages.find(p => p.path === path)?.status,
+          "PUBLIC-BY-DESIGN", "Only the live page may carry the reviewed public label");
         assert.equal(entry.testedBy, undefined, "Unaccepted synthetic proof cannot certify a page");
         assert.equal(baseline.app[path], originalPageBlobSha);
         assert.equal(current, pageBlobSha, "Careers page changed: renew real SSR+privacy evidence");
@@ -7038,7 +7043,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           pageActionCredits: 0, methodCredits: 0,
           independentlyAccepted: false, productionCertified: false,
         }, "Only the exact uncredited public Careers SSR proof is recorded");
-        assert.match(entry.reason, /^PUBLIC-BY-DESIGN \(owner-approved recruiting boundary\)/);
+        assert.match(entry.reason, /^Still GAP: public Careers/);
         for (const [file, sha] of [
           [reviewed.proofFile, reviewed.proofBlobSha],
           [reviewed.workflowFile, reviewed.workflowBlobSha],
