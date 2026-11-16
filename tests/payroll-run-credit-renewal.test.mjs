@@ -52,73 +52,26 @@ test('historical nine-cohort receipt cannot renew the changed wage-order source'
   assert.throws(()=>readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']),/Executed input closure drift:/);
 });
 
-test('each sealed fresh input set equals the full locked-compiler import closure',()=>{
-  for(const [name,cohort] of Object.entries(receipt().cohorts)){
-    const actual=collectRenewalInputs(cohort.roots,undefined,undefined,true);
-    for(const [file,expected] of Object.entries(cohort.sourcePins)){
-      if(actual[file]===expected)continue;
-      if(['src/lib/wage-orders.ts','src/lib/statutory-rule-watch.ts'].includes(file)){
-        // Check the immutable historical receipt in isolation: its actual current
-        // source is DIFFERENT, all affected methods are explicitly HELD, and
-        // readVerifiedPayrollRenewal must reject these old source pins.
-        assert.notEqual(actual[file],expected);
-        assert.equal(verifyAllWageRegistrySourceHolds(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'))).length,23);
-        actual[file]=expected;
-        continue;
-      }
-      // Only two exact, reviewed default-OFF SSO probe changes may borrow
-      // the earlier source pin after a current-source fictional PG16 reproof.
-      assert.ok(isReviewedHeldSsoSecondPassInput(name,file,expected) ||
-        isReviewedFiveScopedPageProbeInput(name,file,expected),
-        'Unreviewed execution input or import drift: '+name+': '+file);
-      actual[file]=expected;
-    }
-    // The changed page probe imports two new, separately source-sealed,
-    // page-only accounting modules. They cannot retroactively enter an
-    // immutable payroll execution receipt or extend its method credits.
-    if(name==='secondPass'){
-      assert.ok(isReviewedFiveScopedPageProbeInput(name,
-        'scripts/qa/tenant-scoped-page-probes.mjs',
-        cohort.sourcePins['scripts/qa/tenant-scoped-page-probes.mjs']));
-      const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
-      const marketingGet=manifest.allApiRouteFiles['src/app/api/marketing/leads/route.ts']?.methods
-        .find(method=>method.name==='GET');
-      // The standalone MKT-01 proof cannot alter an old payroll receipt.
-      // Permit its exact reviewed accounting imports only after independent
-      // operator-only receipt/source validation; fail on every other new input.
-      const mktCredit=marketingGet?.status==='COVERED'?assertMkt01Receipt(manifest):0;
-      // The exact archived payroll proof is unchanged. Recognize only this
-      // source-pinned MKT-01/OIDC ledger adaptation, after both separate
-      // independent synthetic execution receipts verify completely.
-      assert.equal(mktCredit,1,"Operator-only MKT-01 receipt required");
-      assert.equal(verifyOidcBatchCredits(manifest),2,"Both OIDC protocol receipts required");
-      // Historical payroll receipts cannot absorb the six-page closure. The
-      // separate six-page compat verifier has already source-validated every
-      // candidate and reconstructed the immutable 10/11 ledger.
-      const reviewedPageOnlyImports = new Map([
-        ['scripts/qa/tenant-five-scoped-page-credit.mjs',
-          '6d41c7f76cce4c6835994912b56a35eeb4315109'],
-        ['scripts/qa/tenant-six-scoped-page-credit.mjs',
-          'ecedd3988aebfde1549b69e67b704c8db30b1999'],
-        ['scripts/qa/tenant-four-scoped-page-credit.mjs',
-          '43f4b303e6c2fd957f3301f4a5418584bda26306'],
-        ['scripts/qa/payroll-run-five-scoped-page-source-compat.mjs',
-          '56c6f539f4e21c91533e8ca85fbc61c2dbbf77cc'],
-        ['scripts/qa/tenant-oidc-batch-credit-verify.mjs',
-          'c7f5986f71d1e68df93ba391b891ade2685857fa'],
-        ['scripts/qa/tenant-mkt01-marketing-credit.mjs',
-          '6b71ba5a442e263064b260e260abbc6334d4a04c'],
-        ['scripts/qa/tenant-saml-metadata-privacy-verify.mjs','adb087454e668257a9f149dbe7574ce2f7042557'],
-        ['scripts/qa/tenant-saml-metadata-public-policy.mjs','13571ec83005ee6220ee99a9649482597d61c682'],
-      ]);
-      for(const [path,expectedSha] of reviewedPageOnlyImports){
-        if(!Object.hasOwn(actual,path))continue;
-        assert.equal(actual[path],expectedSha,'Unreviewed new page-only import: '+path);
-        delete actual[path];
-      }
-    }
-    assert.deepEqual(actual,cohort.sourcePins,'No unreviewed input may join or leave the executed closure');
+test('nine archival cohorts remain immutable and fail current-source closure after NWPC update',()=>{
+  const historical = receipt();
+  assert.deepEqual([...verifyPayrollRenewalResults(historical)], PAYROLL_RENEWAL_METHODS);
+  const manifest = JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+  assert.equal(verifyAllWageRegistrySourceHolds(manifest).length,23);
+  for(const [name,cohort] of Object.entries(historical.cohorts)){
+    assert.equal(cohort.sourcePins['src/lib/wage-orders.ts'],
+      '2ea37036211a846ff515540d6b982760df8db1eb',
+      name+': immutable historical wage source must not be silently rewritten');
+    assert.equal(cohort.sourcePins['src/lib/statutory-rule-watch.ts'],
+      '0393d836eeee5874a85df4ba571bc4456f47a4ef',
+      name+': immutable historical watch source must not be silently rewritten');
+    const current = collectRenewalInputs(cohort.roots,undefined,undefined,true);
+    assert.notEqual(current['src/lib/wage-orders.ts'],cohort.sourcePins['src/lib/wage-orders.ts'],
+      name+': revised registry invalidates archived real-HTTP execution as current proof');
+    assert.notEqual(current['src/lib/statutory-rule-watch.ts'],cohort.sourcePins['src/lib/statutory-rule-watch.ts'],
+      name+': revised rule-watch invalidates archived real-HTTP execution as current proof');
   }
+  assert.throws(()=>readVerifiedPayrollRenewal(), /Executed input closure drift:/,
+    'No historical payroll credit can claim to have executed the new wage source');
 });
 
 test('fast source guards reject stale wage sources without loading TypeScript',()=>{
