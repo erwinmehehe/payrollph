@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash, createHmac } from "node:crypto";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { constants, linkSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -63,6 +63,28 @@ test("unassigned preparation is private, unique, header-only and cannot pass", t
   if (process.platform !== "win32") {
     assert.equal(statSync(root).mode & 0o777,0o700);
     assert.equal(statSync(join(root,"scope.json")).mode & 0o777,0o600);
+  }
+});
+
+test("private scope and manifest readers reject symlink and hardlink swaps", t => {
+  if (typeof constants.O_NOFOLLOW !== "number") {
+    t.skip("The host lacks atomic no-follow support");
+    return;
+  }
+  const { root } = fixture(t);
+  populate(root);
+  for (const filename of ["scope.json", "parallel-manifest.json"]) {
+    const input = join(root, filename);
+    const original = join(root, filename + ".held");
+    renameSync(input, original);
+    symlinkSync(original, input);
+    assert.throws(() => checkPilotPack(root), "symlink must not be followed");
+    rmSync(input);
+    linkSync(original, input);
+    assert.throws(() => checkPilotPack(root), "multiply linked private file must be refused");
+    rmSync(input);
+    renameSync(original, input);
+    assert.equal(checkPilotPack(root).status, "ARITHMETIC_RECONCILED_REVIEW_PENDING");
   }
 });
 

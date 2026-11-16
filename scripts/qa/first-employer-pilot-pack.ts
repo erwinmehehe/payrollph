@@ -2,7 +2,7 @@
  * Offline preparation and arithmetic triage only. Never grants operational approval.
  * Reuses the canonical payroll + GL verifier; no database, network or runtime flags.
  */
-import { chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, fstatSync, mkdirSync, mkdtempSync, openSync, readSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateParallelPayrollReconciliation, JOURNAL_COLUMNS, PAYROLL_COLUMNS } from "../../src/lib/private-parallel-payroll-reconciliation";
@@ -43,13 +43,14 @@ export function scopeBlockers(scope: unknown): string[] {
 }
 
 function privateJson(path: string): unknown {
-  const before = lstatSync(path);
-  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1 || before.size > LIMIT)
-    throw Error("UNSAFE_INPUT");
-  const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  // Do not check lstat before opening: the path could be swapped in between.
+  // O_NOFOLLOW rejects final-component symlinks atomically. Fail closed if
+  // the runtime cannot request it rather than silently following links.
+  if (typeof constants.O_NOFOLLOW !== "number") throw Error("UNSAFE_INPUT_PLATFORM");
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
-    const after = fstatSync(fd);
-    if (!after.isFile() || after.size > LIMIT || after.dev !== before.dev || after.ino !== before.ino)
+    const opened = fstatSync(fd);
+    if (!opened.isFile() || opened.nlink !== 1 || opened.size > LIMIT)
       throw Error("UNSAFE_INPUT");
     // Bound the actual read too, even if a file grows after the stat.
     const bytes = Buffer.alloc(LIMIT + 1);

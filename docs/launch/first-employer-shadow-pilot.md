@@ -51,9 +51,11 @@ The initial check returns **BLOCKED / NOT_RUN**, exit 1. This is correct.
 Preparation returns exit 0 only for successful file creation, never acceptance.
 Malformed/unreadable inputs return a sanitized error, exit 2.
 Keep this directory outside Git, synchronized shared folders and public CI.
-POSIX permissions are 0700 directories / 0600 files. On Windows the operator
-must confirm a private NTFS ACL and approved encrypted storage; POSIX mode bits
-are not proof of Windows privacy. The tool does not attest ACLs/encryption.
+POSIX permissions are 0700 directories / 0600 files. On Windows the operator must confirm a private NTFS ACL and approved
+encrypted storage; POSIX mode bits are not proof of Windows privacy. The
+checker requires native O_NOFOLLOW support for private JSON reads and fails
+closed on hosts where it is unavailable; run validation on a secured supported
+host instead. The tool does not attest ACLs/encryption.
 
 ## Employer onboarding and ownership
 
