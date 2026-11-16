@@ -78,8 +78,8 @@ test("case statement encryption fails closed without a key and uses domain-separ
   assert.throws(() => openWorkplaceStatement(statement, oldEnv));
 });
 test("new APIs do not write raw statements to the audit metadata or call external portals", () => {
-  const conduct = readFileSync("src/app/api/workplace/protected-cases/route.ts", "utf8");
-  const dole = readFileSync("src/app/api/compliance/dole-extended/route.ts", "utf8");
+  const conduct = readFileSync("src/pilots/workplace/api/protected-cases.ts", "utf8");
+  const dole = readFileSync("src/pilots/workplace/api/dole-extended.ts", "utf8");
   assert.ok(conduct.includes("sealWorkplaceStatement(statement)"));
   assert.ok(conduct.includes("mayReadProtectedCase("));
   assert.ok(conduct.includes("recordAuditEvent("));
@@ -104,7 +104,7 @@ test("workplace schema is isolated from source-sealed payroll schema and include
 });
 
 test("private allegation narratives are retrieved only by one authorized detail read, not bulk case lists", () => {
-  const route = readFileSync("src/app/api/workplace/protected-cases/route.ts", "utf8");
+  const route = readFileSync("src/pilots/workplace/api/protected-cases.ts", "utf8");
   const employee = readFileSync("src/components/employee-workplace-concern.tsx", "utf8");
   const console = readFileSync("src/components/workplace-compliance-console.tsx", "utf8");
   assert.ok(route.includes('getAll("caseId")'));
@@ -148,7 +148,7 @@ test("original source-sealed release registry is not modified by workplace pilot
 
 
 test("protected intake and reviewer assignment lock active officer records in the same transaction", () => {
-  const route = readFileSync("src/app/api/workplace/protected-cases/route.ts", "utf8");
+  const route = readFileSync("src/pilots/workplace/api/protected-cases.ts", "utf8");
   assert.ok(route.includes("INTAKE_OFFICER_UNAVAILABLE"));
   assert.ok(route.includes("REVIEWER_UNAVAILABLE"));
   assert.ok(route.includes('eq(workplaceCaseOfficers.active, true)'));
@@ -158,4 +158,27 @@ test("protected intake and reviewer assignment lock active officer records in th
   assert.ok(route.includes('actor: "confidential-case-review"'));
   assert.ok(!route.includes('actor: "protected-case-user:"'));
   assert.ok(!route.includes('actor: "protected-case-officer:"'));
+});
+
+
+test("unreviewed workplace HTTP and SSR entrypoints remain unregistered until two-employer HTTP proof", () => {
+  const { existsSync } = require("node:fs") as typeof import("node:fs");
+  for (const path of [
+    "src/app/api/compliance/dole-extended/route.ts",
+    "src/app/api/compliance/osh-events/route.ts",
+    "src/app/api/compliance/osh-training/route.ts",
+    "src/app/api/workplace/case-officers/route.ts",
+    "src/app/api/workplace/protected-cases/route.ts",
+    "src/app/self/workplace-concern/page.tsx",
+    "src/app/workspace/workplace-compliance/page.tsx",
+  ]) assert.equal(existsSync(path), false, "Unproved live route must stay absent: " + path);
+  for (const path of [
+    "src/pilots/workplace/api/dole-extended.ts",
+    "src/pilots/workplace/api/osh-events.ts",
+    "src/pilots/workplace/api/osh-training.ts",
+    "src/pilots/workplace/api/case-officers.ts",
+    "src/pilots/workplace/api/protected-cases.ts",
+    "src/pilots/workplace/ui/employee-workplace-concern.tsx",
+    "src/pilots/workplace/ui/employer-workplace-compliance.tsx",
+  ]) assert.equal(existsSync(path), true, "Pilot implementation source must remain available: " + path);
 });
