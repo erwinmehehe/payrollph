@@ -195,6 +195,7 @@ test("unreviewed workplace HTTP and SSR entrypoints remain unregistered until tw
     "src/app/api/compliance/osh-training/route.ts",
     "src/app/api/workplace/case-officers/route.ts",
     "src/app/api/workplace/protected-cases/route.ts",
+    "src/app/api/workplace/case-reassignments/route.ts",
     "src/app/self/workplace-concern/page.tsx",
     "src/app/workspace/workplace-compliance/page.tsx",
   ]) assert.equal(existsSync(path), false, "Unproved live route must stay absent: " + path);
@@ -204,6 +205,7 @@ test("unreviewed workplace HTTP and SSR entrypoints remain unregistered until tw
     "src/pilots/workplace/api/osh-training.ts",
     "src/pilots/workplace/api/case-officers.ts",
     "src/pilots/workplace/api/protected-cases.ts",
+    "src/pilots/workplace/api/case-reassignments.ts",
     "src/pilots/workplace/ui/employee-workplace-concern.tsx",
     "src/pilots/workplace/ui/employer-workplace-compliance.tsx",
   ]) assert.equal(existsSync(path), true, "Pilot implementation source must remain available: " + path);
@@ -221,4 +223,21 @@ test("restricted audit and case reassignment schema preserve composite tenant ca
   assert.ok(route.includes('actorUserId: session.id'));
   assert.ok(route.includes("await tx.insert(workplaceCaseAuditTrail).values({"));
   assert.ok(!route.includes("metadata: { actorUserId"));
+});
+
+test("independent case transfer cannot be applied by one admin or a case participant", () => {
+  const transfer = readFileSync("src/pilots/workplace/api/case-reassignments.ts", "utf8");
+  const console = readFileSync("src/components/workplace-compliance-console.tsx", "utf8");
+  assert.ok(transfer.includes('["owner", "admin"].includes(role.role)'));
+  assert.ok(transfer.includes('status: "pending"'));
+  assert.ok(transfer.includes("session.id === record.requestedByUserId"));
+  assert.ok(transfer.includes("independentCaseAdmin("));
+  assert.ok(transfer.includes("verifiedReplacement("));
+  assert.ok(transfer.includes('eq(workplaceCaseReassignmentRequests.status, "pending")'));
+  assert.ok(transfer.includes('if (record.officerRole === "investigator" && caseRow.status === "review_pending")'));
+  assert.ok(transfer.includes(".for(\"update\").limit(1)"));
+  assert.ok(transfer.includes('action: "reassignment_requested"'));
+  assert.ok(transfer.includes('"reassignment_approved"'));
+  assert.ok(!transfer.includes("openWorkplaceStatement("));
+  assert.ok(console.includes('/api/workplace/case-reassignments'));
 });

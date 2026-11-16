@@ -5,7 +5,7 @@ import Link from "next/link";
 import { PrivateWorkplaceStatement } from "@/components/private-workplace-statement";
 
 type Row = { id: number; status?: string; [key: string]: unknown };
-type Payload = { records?: Row[]; events?: Row[]; cases?: Row[]; officers?: Array<{ userId: number; name: string }> };
+type Payload = { records?: Row[]; events?: Row[]; cases?: Row[]; officers?: Array<{ userId: number; name: string }>; pending?: Row[] };
 type Flags = { dole: boolean; osh: boolean; cases: boolean };
 const control = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900";
 const action = "rounded-md bg-emerald-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50";
@@ -112,6 +112,7 @@ export function WorkplaceComplianceConsole({ organizationId, enabled }: {
       ] : []),
       ...(enabled.cases ? [
         ["cases", "/api/workplace/protected-cases"], ["officers", "/api/workplace/case-officers"],
+        ["reassignments", "/api/workplace/case-reassignments"],
       ] : []),
     ];
     try {
@@ -258,6 +259,34 @@ export function WorkplaceComplianceConsole({ organizationId, enabled }: {
           ]} />
           <Input name="evidenceSha256" title="Private external evidence SHA-256" maxLength={64} />
         </WorkflowForm>
+      </div>
+      <div className="mt-5 rounded-lg border border-slate-200 p-4">
+        <h3 className="text-base font-semibold">Conflict/recusal recovery — two independent owner/admin signatures</h3>
+        <p className="my-2 text-xs text-slate-600">
+          A separate company-wide owner/admin must approve a case officer transfer. No allegation text is disclosed
+          to approvers. If there is no second independent administrator, follow the employer&apos;s offline review channel.
+        </p>
+        <Records rows={data.reassignments?.pending}
+          fields={["id","caseId","officerRole","previousOfficerUserId","replacementOfficerUserId","status"]} />
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <WorkflowForm title="Request transfer (first owner/admin)" organizationId={organizationId}
+            endpoint="/api/workplace/case-reassignments" onSaved={reload}>
+            <Input name="caseId" title="Case ID" type="number" required />
+            <Pick name="officerRole" title="Officer to replace" options={[
+              { value: "investigator", label: "Investigator" },
+              { value: "reviewer", label: "Reviewer" },
+            ]} />
+            <Input name="replacementOfficerUserId" title="New active appointed officer ID" type="number" required />
+          </WorkflowForm>
+          <WorkflowForm title="Independent decision (second owner/admin)" organizationId={organizationId}
+            endpoint="/api/workplace/case-reassignments" method="PATCH" onSaved={reload}>
+            <Input name="id" title="Pending transfer request ID" type="number" required />
+            <Pick name="action" title="Decision" options={[
+              { value: "approve", label: "Approve reassign" },
+              { value: "reject", label: "Reject request" },
+            ]} />
+          </WorkflowForm>
+        </div>
       </div>
       {data.cases?.cases?.length ? <div className="mt-4 rounded-lg border border-amber-200 p-4">
         <h3 className="text-sm font-semibold text-slate-900">Private statements — assigned access only</h3>
