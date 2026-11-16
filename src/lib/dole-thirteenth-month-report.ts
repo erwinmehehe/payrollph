@@ -42,8 +42,10 @@ function screeningEntitlementPesos(
     const legacy = round2(basic / 12);
     return { amount: Number.isFinite(legacy) ? legacy : null, verified: false };
   };
+  // A negative annual earned-basic total can signal reversed or misattributed
+  // source pay. Flooring it for display must not certify the source as complete.
   const centavos = storedMoneyCentavos(basic);
-  if (centavos === null) return unverified();
+  if (basicSalaryEarned < 0 || centavos === null) return unverified();
   const result = computeThirteenthMonth({ basicCentavos: centavos, payouts: {} });
   if (result.blockers.length > 0) return unverified();
   return { amount: result.entitlementCentavos / 100, verified: true };
