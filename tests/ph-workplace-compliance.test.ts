@@ -68,8 +68,8 @@ test("case decisions require independent reviewer and valid state machine", () =
 test("case statement encryption fails closed without a key and uses domain-separated AEAD", () => {
   const oldEnv = { PII_ENCRYPTION_KEY: "11".repeat(32) };
   const statement = "A fictional private workplace concern for restricted pilot testing.";
-  assert.throws(() => sealWorkplaceStatement(statement, {}), /not configured/);
   const binding = { organizationId: 7, legalEntityId: 9, caseId: 41 };
+  assert.throws(() => sealWorkplaceStatement(statement, binding, {}), /not configured/);
   const sealed = sealWorkplaceStatement(statement, binding, oldEnv);
   assert.equal(sealed.includes(statement), false);
   assert.match(sealed, /^enc:ph-workplace-case:v2:/);
