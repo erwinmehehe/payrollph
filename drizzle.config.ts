@@ -15,7 +15,7 @@ if (process.argv.slice(1).some((arg) => arg === "push" || arg === "push:pg")) {
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: ["./src/db/schema.ts", "./src/db/workplace-compliance-schema.ts", "./src/lib/ess-profile-schema.ts", "./src/lib/saas-billing-schema.ts", "./src/lib/workforce-schedule-receipt-schema.ts"],
+  schema: ["./src/db/schema.ts", "./src/lib/ess-profile-schema.ts", "./src/lib/saas-billing-schema.ts", "./src/lib/workforce-schedule-receipt-schema.ts"],
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
