@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {WAGE_PROOF_SOURCE,PRIOR_WAGE_BLOB_SHA,NEW_WAGE_BLOB_SHA,verifyAllWageRegistrySourceHolds} from './wage-registry-source-hold.mjs';
+import {WAGE_PROOF_SOURCE,WATCH_PROOF_SOURCE,PRIOR_WAGE_BLOB_SHA,PRIOR_WATCH_BLOB_SHA,NEW_WAGE_BLOB_SHA,verifyAllWageRegistrySourceHolds} from './wage-registry-source-hold.mjs';
 import {verifyAllTransitiveWageHolds} from './wage-registry-transitive-source-hold.mjs';
 import {verifyAllSealedWageHolds} from './wage-registry-sealed-receipt-source-hold.mjs';
 
@@ -12,6 +12,9 @@ export function verifiedWageCreditHolds(manifest,read=readFileSync){
   const raw=Buffer.from(read(WAGE_PROOF_SOURCE));
   const source=createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex');
   if(source===PRIOR_WAGE_BLOB_SHA){
+    const watch=Buffer.from(read(WATCH_PROOF_SOURCE));
+    assert.equal(createHash('sha1').update('blob '+watch.length+'\0').update(watch).digest('hex'),
+      PRIOR_WATCH_BLOB_SHA,'Old wage source cannot conceal a changed statutory watch');
     assert.equal(Object.values(manifest.allApiRouteFiles).flatMap(x=>x.methods)
       .filter(x=>KINDS.has(x.reviewedUncertified?.kind)).length,0,'Old source cannot borrow new wage holds');
     return new Set();

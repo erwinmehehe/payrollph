@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 import test from 'node:test';
 import {verifiedWageCreditHolds,wageHeldPriorProof} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import {assertWageLedgerDelta} from './helpers/wage-source-holds.mjs';
@@ -40,4 +41,14 @@ test('the current-ledger guard rejects unrelated edits, false counts and borrowe
   m=>{m.allApiRouteFiles['src/app/api/compliance/statutory-remittances/payment-evidence/route.ts'].methods[0].testedBy.ownPositiveLine=1;},
   m=>{m.scopedPages[0].status='GAP';},
  ]){const m=load();mutate(m);assert.throws(()=>assertWageLedgerDelta(assert,m));}
+});
+
+test('historical wage bytes do not conceal a newly changed statutory watch',()=>{
+ const m=load(),base=JSON.parse(execFileSync('git',
+   ['show','origin/main:scripts/qa/tenant-isolation-coverage-manifest.json'],{maxBuffer:16<<20}));
+ const historicalRead=p=>execFileSync('git',['show','origin/main:'+p],{maxBuffer:16<<20});
+ assert.equal(verifiedWageCreditHolds(base,historicalRead).size,0);
+ assert.throws(()=>verifiedWageCreditHolds(base,p=>p==='src/lib/statutory-rule-watch.ts'
+   ?readFileSync(p):historicalRead(p)),/changed statutory watch/);
+ assert.equal(verifiedWageCreditHolds(m).size,75);
 });
