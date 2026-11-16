@@ -6,6 +6,10 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { workplacePilotFlagEnabled, type WorkplacePilotFlag } from "@/lib/ph-workplace-release-flags";
 import { positiveId } from "@/lib/ph-workplace-compliance-policy";
 
+export type WorkplaceScope =
+  | { denied: Response; legalEntityId: null }
+  | { denied: null; legalEntityId: number };
+
 /**
  * Pilot guard: no multi-legal-entity exposure until legal-entity RBAC is
  * independently tested. No automatic selection of a first legal employer.
@@ -14,29 +18,29 @@ export function workplaceFeatureEnabled(flag: WorkplacePilotFlag): boolean {
   return workplacePilotFlagEnabled(flag) && !criticalReleaseFlagEnabled("multiEntity");
 }
 
-export async function workplaceEntity(organizationId: number) {
+export async function workplaceEntity(organizationId: number): Promise<WorkplaceScope> {
   const rows = await db.select({ id: legalEntities.id }).from(legalEntities)
     .where(eq(legalEntities.organizationId, organizationId)).limit(2);
   if (rows.length !== 1) {
-    return { denied: Response.json({ error: "Workplace compliance is available only for a verified single legal employer." }, { status: 409 }) } as const;
+    return { denied: Response.json({ error: "Workplace compliance is available only for a verified single legal employer." }, { status: 409 }), legalEntityId: null };
   }
-  return { legalEntityId: rows[0].id } as const;
+  return { denied: null, legalEntityId: rows[0].id };
 }
 
-export async function workplaceMember(userId: number, organizationId: number) {
+export async function workplaceMember(userId: number, organizationId: number): Promise<WorkplaceScope> {
   const denied = await assertMembership(userId, organizationId);
-  if (denied) return { denied } as const;
+  if (denied) return { denied, legalEntityId: null };
   return workplaceEntity(organizationId);
 }
 
-export async function workplaceAdmin(userId: number, organizationId: number) {
+export async function workplaceAdmin(userId: number, organizationId: number): Promise<WorkplaceScope> {
   const denied = await assertOrganizationRole(userId, organizationId, COMPENSATION_MANAGER_ROLES,
     "Company-wide Owner, Admin or HR authorization is required.");
-  if (denied) return { denied } as const;
+  if (denied) return { denied, legalEntityId: null };
   const access = await getAccess(userId, organizationId);
   if (!access?.companyWide) return {
-    denied: Response.json({ error: "Company-wide People administration required." }, { status: 403 }),
-  } as const;
+    denied: Response.json({ error: "Company-wide People administration required." }, { status: 403 }), legalEntityId: null,
+  };
   return workplaceEntity(organizationId);
 }
 
