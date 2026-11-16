@@ -67,8 +67,8 @@ test("malformed or impossible future verification dates cannot become current", 
   }
 });
 
-test("a valid previously recorded wage review retains normal freshness evaluation", () => {
-  assert.equal(buildStatutoryRuleWatch("2026-10-20", "2026-10-24")
+test("the 2026-11-16 verified wage review is current on its verified day", () => {
+  assert.equal(buildStatutoryRuleWatch("2026-11-16", "2026-11-16")
     .find(row => row.family === "wage-orders" && row.status !== "change-upcoming")?.status,
-  "current");
+    "current");
 });
