@@ -1,4 +1,4 @@
-import { roundedBasicPayBuckets, roundedGrossFromBuckets, splitFixedMonthlyBasic, statutoryTrueUpDecision } from "@/lib/payroll-money";
+import { roundedBasicPayBuckets, roundedGrossFromBuckets, splitFixedMonthlyBasic, verifiedFirstCutoffForFixedMonthlyCarry, statutoryTrueUpDecision } from "@/lib/payroll-money";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { loadApprovedPayrollExits, payrollEmploymentStatus, profileBeforeFutureRevision } from "@/lib/approved-exit-payroll";
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
@@ -1162,6 +1162,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
         lineItems: payrollEntries.lineItems,
         trace: payrollEntries.trace,
         periodStart: payrollRuns.periodStart,
+        periodEnd: payrollRuns.periodEnd,
         payDate: payrollRuns.payDate,
       })
         .from(payrollEntries)
@@ -1279,6 +1280,12 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
   }
 
   const priorStatutoryByEmployee = new Map<number, {
+    priorEntryCount: number;
+    firstPeriodStart: string | null;
+    firstPeriodEnd: string | null;
+    firstPayBasis: string | null;
+    firstRateAmount: number | null;
+    firstBasicAmount: number | null;
     sssRemuneration: number;
     pagIbigCompensation: number;
     sssEmployee: number;
@@ -1301,6 +1308,12 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     const deduction = (code: string) =>
       -(Number(lines.find((line) => String(line.code ?? "").toUpperCase() === code)?.amount ?? 0) || 0);
     const previous = priorStatutoryByEmployee.get(prior.employeeId) ?? {
+      priorEntryCount: 0,
+      firstPeriodStart: null,
+      firstPeriodEnd: null,
+      firstPayBasis: null,
+      firstRateAmount: null,
+      firstBasicAmount: null,
       sssRemuneration: 0,
       pagIbigCompensation: 0,
       sssEmployee: 0,
@@ -1357,6 +1370,16 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
       const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
       return typeof raw === "string" ? raw.slice(prefix.length) : "";
     };
+    previous.priorEntryCount += 1;
+    if (previous.priorEntryCount === 1) {
+      const firstBasicLine = lines.find((line) => String(line.code ?? "").toUpperCase() === "BASIC");
+      const firstRate = traceString("rateAmount");
+      previous.firstPeriodStart = String(prior.periodStart);
+      previous.firstPeriodEnd = String(prior.periodEnd);
+      previous.firstPayBasis = traceString("payBasis");
+      previous.firstRateAmount = firstRate === "" ? null : Number(firstRate);
+      previous.firstBasicAmount = firstBasicLine == null ? null : Number(firstBasicLine.amount);
+    }
     const priorTimingValue = traceString("statutoryDeductionTiming");
     const priorTiming =
       priorTimingValue === "first_cutoff" || priorTimingValue === "second_cutoff"
@@ -2114,6 +2137,12 @@ export function calculateEmployeePay(input: {
     withholding: string;
   };
   priorStatutory?: {
+    priorEntryCount?: number;
+    firstPeriodStart?: string | null;
+    firstPeriodEnd?: string | null;
+    firstPayBasis?: string | null;
+    firstRateAmount?: number | null;
+    firstBasicAmount?: number | null;
     sssRemuneration: number;
     pagIbigCompensation: number;
     sssEmployee: number;
@@ -2183,13 +2212,31 @@ export function calculateEmployeePay(input: {
     && !(input.payRevisions ?? []).some((revision) =>
       revision.effectiveDate >= salaryMonthStart && revision.effectiveDate <= salaryMonthEnd
     );
+  const fixedParts = unchangedFullMonthSalary && (standardFirstCutoff || standardFinalCutoff)
+    ? splitFixedMonthlyBasic(payProfile.rateAmount)
+    : null;
+  const priorFixedBasicVerified = fixedParts != null && standardFinalCutoff
+    && verifiedFirstCutoffForFixedMonthlyCarry({
+      monthlySalary: payProfile.rateAmount,
+      finalPeriodStart: input.periodStart,
+      priorEntries: input.priorStatutory?.priorEntryCount ?? 0,
+      priorPeriodStart: input.priorStatutory?.firstPeriodStart ?? null,
+      priorPeriodEnd: input.priorStatutory?.firstPeriodEnd ?? null,
+      priorPayBasis: input.priorStatutory?.firstPayBasis ?? null,
+      priorRateAmount: input.priorStatutory?.firstRateAmount ?? null,
+      priorBasicAmount: input.priorStatutory?.firstBasicAmount ?? null,
+    });
+  if (
+    fixedParts != null && standardFinalCutoff
+    && Math.round(fixedParts.first * 100) !== Math.round(fixedParts.second * 100)
+    && input.priorStatutory != null && !priorFixedBasicVerified
+  ) {
+    flags.push("FIXED_MONTHLY_CARRY_SOURCE_REVIEW_REQUIRED: Final standard cutoff cannot verify one released 1-15 fixed-rate basic salary entry. Review source history before approving odd-cent monthly pay.");
+  }
   const useFixedSalaryCentavoSplit =
-    unchangedFullMonthSalary
-    && (standardFirstCutoff || (standardFinalCutoff && input.priorStatutory != null));
+    fixedParts != null && (standardFirstCutoff || priorFixedBasicVerified);
   const semiMonthlyBasic = useFixedSalaryCentavoSplit
-    ? (standardFirstCutoff
-      ? splitFixedMonthlyBasic(payProfile.rateAmount).first
-      : splitFixedMonthlyBasic(payProfile.rateAmount).second)
+    ? (standardFirstCutoff ? fixedParts!.first : fixedParts!.second)
     : unroundedSemiMonthlyBasic;
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
