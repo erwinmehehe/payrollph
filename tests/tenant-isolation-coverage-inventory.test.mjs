@@ -77,6 +77,7 @@ const BASE = "8c2a62135fd6e23db4603197822339cc1020ec27";
 const liveManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 assert.equal(verifySixPageCredits(liveManifest), selectedTargets().length,
   "All six current-source receipts must pass before historical full-surface checks");
+// Keep the merged #2010 source/receipt archive reconciliation on this exact base.
 // Current renewals must pass their complete source/job/SQL proof verifier before
 // old receipt/catalogue tests inspect the immutable withdrawal fixture below.
 const manifest = wageRenewalHoldView(historicSixPageView(liveManifest));
