@@ -3,7 +3,7 @@ import test from "node:test";
 import { importedBenefitPrior } from "../src/lib/imported-benefit-prior";
 
 const row = (employeeId: number, payDate: string, deMinimisBreakdown: unknown, thirteenthMonth: number | string | null = 0) =>
-  ({ employeeId, payDate, thirteenthMonth, deMinimisBreakdown });
+  ({ employeeId, payDate, grossPay: 100000, thirteenthMonth, deMinimisBreakdown });
 
 // Hand-derived: uniformClothing ceiling 8,000 a year; riceSubsidy ceiling 2,500 a month (DE_MINIMIS_2026).
 test("six imported months of 6,000 uniform allowance: 36,000 paid, 28,000 over the 8,000 ceiling joins the pool", () => {
@@ -33,6 +33,11 @@ test("a missing, unreadable or unprovable breakdown makes the worker unverifiabl
     ["negative amount", { uniformClothing: -1 }],
     ["unknown category", { madeUp: 100 }],
     ["category without a peso ceiling", { monetizedVacationLeaveDays: 2 }],
+    ["unsupported zero category", { madeUp: 0 }],
+    ["unsupported zero day-based category", { monetizedVacationLeaveDays: 0 }],
+    ["blank money", { uniformClothing: "" }],
+    ["fractional centavo", { uniformClothing: 1.001 }],
+    ["null reported amount", { uniformClothing: null }],
   ];
   for (const [label, breakdown] of cases) {
     const { known, unverifiable } = importedBenefitPrior([row(1, "2026-01-31", { uniformClothing: 100 }), row(1, "2026-02-28", breakdown)], "2026-07-15");
@@ -54,4 +59,24 @@ test("an empty breakdown is a known zero, not an unknown", () => {
   const { known, unverifiable } = importedBenefitPrior([row(1, "2026-01-31", {})], "2026-07-15");
   assert.equal(unverifiable.size, 0);
   assert.deepEqual(known.get(1), { deMinimisPaid: {}, benefitPool90k: 0 });
+});
+
+test("invalid 13th-month evidence or de minimis exceeding gross never clears review", () => {
+  const badThirteenth: Array<number | string | null> = [-1, "Infinity", "", null, 1.001];
+  for (const value of badThirteenth) {
+    const result = importedBenefitPrior([row(1, "2026-04-30", { uniformClothing: 6000 }, value)], "2026-07-15");
+    assert.equal(result.known.size, 0, "invalid 13th-month: " + String(value));
+    assert.ok(result.unverifiable.has(1));
+  }
+  const excessive = { ...row(2, "2026-06-30", { uniformClothing: 120 }), grossPay: 100 };
+  const result = importedBenefitPrior([excessive], "2026-07-15");
+  assert.equal(result.known.has(2), false);
+  assert.ok(result.unverifiable.has(2));
+});
+
+test("a verified category and 13th-month floor is not a certificate of all previous-provider 90k benefits", () => {
+  // No imported field records all other bonuses/benefits. The engine must
+  // retain the separate pool-evidence review hold even when this floor is known.
+  const result = importedBenefitPrior([row(3, "2026-06-30", { uniformClothing: 10000 }, "500")], "2026-07-15");
+  assert.deepEqual(result.known.get(3), { deMinimisPaid: { uniformClothing: 10000 }, benefitPool90k: 2500 });
 });

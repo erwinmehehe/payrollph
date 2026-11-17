@@ -16,7 +16,7 @@
   ],
   "employees": {
     "poolExhaustedBeforeYearEnd": {
-      "description": "Uniform allowance: previous provider 6,000 a month; engine grant 15,000 a month (7,500 a cutoff). Union paid 126,000: exempt 8,000, excess 118,000; with the 13th month 148,000 against the 90,000 pool. The previous provider's rows carry a category breakdown, so the engine counts the 28,000 already in the pool: its room is used up after 8 engine cutoffs (28,000 + 8 x 7,500 = 88,000), cutoff 21 has overflow 5,500 (taxable 19,150, tax 937.50 + 0.20 x 2,483 = 1,434.10) and cutoffs 22-24 overflow 7,500 (taxable 21,150, tax 937.50 + 0.20 x 4,483 = 1,834.10). Withheld 6,044.40 + 8 x 484.95 + 1,434.10 + 3 x 1,834.10 = 16,860.40; collect 20,565.00 - 16,860.40 = 3,704.60.",
+      "description": "Uniform allowance: previous provider 6,000 a month; engine grant 15,000 a month (7,500 a cutoff). Union paid 126,000: exempt 8,000, excess 118,000; with the 13th month 148,000 against the 90,000 pool. The previous provider's rows carry a category breakdown, so the engine counts the 28,000 already in the pool: its room is used up after 8 engine cutoffs (28,000 + 8 x 7,500 = 88,000), cutoff 21 has overflow 5,500 (taxable 19,150, tax 937.50 + 0.20 x 2,483 = 1,434.10) and cutoffs 22-24 overflow 7,500 (taxable 21,150, tax 937.50 + 0.20 x 4,483 = 1,834.10). Withheld 6,044.40 + 8 x 484.95 + 1,434.10 + 3 x 1,834.10 = 16,860.40; collect 20,565.00 - 16,860.40 = 3,704.60. Current-cutoff tax includes the verified imported de minimis and 13th-month minimum, but prior other 90,000-pool benefits are not separately captured by the import schema; the review hold remains until complete YTD evidence is reconciled.",
       "imported": {
         "grossPay": 36000,
         "basicSalary": 30000,
@@ -44,9 +44,9 @@
           "23": 1834.1,
           "24": 1834.1
         },
-        "status": "Ready",
+        "status": "Exception",
         "noBreakdownFlagFrom": null,
-        "poolFlagFrom": null
+        "poolFlagFrom": 13
       },
       "yearEnd": {
         "grossCompensation": 516000,
@@ -61,7 +61,7 @@
       }
     },
     "ceilingExhaustedByBothSources": {
-      "description": "Phase 14 inputs: uniform allowance 6,000 a month from each source. Union 72,000: exempt 8,000, excess 64,000, pool 94,000 (4,000 over). Verified breakdown: the engine's 36,000 is all pool excess (previous 28,000 + 36,000 = 64,000, under 90,000), so nothing is taxable inside the cutoffs; the 13th month in the settlement takes the pool to 94,000.",
+      "description": "Phase 14 inputs: uniform allowance 6,000 a month from each source. Union 72,000: exempt 8,000, excess 64,000, pool 94,000 (4,000 over). Verified breakdown: the engine's 36,000 is all pool excess (previous 28,000 + 36,000 = 64,000, under 90,000), so nothing is taxable inside the cutoffs; the 13th month in the settlement takes the pool to 94,000. Current-cutoff tax includes the verified imported de minimis and 13th-month minimum, but prior other 90,000-pool benefits are not separately captured by the import schema; the review hold remains until complete YTD evidence is reconciled.",
       "imported": {
         "grossPay": 36000,
         "basicSalary": 30000,
@@ -83,9 +83,9 @@
       },
       "cutoffs": {
         "withholdingEachCutoff": 484.95,
-        "status": "Ready",
+        "status": "Exception",
         "noBreakdownFlagFrom": null,
-        "poolFlagFrom": null
+        "poolFlagFrom": 13
       },
       "yearEnd": {
         "grossCompensation": 462000,
@@ -170,6 +170,7 @@
   "limitations": [
     "Only the engine's behavior in the calculated cutoffs of a provider-switch year with one de minimis category is certified; the release approval workflow and the HTTP/role gates are not exercised.",
     "SSS is computed by the engine on gross including de minimis, as in Phase 14.",
-    "A worker whose imported rows lack a readable category breakdown (case historyWithoutDeMinimis) keeps the review hold and the unadjusted withholding: nothing is assumed about what the previous provider paid."
+    "A worker whose imported rows lack a readable category breakdown (case historyWithoutDeMinimis) keeps the review hold and the unadjusted withholding: nothing is assumed about what the previous provider paid.",
+    "A complete previous-provider 90,000-pool figure is not recorded in historical_payroll_entries; reported de minimis/13th-month consumption improves withholding but cannot authorize payroll release. Even workers with category breakdowns remain in Exception for independent pool reconciliation."
   ]
 }
