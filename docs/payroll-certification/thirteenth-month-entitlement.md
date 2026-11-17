@@ -44,3 +44,14 @@ An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing 
 ## Not built yet
 
 - Rewiring `year-end.ts`, `final-pay.ts`, `dole-thirteenth-month-report-server.ts` and the routes that import them. Those files carry tenant-ledger pins and need blob repins and inventory rows, so each needs its own proof.
+
+## Effect of `EXACT_THIRTEENTH_CENTAVOS_ENABLED` (measured, flag stays OFF)
+
+Pure-function measurement, fictional amounts, `tests/exact-thirteenth-flag-impact.test.ts`. The flag is off unless the variable is exactly `true`. It switches final pay (`final-pay.ts`), year-end (`year-end.ts`) and the standalone helper (`ph-compliance.ts`) between the legacy float formula and exact centavo half-up, and adds a `thirteenthRoundingPolicy` marker to the frozen final-pay and year-end evidence.
+
+- **Size:** over basic 100.00 to 60,000.00 (5,990,001 amounts) the two modes differ in 54,577 (0.91%), always by 0.01, always with the flag OFF one centavo LOW. Over 100.00 to 1,000.00 it is 831 of 90,001 (pinned in the test, recounted with the bare formulas).
+- **Approvals:** turning it on or off changes the frozen final-pay source fingerprint in both directions, so an approval frozen under the other setting is rejected as stale (existing test `hcm-final-pay-source-transaction.test.ts`). Expect re-approval of any open final-pay package after a flip.
+- **Settled records:** the separation route only recomputes for a new or still-open package; a `released` package starts a new separation, so a released record's stored `prorated13thMonth` is not rewritten by a flip (read from `separation/route.ts`, not exercised end to end here). Approved year-end adjustments are blocked from recompute (`year-end-atomicity.test.ts`).
+- **Inconsistency while OFF:** the DOLE screening is exact regardless of the flag, but final pay and year-end are float while OFF. For basic 100.02 with 8.33 granted, final pay owes 0.00 while the DOLE screening lists a 0.01 shortfall that payroll can never clear. Turning the flag on removes the disagreement.
+- **Not known:** the production value of the flag. It lives in deployment environment variables, which were not read.
+- **Not decided here:** whether and when to enable it. That needs the flag's own approval evidence (tie/boundary tests, flag-off parity, stale-approval rejection, golden reconciliation).
