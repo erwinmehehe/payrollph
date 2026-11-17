@@ -136,6 +136,8 @@ export function historicWageRegistryProofView(manifest, read = readFileSync) {
  * Return keys in the standard "VERB path" tally format.
  */
 export function reviewedWageRegistrySourceWithdrawals(before, after, read = readFileSync) {
+  before=wageRenewalHoldView(before,read);
+  after=wageRenewalHoldView(after,read);
   const declared = WAGE_SOURCE_HELD_METHODS.filter(key => {
     const at = key.lastIndexOf(" "), path = key.slice(0, at), verb = key.slice(at + 1);
     return after.allApiRouteFiles?.[path]?.methods.find(x => x.name === verb)

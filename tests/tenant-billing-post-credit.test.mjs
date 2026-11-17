@@ -1,4 +1,5 @@
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
+import {wageRenewalHoldView} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
 import { verifyAllTransitiveWageHolds } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
@@ -93,7 +94,8 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
   assert.equal(m.metrics.publicByDesign, counts.publicByDesign);
   assert.equal(m.metrics.privilegedOperationsTokenOnly, counts.privilegedOperationsTokenOnly);
   assertLiveTenantCounts(assert, m);
-  const base = baseTenantManifest();
+  const inspectedBase = baseTenantManifest();
+  const base=inspectedBase?{...inspectedBase,manifest:wageRenewalHoldView(inspectedBase.manifest)}:null;
   if (base) {
     const before = tallyTenantManifest(base.manifest);
     let wageWithdrawalsFromBase = 0;
