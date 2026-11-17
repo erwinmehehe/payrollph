@@ -1,0 +1,101 @@
+/** Exact zero-credit source withdrawals, not HTTP acceptance or fresh credits. */
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+export const DOCUMENT_ACCOUNTING_ARCHIVE='scripts/qa/document-source-accounting-archive.json';
+export const DOCUMENT_ACCOUNTING_BLOB='b3ccc93613bce6b9ee6ec3dd32b074f7a7befa13';
+const blob=b=>{const raw=Buffer.from(b);return createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex');};
+const activeVariant=(manifest,variant)=>(variant.triggerPaths??Object.keys(variant.records)).some(path=>{
+ const expected=variant.records[path],file=manifest.allApiRouteFiles[path];
+ return file?.gitBlobSha===expected.gitBlobSha||file?.methods.some(row=>
+  expected.methods.some(old=>old.reviewedUncertified&&row.reviewedUncertified?.kind===old.reviewedUncertified.kind));
+});
+export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
+ const raw=read(DOCUMENT_ACCOUNTING_ARCHIVE);
+ assert.equal(blob(raw),DOCUMENT_ACCOUNTING_BLOB,'Document accounting archive changed');
+ const archive=JSON.parse(raw);
+ assert.equal(archive.kind,'exact-document-source-withdrawals-accounting-only');
+ let count=0;
+ for(const variant of archive.variants){
+  const active=activeVariant(manifest,variant);
+  if(!active)continue;
+  for(const [path,expected]of Object.entries(variant.records)){
+   const file=manifest.allApiRouteFiles[path];
+   assert.ok(file,'Document source hold cannot omit a route');
+   assert.deepEqual(file,expected,'Only exact archived zero-credit document holds may alter historical gap accounting');
+   for(const row of file.methods){
+    if(row.status!=='GAP')continue; // Exact archived sibling credits stay unchanged.
+    assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
+    assert.equal(row.reviewedUncertified.coverageCredits,0);
+    count++;
+   }
+  }
+  for(const [path,pin]of Object.entries(variant.sourcePins))
+   assert.equal(blob(read(path)),pin,'Document withdrawal requires exact current route/contract source: '+path);
+ }
+ return count;
+}
+/** Source-exact demotions only; inherited holds are not counted twice. */
+export function reviewedDocumentSourceWithdrawals(before,after,read=readFileSync){
+ reviewedDocumentSourceHoldCount(after,read);
+ const archive=JSON.parse(read(DOCUMENT_ACCOUNTING_ARCHIVE)),keys=new Set();
+ for(const variant of archive.variants){
+  if(!activeVariant(after,variant))continue;
+  for(const [path,expected]of Object.entries(variant.records)){
+  const file=after.allApiRouteFiles[path];
+  if(file?.gitBlobSha!==expected.gitBlobSha)continue;
+  const prior=before.allApiRouteFiles[path];assert.ok(prior);
+  assert.deepEqual(prior.methods.map(row=>row.name),file.methods.map(row=>row.name));
+  for(const row of file.methods){
+   const old=prior.methods.find(item=>item.name===row.name),hold=row.reviewedUncertified;
+   if(row.status!=='GAP'){assert.deepEqual(row,old,'Sibling credits must remain exact');continue;}
+   if(old.status==='GAP'){assert.deepEqual(prior,file,'Inherited document withdrawal must stay exact');continue;}
+   assert.equal(old.status,'COVERED');
+   assert.equal(prior.gitBlobSha,hold.previousRouteBlobSha);
+   assert.deepEqual(old.testedBy,hold.previousMethodProof,'Archived document proof must equal the inspected base');
+   keys.add(row.name+' '+path);
+  }
+ }
+ }
+ return keys;
+}
+
+export function protectedDocumentCreditKeys(manifest,read=readFileSync){
+ reviewedDocumentSourceHoldCount(manifest,read);
+ const archive=JSON.parse(read(DOCUMENT_ACCOUNTING_ARCHIVE)),keys=new Set();
+ for(const variant of archive.variants){
+  if(!activeVariant(manifest,variant))continue;
+  for(const [path,file]of Object.entries(variant.records))for(const row of file.methods)
+   if(row.status==='GAP')keys.add(row.name+' '+path);
+ }
+ return keys;
+}
+
+/** Old citations only, after verifying every exact current zero-credit hold. */
+export function historicalDocumentHoldView(manifest,read=readFileSync){
+ const keys=protectedDocumentCreditKeys(manifest,read);
+ const view=structuredClone(manifest);
+ for(const key of keys){
+  const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+  const row=view.allApiRouteFiles[path].methods.find(x=>x.name===verb);
+  row.status='COVERED';row.testedBy=structuredClone(row.reviewedUncertified.previousMethodProof);
+  delete row.reviewedUncertified;
+  row.reason='HISTORICAL VIEW ONLY: source-bound receipt, current method remains GAP.';
+ }
+ view.metrics.coveredAfter+=keys.size;view.metrics.gap-=keys.size;
+ view.acceptanceStatus=view.acceptanceStatus.replace(/^NOT ACCEPTED: [0-9]+ API methods/,'NOT ACCEPTED: '+view.metrics.gap+' API methods');
+ return view;
+}
+
+/** An immutable historic receipt fixture, NEVER a source-current credit view. */
+export function historicalDocumentSecurityFixture(manifest,read=readFileSync){
+ assert.ok(reviewedDocumentSourceHoldCount(manifest,read)>0);
+ const archive=JSON.parse(read(DOCUMENT_ACCOUNTING_ARCHIVE));
+ const variant=archive.variants.find(v=>v.name==='metadata');
+ assert.ok(activeVariant(manifest,variant),'Only the exact metadata withdrawal permits this historical fixture');
+ const view=structuredClone(manifest);
+ for(const [path,record]of Object.entries(archive.securityBefore))view.allApiRouteFiles[path]=structuredClone(record);
+ const path='src/app/api/documents/route.ts',raw=Buffer.from(archive.securityDocumentSource);
+ assert.equal(blob(raw),archive.securityBefore[path].gitBlobSha);
+ return {manifest:view,read:(file,...args)=>file===path?raw:read(file,...args)};
+}

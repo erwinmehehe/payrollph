@@ -1,3 +1,4 @@
+import {copyDocumentHoldInputs} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
@@ -30,6 +31,7 @@ test("selected credit writes preserve every unrelated method's proof provenance"
   const keys = ["return", "resubmit"].map(action => "POST hcm/effective-change-corrections/" + action);
   try {
     cpSync("scripts/qa", join(root, "scripts/qa"), { recursive: true });
+    copyDocumentHoldInputs(root);
     for(const source of ["src/lib/wage-orders.ts","src/lib/statutory-rule-watch.ts"]){
       mkdirSync(root + "/src/lib",{recursive:true});cpSync(source,join(root,source));
     }

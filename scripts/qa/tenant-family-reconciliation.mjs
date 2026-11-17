@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {protectedDocumentCreditKeys} from './document-source-accounting.mjs';
 import {verifyWageRenewalMethod} from './wage-registry-renewal-verify.mjs';
 import {verifyStudioPostCredit} from './tenant-studio-post-credit.mjs';
 import { createHash } from "node:crypto";
@@ -65,6 +66,7 @@ export function reviewedFamilySelection(receipt = JSON.parse(readFileSync(RECONC
 }
 
 export function verifyReconciledFamilyCredits(manifest, read) {
+  protectedDocumentCreditKeys(manifest,read);
   const { receipt, methods } = reviewedFamilySelection(undefined, read);
   for (const [key, selected] of methods) {
     const [verb, route] = key.split(" ");

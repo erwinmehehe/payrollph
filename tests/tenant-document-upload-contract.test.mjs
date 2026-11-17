@@ -1,4 +1,4 @@
-import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
+import {verifyHistoricalSecurityCredits,SECURITY_TARGETS,readHistoricalSecurityEvidence} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -81,14 +81,14 @@ test("source is precisely pinned and cannot silently earn manifest credit", () =
   const bytes = readFileSync("src/app/api/documents/route.ts");
   const gitSha = createHash("sha1").update("blob " + bytes.length + "\0")
     .update(bytes).digest("hex");
-  assert.equal(gitSha, "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+  assert.equal(gitSha, "fb0d1748dd25c6dd985894b9042f7eab427ce898",
     "Source change requires independent review of the upload proof");
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const methods = manifest.allApiRouteFiles["src/app/api/documents/route.ts"].methods;
   const post = methods.find(method => method.name === "POST");
-  assert.equal(post.status,'COVERED');assert.equal(verifySecurityCredits(manifest),3);
-  assert.equal(readSecurityEvidence().runs['documents-vault'].result.protectedFinalVetoes,2);
+  assert.equal(post.status,'GAP');assert.equal(verifyHistoricalSecurityCredits(manifest),3);
+  assert.equal(readHistoricalSecurityEvidence().runs['documents-vault'].result.protectedFinalVetoes,2);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED/);
   const preload = readFileSync("scripts/qa/tenant-document-upload-scan-preload.cjs", "utf8");
   assert.ok(preload.includes("DOCUMENT_FIXTURE_EGRESS_REFUSED"));

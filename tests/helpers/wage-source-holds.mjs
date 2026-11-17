@@ -1,3 +1,4 @@
+import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 import {wageHeldPriorProof} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {verifiedWageCreditHolds} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {historicWageRegistryProofView} from '../../scripts/qa/wage-registry-source-hold.mjs';
@@ -27,6 +28,7 @@ export function assertWageLedgerDelta(assert,manifest){
   const holds=verifiedWageCreditHolds(manifest),base=baseTenantManifest();
   assert.ok(base,'The wage withdrawal requires an inspectable main manifest');
   const priorLive=base.manifest;
+  const documentWithdrawals=reviewedDocumentSourceWithdrawals(priorLive,liveManifest);
   const revoked=reviewedWageRenewalEngineWithdrawal(priorLive,liveManifest);
   const prior=revoked.size?priorLive:wageRenewalHoldView(priorLive);
   const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>m.testedBy?.kind===WAGE_RENEWAL_KIND).length;
@@ -34,12 +36,14 @@ export function assertWageLedgerDelta(assert,manifest){
   let withdrawn=0;
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
     const previous=prior.allApiRouteFiles[path];
+    if(file.methods.length>0&&file.methods.every(row=>documentWithdrawals.has(row.name+" "+path)))continue;
     const currentRoute={...file},previousRoute={...previous};
     delete currentRoute.methods;delete previousRoute.methods;
     assert.deepEqual(currentRoute,previousRoute,'No route or source identity may change: '+path);
     assert.deepEqual(file.methods.map(x=>x.name),previous.methods.map(x=>x.name));
     for(const row of file.methods){
       const old=previous.methods.find(x=>x.name===row.name),key=row.name+' '+path;
+      if(documentWithdrawals.has(key))continue;
       if(holds.has(key)){
         if(old.status==='GAP')assert.deepEqual(row,old,'Inherited hold must stay exact: '+key);
         else if(revoked.has(key)) {
@@ -79,8 +83,8 @@ export function assertWageLedgerDelta(assert,manifest){
   }
   assert.deepEqual(manifest.scopedPages,prior.scopedPages,'Wage withdrawal cannot alter page credits');
   const {live}=assertLiveTenantCounts(assert,liveManifest);
-  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed));
-  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed));
+  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-documentWithdrawals.size);
+  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+documentWithdrawals.size);
   assert.equal(live.publicByDesign,prior.metrics.publicByDesign);
   assert.equal(live.privilegedOperationsTokenOnly,prior.metrics.privilegedOperationsTokenOnly);
   return true;

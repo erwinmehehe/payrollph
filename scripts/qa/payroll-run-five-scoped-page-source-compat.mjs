@@ -11,6 +11,8 @@
  * jobs; this compatibility review is not an execution receipt.
  */
 import assert from "node:assert/strict";
+import {isExactHistoricalLoaderChange} from './wage-registry-renewal-verify.mjs';
+import {DOCUMENT_ACCOUNTING_ARCHIVE,reviewedDocumentSourceHoldCount} from './document-source-accounting.mjs';
 import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
@@ -149,6 +151,11 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
   // Reconstruct the exact six-page-aware historical generator before any
   // immutable payroll compiler source hash is reused.
   if (publicPages.length === 1) {
+    if(renewalBlob(generator)!=="8cc67f5af25a9f51e35ca6468b566daefb5ad489"){
+      assert.equal(isExactHistoricalLoaderChange(GENERATOR,"8cc67f5af25a9f51e35ca6468b566daefb5ad489",generator),true,
+        "PAGE_COMPAT_REFUSED: only exact zero-credit document accounting may change the generator");
+      generator=JSON.parse(readFileSync(DOCUMENT_ACCOUNTING_ARCHIVE)).fiveSource;
+    }
     // This is the *only* reviewed delta to the old five-page generator.
     // Reconstruct its exact prior byte hash, rather than changing any
     // historical execution receipt or accepting an arbitrary new module.
@@ -207,7 +214,7 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     methods.filter(method => method.status === "COVERED").length);
   assert.equal(manifest.metrics.gap,
     methods.filter(method => method.status === "GAP").length);
-  const expectedGaps = hasMkt01 ? 4 : 5;
+  const expectedGaps = (hasMkt01 ? 4 : 5) + reviewedDocumentSourceHoldCount(manifest,read);
   assert.equal(historicOidcBatchView(manifest, read).metrics.gap, expectedGaps,
     "PAGE_COMPAT_REFUSED: only the two independently source-verified OIDC methods may join MKT-01");
   assert.match(historicOidcBatchView(manifest, read).acceptanceStatus,

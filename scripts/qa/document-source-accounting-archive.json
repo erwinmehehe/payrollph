@@ -1,0 +1,1472 @@
+{
+  "kind": "exact-document-source-withdrawals-accounting-only",
+  "fiveSource": "/**\n * Exact-five scoped-page credit generator. Recomputes manifest metrics from\n * statuses; preserves all old source pins and historic unaccepted evidence.\n * Only a passing exact-final-PR-head disposable PG16 GitHub Actions workflow\n * is sufficient to maintain these provisional SOLO_VERIFIED_DEV_RECOVERY credits.\n */\nimport assert from \"node:assert/strict\";\nimport { createHash } from \"node:crypto\";\nimport { readFileSync, writeFileSync } from \"node:fs\";\nimport { verifyWorker360LegalEmployerCredits } from \"./tenant-worker360-legal-employer-credit.mjs\";\nimport { verifyWorker360PageCredit, verifyFiveMethodCredits } from \"./tenant-five-method-credit-verify.mjs\";\nimport { assertMkt01Receipt } from \"./tenant-mkt01-marketing-credit.mjs\";\nimport { historicOidcBatchView } from \"./tenant-oidc-batch-credit-verify.mjs\";\nimport { historicSixPageView, verifySixPageCredits } from \"./tenant-six-scoped-page-credit.mjs\";\nimport { historicFourPageView, verifyFourPageCredits } from \"./tenant-four-scoped-page-credit.mjs\";\nimport { verifyCareersPublicPage } from \"./tenant-careers-public-page-classification.mjs\";\n\nexport const MANIFEST = \"scripts/qa/tenant-isolation-coverage-manifest.json\";\nexport const WORKFLOW = \".github/workflows/tenant-five-scoped-pages-credit.yml\";\nexport const TARGETS = Object.freeze([\n  {\n    path: \"src/app/app/engagement/page.tsx\",\n    sha: \"6e84c87f63816042a847e4fbccfd970b84ceffa3\",\n    proof: \"scripts/qa/tenant-people-pages-http.mjs\",\n    proofSha: \"fad1f0ad45d41d158cee968e7b9de0188ed9030e\",\n    own: 121, foreign: 136, forged: 145, revoked: 189, unchanged: 157, victim: 72,\n    family: \"engagement-goals\",\n    notTested: \"Hydrated survey UI, full POST workflow, multi-legal-entity enabled browsing or independent HR/privacy acceptance\",\n  },\n  {\n    path: \"src/app/app/goals-reviews/page.tsx\",\n    sha: \"13cc6239921d740cf984066e3cf716f752ec1371\",\n    proof: \"scripts/qa/tenant-people-pages-http.mjs\",\n    proofSha: \"fad1f0ad45d41d158cee968e7b9de0188ed9030e\",\n    own: 119, foreign: 134, forged: 145, revoked: 189, unchanged: 157, victim: 72,\n    family: \"engagement-goals\",\n    notTested: \"Review-cycle writes, client navigation, multi-legal-entity enabled browsing or independent HR/privacy acceptance\",\n  },\n  {\n    path: \"src/app/hcm/my-team/page.tsx\",\n    sha: \"8f7386f007b7a498777ba2549d5fec27e3dd69b8\",\n    proof: \"scripts/qa/tenant-hcm-my-team-http.mjs\",\n    proofSha: \"4d1edcf75fa0c4ce0206234fa474d7ea33d3e766\",\n    own: 166, foreign: 189, forged: 198, revoked: 264, unchanged: 151, victim: 114,\n    family: \"my-team\",\n    notTested: \"Hydrated pagination/action click-through, every authorization race, production or independent privacy review\",\n  },\n  {\n    path: \"src/app/hcm/team-leave-calendar/page.tsx\",\n    sha: \"bcf78f9ebc733ee6236852960eb46e32c020e272\",\n    proof: \"scripts/qa/tenant-team-leave-http.mjs\",\n    proofSha: \"865f9aba100d60646f2fcdbce64aef40a6f34659\",\n    own: 149, foreign: 158, forged: 167, revoked: 208, unchanged: 141, victim: 110,\n    family: \"team-leave\",\n    notTested: \"Browser action/hydration, actual leave approval mutations, same-parent legal employers or production\",\n  },\n  {\n    path: \"src/app/hcm/work-items/page.tsx\",\n    sha: \"1452c03d1a89fe599dda1c8b72edcfcaf67d75ef\",\n    proof: \"scripts/qa/tenant-five-page-work-items-http.mjs\",\n    proofSha: \"0cbd02f7a23388bd70277717ecd507ede1933f2f\",\n    own: 97, foreign: 105, forged: 115, revoked: 152, unchanged: 82, victim: 74,\n    family: \"work-items\",\n    notTested: \"Client queue hydration, PATCH mutation branches, same-parent legal entities or production\",\n  },\n]);\n\nexport function gitBlobSha(content) {\n  const data = Buffer.isBuffer(content) ? content : Buffer.from(content);\n  return createHash(\"sha1\").update(\"blob \" + data.length + \"\\0\").update(data).digest(\"hex\");\n}\n\nfunction citation(t) {\n  return {\n    file: t.proof,\n    line: t.own,\n    ownPositiveLine: t.own,\n    foreignDenialLine: t.foreign,\n    forgedSelectorLine: t.forged,\n    revokedDenialLine: t.revoked,\n    unchangedDbLine: t.unchanged,\n    victimIdOrderingLine: t.victim,\n    sourcePageBlobSha: t.sha,\n    proofBlobSha: t.proofSha,\n    workflowFile: WORKFLOW,\n    proofFamily: t.family,\n    postgresMajor: 16,\n    evidenceLabel: \"SOLO_VERIFIED_DEV_RECOVERY\",\n    actualFinalHeadRunRequired: true,\n    methodCredits: 0,\n    independentlyAccepted: false,\n    independentSecurityReview: \"PENDING\",\n    independentHrPrivacyReview: \"PENDING\",\n    productionTested: false,\n    productionCertified: false,\n    notTested: t.notTested,\n  };\n}\n\nfunction reason(t) {\n  return \"SOLO_VERIFIED_DEV_RECOVERY: separately re-run exact-current-source fictional PostgreSQL 16 \" +\n    \"Next SSR HTTP page with two independently signed-in employers and a populated higher-ID victim; \" +\n    \"authorized own page 200, actual foreign 404, forged/duplicate or revoked employer refused, \" +\n    \"and foreign employee/business/payroll/audit PostgreSQL snapshots unchanged. \" +\n    \"Full page interactive/client actions, production and independent security/HR privacy are NOT accepted. \" +\n    \"Exact-final-PR-head workflow \" + WORKFLOW + \" required. Specific exclusions: \" + t.notTested + \".\";\n}\n\nexport function verifyFivePageProofInputs(read = readFileSync) {\n  const w = String(read(WORKFLOW));\n  for (const required of [\n    \"github.event.pull_request.head.sha\", \"git rev-parse HEAD\",\n    \"image: postgres:16\", \"npm run db:push\", \"apply-isolated-baseline.mjs\",\n    \"npm run build\", \"--hostname 127.0.0.1\",\n    \"TENANT_FIVE_PAGE_WORK_ITEMS: fictional-pg16-only\",\n    'NEXT_CSP_ENABLED: \"false\"', 'PAYROLL_CALCULATION_HISTORY_ENABLED: \"false\"',\n    'MULTI_ENTITY_ENABLED: \"false\"', 'WORKER_ENABLED: \"false\"',\n    'PAYMONGO_DISBURSEMENTS_ENABLED: \"false\"', 'XENDIT_PAYOUTS_ENABLED: \"false\"',\n    \"tenant-five-page-work-items-http.mjs\",\n    \"tenant-people-pages-http.mjs\", \"tenant-hcm-my-team-http.mjs\",\n    \"tenant-team-leave-http.mjs\",\n    \"needs: [page-http-reproof]\",\n  ]) assert.ok(w.includes(required), \"FIVE_PAGE_CREDIT_REFUSED: workflow drift: \" + required);\n  assert.ok(!w.includes(\"DATABASE_URL: ${{ secrets.\"),\n    \"FIVE_PAGE_CREDIT_REFUSED: production DB/secret-backed URL prohibited\");\n  for (const t of TARGETS) {\n    assert.equal(gitBlobSha(read(t.path)), t.sha,\n      \"FIVE_PAGE_CREDIT_REFUSED: current page changed; renew proof: \" + t.path);\n    assert.equal(gitBlobSha(read(t.proof)), t.proofSha,\n      \"FIVE_PAGE_CREDIT_REFUSED: proof changed without source-head rerun: \" + t.proof);\n    const source = String(read(t.proof)).split(\"\\n\");\n    for (const [field, line] of [\n      [\"own\", t.own], [\"foreign\", t.foreign], [\"forged\", t.forged],\n      [\"revoked\", t.revoked], [\"unchanged\", t.unchanged], [\"victim\", t.victim],\n    ]) assert.ok(source[line - 1]?.trim().length > 10,\n      \"FIVE_PAGE_CREDIT_REFUSED: missing exact proof anchor \" + field + \" \" + t.path);\n    assert.match(source[t.own - 1], /assertOwn|assertOwned/,\n      \"FIVE_PAGE_CREDIT_REFUSED: own HTTP success missing\");\n    assert.match(source[t.foreign - 1], /assertDeniedPage|await deny\\(|await refuse\\(/,\n      \"FIVE_PAGE_CREDIT_REFUSED: actual foreign denial missing\");\n    assert.match(source[t.forged - 1], /assertDeniedPage|await deny\\(|await refuse\\(/,\n      \"FIVE_PAGE_CREDIT_REFUSED: forged selection absent\");\n    assert.match(source[t.revoked - 1], /assertDeniedPage|await deny\\(|await refuse\\(/,\n      \"FIVE_PAGE_CREDIT_REFUSED: revocation refusal missing\");\n    assert.match(source[t.unchanged - 1], /deepEqual|verifyUnchanged|checkUnchanged/,\n      \"FIVE_PAGE_CREDIT_REFUSED: unchanged SQL assertion missing\");\n    assert.match(source[t.victim - 1], /victim/,\n      \"FIVE_PAGE_CREDIT_REFUSED: real higher-ID victim check missing\");\n  }\n  // Existing My Team and Leave contracts already require and source-pin the\n  // whole auth/permissions/query chain. Engagement/Goals additionally pin\n  // the exact SSR source above because their historical #1876 receipt predates\n  // the later multi-entity early-404 change.\n  for (const p of [\n    \"scripts/qa/tenant-hcm-my-team-contract.mjs\",\n    \"scripts/qa/tenant-team-leave-contract.mjs\",\n    \"scripts/qa/tenant-people-pages-contract.mjs\",\n    \"scripts/qa/tenant-five-page-work-items-contract.mjs\",\n  ]) assert.ok(String(read(p)).includes(\"REFUSED\") ||\n    p.includes(\"people-pages-contract\"), \"FIVE_PAGE_CREDIT_REFUSED: missing source safety: \" + p);\n  return true;\n}\n\n/**\n * Preserve the immutable Worker 360 / payroll historical source-verifier\n * receipts without rewriting the verifier's originally accepted 16-GAP model.\n * This validation-only clone masks precisely the new five provisional rows.\n * The committed coverage manifest always retains all 10 actual COVERED pages.\n */\nexport function historicWorker360ProofView(manifest) {\n  // A current 20-covered ledger must first independently validate all four\n  // new page receipts, then reconstruct the original 16-covered ledger.\n  // The original six-page receipt and Worker360 historical checks stay intact.\n  const current = manifest.scopedPages.filter(p => p.status === \"COVERED\").length === 20\n    ? (verifyFourPageCredits(manifest), historicFourPageView(manifest))\n    : manifest;\n  const source = current.scopedPages.filter(p => p.status === \"COVERED\").length === 16\n    ? historicSixPageView(current)\n    : current;\n  const old = structuredClone(source);\n  assert.equal(old.scopedPages.length, 21, \"Historical validator requires unchanged inventory\");\n  assert.equal(old.scopedPages.filter(p => p.status === \"COVERED\").length, 10,\n    \"Only five additional page receipts are permitted\");\n  for (const t of TARGETS) {\n    const page = old.scopedPages.find(p => p.path === t.path);\n    assert.ok(page && page.status === \"COVERED\", \"Missing newly credited page: \" + t.path);\n    assert.deepEqual(page.testedBy, citation(t), \"Cannot mask an unproved current page\");\n    page.status = \"GAP\";\n    page.reason = \"Historical Worker 360 count verification only; current separate proof retained\";\n    delete page.testedBy;\n  }\n  const activePrefix = \"NOT ACCEPTED: \" + old.metrics.gap + \" API methods and 11 page/action GAPs\";\n  assert.ok(old.acceptanceStatus.startsWith(activePrefix),\n    \"Historical Worker 360 view requires a current 11-page GAP headline\");\n  old.acceptanceStatus = old.acceptanceStatus.replace(\n    activePrefix, \"NOT ACCEPTED: \" + old.metrics.gap + \" API methods and 16 page/action GAPs\");\n  assert.equal(old.scopedPages.filter(p => p.status === \"GAP\").length, 16);\n  return old;\n}\n\nexport function expectedFivePageCreditManifest(original, read = readFileSync) {\n  verifyFivePageProofInputs(read);\n  const m = structuredClone(original);\n  assert.equal(m.scopedPages.length, 21, \"Fixed scope must remain 21 pages\");\n  const initialCovered = m.scopedPages.filter(p => p.status === \"COVERED\").length;\n  assert.ok(initialCovered === 5 || initialCovered === 10,\n    \"FIVE_PAGE_CREDIT_REFUSED: unexpected unrelated page classification\");\n  for (const t of TARGETS) {\n    const p = m.scopedPages.find(x => x.path === t.path);\n    assert.ok(p && p.blob === t.sha, \"Changed target page must not receive an old proof\");\n    assert.ok(p.hasAction === false, \"SSR page credit cannot include server action\");\n    if (initialCovered === 5) {\n      assert.equal(p.status, \"GAP\", \"No preexisting target page credits accepted\");\n      assert.equal(p.testedBy, undefined, \"No stale receipt may be upgraded\");\n      // Leave historical reviewedUncertified and multi-entity security holds\n      // unchanged; the new source-current page receipt is a separate field.\n      p.status = \"COVERED\";\n      p.reason = reason(t);\n      p.testedBy = citation(t);\n    } else {\n      assert.equal(p.status, \"COVERED\", \"Five previously credited pages required\");\n      assert.equal(p.reason, reason(t), \"Page source/reason changed unexpectedly\");\n      assert.deepEqual(p.testedBy, citation(t),\n        \"Page evidence must remain exact-source, same proof and same exclusions\");\n    }\n  }\n  // Recompute full method metrics, no handwritten totals. API entries must\n  // remain completely unchanged: page-only provisional evidence gives no\n  // additional API-method credit.\n  const methods = Object.values(m.allApiRouteFiles).flatMap(x => x.methods);\n  m.metrics.routeFiles = Object.keys(m.allApiRouteFiles).length;\n  m.metrics.methods = methods.length;\n  for (const [field, status] of [\n    [\"coveredAfter\", \"COVERED\"], [\"gap\", \"GAP\"],\n    [\"publicByDesign\", \"PUBLIC-BY-DESIGN\"],\n    [\"privilegedOperationsTokenOnly\", \"PRIVILEGED-OPERATIONS-TOKEN-ONLY\"],\n  ]) m.metrics[field] = methods.filter(x => x.status === status).length;\n  m.metrics.scopedPagesAndActions = m.scopedPages.length;\n  assert.equal(m.metrics.methods, methods.length);\n  // #1973 proves five pages only. A separate MKT-01 method may reduce the\n  // API-gap count from five to four, but only with its complete source-pinned\n  // operator-only PG16 receipt. Never infer an additional page or method credit.\n  const marketing = m.allApiRouteFiles[\"src/app/api/marketing/leads/route.ts\"]?.methods\n    .find(row => row.name === \"GET\");\n  const expectedApiGaps = marketing?.status === \"COVERED\" ? 4 : 5;\n  if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,\n    \"The sole additional method must be independently source-pinned\");\n  assert.equal(historicOidcBatchView(m, read).metrics.gap, expectedApiGaps,\n    \"Five-page proof must not silently reclassify unrelated API methods\");\n  assert.equal(m.scopedPages.filter(p => p.status === \"COVERED\").length, 10);\n  assert.equal(m.scopedPages.filter(p => p.status === \"GAP\").length, 11);\n  const nextPrefix = \"NOT ACCEPTED: \" + m.metrics.gap + \" API methods and 11 page/action GAPs\";\n  const acceptancePrefix = new RegExp(\"^NOT ACCEPTED: \" + expectedApiGaps +\n    \" API methods and (16|11) page/action GAPs\");\n  assert.match(historicOidcBatchView(m, read).acceptanceStatus, acceptancePrefix);\n  m.acceptanceStatus = m.acceptanceStatus.replace(\n    /^NOT ACCEPTED: \\d+ API methods and (16|11) page\\/action GAPs/, nextPrefix);\n  const note = \" Current five page-only SOLO_VERIFIED_DEV_RECOVERY proposals: 10/21 scoped pages \" +\n    \"COVERED, 11 GAP; exact-final-head disposable PG16 jobs are mandatory; no new API method credits, \" +\n    \"hydrated browser, production or independent HR/security acceptance.\";\n  if (!m.acceptanceStatus.includes(note)) m.acceptanceStatus += note;\n  return m;\n}\n\nexport function verifyFivePageCredits(m, read = readFileSync) {\n  if (m.scopedPages.filter(p => p.status === \"COVERED\").length === 20) {\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      \"FIVE_PAGE_CREDIT_REFUSED: four additional source-sealed pages not verified\");\n    return TARGETS.length;\n  }\n  // Later six-page candidates must pass their independent exact-source\n  // verifier before reusing this older five-page proof. Do not promote\n  // any new page or method solely from a covered count.\n  if (m.scopedPages.filter(p => p.status === \"COVERED\").length === 16) {\n    assert.equal(verifySixPageCredits(m, read), 6,\n      \"FIVE_PAGE_CREDIT_REFUSED: unproved six-page candidate ledger\");\n    return TARGETS.length;\n  }\n  const expected = expectedFivePageCreditManifest(m, read);\n  assert.deepEqual(m, expected,\n    \"FIVE_PAGE_CREDIT_REFUSED: ledger or metrics not regenerated and exact-proof pinned\");\n  return TARGETS.length;\n}\n\n/**\n * Accept a new 11-GAP page ledger only after validating precisely the five\n * source-current page receipts AND the original Worker 360 proof. Preserve\n * the preexisting 16-/17-GAP verifier for historical evidence.\n */\nexport function verifyCurrentScopedPageGapCount(m, read = readFileSync) {\n  const gaps = m.scopedPages.filter(page => page.status === \"GAP\").length;\n  if (gaps === 0) {\n    // The sole public Careers SSR is anonymous by owner-approved design.\n    // Validate the exact page, predicate, client, proof/workflow SHA and\n    // unchanged 20 private-page evidence before allowing zero GAP labels.\n    // This never confers employer-private rights or security acceptance.\n    assert.equal(verifyCareersPublicPage(m, read), 1,\n      \"SCOPED_PAGE_REFUSED: sole public Careers page requires source-sealed approval\");\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      \"SCOPED_PAGE_REFUSED: twenty private page proofs must remain exact\");\n    return gaps;\n  }\n  if (gaps === 1) {\n    assert.equal(verifyFourPageCredits(m, read), 4,\n      \"SCOPED_PAGE_REFUSED: exact four additional page receipts required\");\n    return gaps;\n  }\n  if (gaps === 5) {\n    assert.equal(verifySixPageCredits(m, read), 6,\n      \"SCOPED_PAGE_REFUSED: all six independent sources/receipts required\");\n    return gaps;\n  }\n  if (gaps !== 11) {\n    assert.equal(verifyWorker360PageCredit(m, read), gaps,\n      \"SCOPED_PAGE_REFUSED: historical Worker 360 gap verification failed\");\n    return gaps;\n  }\n  // The payroll second-pass HTTP probe can temporarily hold additional API\n  // methods at GAP. Validate page-only credits without accepting that temporary\n  // API overlay as an official coverage manifest. The final-head credit gate\n  // continues to validate the complete ledger with verifyFivePageCredits().\n  verifyFivePageProofInputs(read);\n  assert.equal(m.scopedPages.length, 21, \"SCOPED_PAGE_REFUSED: page inventory changed\");\n  assert.equal(m.scopedPages.filter(page => page.status === \"COVERED\").length, 10,\n    \"SCOPED_PAGE_REFUSED: unexpected page credit count\");\n  for (const target of TARGETS) {\n    const row = m.scopedPages.find(page => page.path === target.path);\n    assert.ok(row && row.status === \"COVERED\" && row.blob === target.sha &&\n      row.hasAction === false, \"SCOPED_PAGE_REFUSED: page/source mismatch: \" + target.path);\n    assert.equal(row.reason, reason(target), \"SCOPED_PAGE_REFUSED: page reason drift\");\n    assert.deepEqual(row.testedBy, citation(target),\n      \"SCOPED_PAGE_REFUSED: current-source page receipt changed\");\n  }\n  assert.equal(verifyWorker360PageCredit(historicWorker360ProofView(m), read), 16,\n    \"SCOPED_PAGE_REFUSED: original Worker 360 proof must remain valid\");\n  return gaps;\n}\n\nfunction main() {\n  assert.ok(process.argv.length === 3 &&\n    [\"--write\", \"--check\", \"--verify-historical-worker360\"].includes(process.argv[2]),\n    \"FIVE_PAGE_CREDIT_REFUSED: --write or --check required\");\n  const raw = readFileSync(MANIFEST, \"utf8\");\n  if (process.argv[2] === \"--verify-historical-worker360\") {\n    const m = JSON.parse(raw);\n    assert.equal(verifyFivePageCredits(m), 5, \"Five new page proofs must be independently pinned\");\n    const original = historicWorker360ProofView(m);\n    assert.equal(verifyWorker360LegalEmployerCredits(original), 2,\n      \"Immutable Worker360 GET/SSR receipt failed source validation\");\n    assert.equal(verifyWorker360PageCredit(original), 16,\n      \"Immutable Worker360 source verifier must retain its historical 16-gap view\");\n    const legacy = verifyFiveMethodCredits(original);\n    assert.equal(legacy.status, \"PASS\", \"Three historical API credit receipts must remain valid\");\n    assert.equal(legacy.methodsCredited, 3, \"No historical method credit may be lost\");\n    assert.equal(legacy.pageActionGaps, 16, \"Historical receipt page boundary must remain unchanged\");\n    console.log(JSON.stringify({\n      check: \"immutable-worker360-with-five-new-pages\",\n      originalHistoricGapCount: 16, currentPageGapCount: 11,\n      newPageCredits: 5, apiMethodCredits: 0,\n      evidenceLabel: \"SOLO_VERIFIED_DEV_RECOVERY\", productionCertified: false,\n    }));\n    return;\n  }\n  const updated = expectedFivePageCreditManifest(JSON.parse(raw));\n  const generated = JSON.stringify(updated, null, 2) + \"\\n\";\n  if (process.argv[2] === \"--write\") writeFileSync(MANIFEST, generated);\n  else assert.equal(raw, generated,\n    \"FIVE_PAGE_CREDIT_REFUSED: use generator; do not manually alter status/count/receipts\");\n  console.log(JSON.stringify({\n    label: \"SOLO_VERIFIED_DEV_RECOVERY\", mode: process.argv[2],\n    pageCoveredBefore: 5, pageGapBefore: 16,\n    pageCoveredAfter: 10, pageGapAfter: 11,\n    newPageCredits: TARGETS.length, newApiMethodCredits: 0,\n    exactFinalHeadProofRequired: true,\n    independentlyAccepted: false, productionCertified: false,\n  }));\n}\nif (process.argv[1]?.replaceAll(\"\\\\\",\"/\").endsWith(\"/tenant-five-scoped-page-credit.mjs\"))\n  try { main(); } catch(error) { console.error(error); process.exitCode=1; }\n",
+  "variants": [
+    {
+      "name": "download",
+      "records": {
+        "src/app/api/documents/[id]/route.ts": {
+          "gitBlobSha": "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6",
+          "route": "documents/[id]",
+          "methods": [
+            {
+              "name": "GET",
+              "line": 27,
+              "status": "GAP",
+              "reason": "REVIEW-ONLY SOURCE HOLD: multi-entity legal-employer authorization denies foreign private-document bytes and signed URLs; recorded applied transfers and conflicting historical entity assignments are refused because documents lack immutable legal-employer-at-issuance attribution. The historical parent-tenant HTTP receipt is NOT current-source proof. One GET GAP / zero-credit pending exact-head disposable PG16 reproof and independent HR/privacy/security review.",
+              "testedBy": null,
+              "reviewedUncertified": {
+                "kind": "document-download-multi-entity-legal-employer-source-change-zero-credit",
+                "previousRouteBlobSha": "0acb38b1396b1e35adf02efd6e033cdd0416e0d0",
+                "routeBlobSha": "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6",
+                "previousMethodProof": {
+                  "file": "scripts/qa/tenant-second-pass-http.mjs",
+                  "line": 950,
+                  "ownPositiveLine": 840,
+                  "foreignDenialLine": 950,
+                  "scope": "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable"
+                },
+                "sourceContractTest": "tests/tenant-private-document-id-boundary.test.mjs",
+                "exactHeadPg16Http": "PENDING",
+                "independentSecurityReview": "PENDING",
+                "productionCertified": false,
+                "coverageCredits": 0,
+                "historicalTransferTests": "scripts/qa/tenant-document-legal-employer-http.mjs"
+              }
+            }
+          ],
+          "employerSources": {
+            "session": true,
+            "apiKey": false,
+            "scim": false,
+            "query": true,
+            "body": false
+          },
+          "guards": [
+            {
+              "line": 7,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 8,
+              "token": "assertScope"
+            },
+            {
+              "line": 9,
+              "token": "getAccess"
+            },
+            {
+              "line": 12,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 31,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 50,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 58,
+              "token": "getAccess"
+            },
+            {
+              "line": 74,
+              "token": "assertScope"
+            }
+          ],
+          "callerSuppliedIds": [],
+          "businessIds": [
+            {
+              "line": 35,
+              "token": "documentId"
+            },
+            {
+              "line": 36,
+              "token": "documentId"
+            },
+            {
+              "line": 40,
+              "token": "documentId"
+            },
+            {
+              "line": 44,
+              "token": "employeeId"
+            },
+            {
+              "line": 44,
+              "token": "employeeId"
+            },
+            {
+              "line": 44,
+              "token": "employeeId"
+            },
+            {
+              "line": 47,
+              "token": "organizationId"
+            },
+            {
+              "line": 52,
+              "token": "organizationId"
+            },
+            {
+              "line": 58,
+              "token": "organizationId"
+            },
+            {
+              "line": 65,
+              "token": "employeeId"
+            },
+            {
+              "line": 68,
+              "token": "orgUnitId"
+            },
+            {
+              "line": 68,
+              "token": "orgUnitId"
+            },
+            {
+              "line": 70,
+              "token": "employeeId"
+            },
+            {
+              "line": 71,
+              "token": "organizationId"
+            },
+            {
+              "line": 71,
+              "token": "organizationId"
+            }
+          ],
+          "sourceRevisionReview": {
+            "kind": "document-download-legal-employer-grant-source-revision-zero-credit",
+            "oldRouteBlobSha": "0acb38b1396b1e35adf02efd6e033cdd0416e0d0",
+            "newRouteBlobSha": "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6",
+            "sourceContractTest": "tests/tenant-private-document-id-boundary.test.mjs",
+            "currentHeadAuthenticatedPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false,
+            "noNewMethodCredit": true,
+            "priorActiveMembershipRevision": {
+              "kind": "tenant-private-document-active-membership-prefilter-review-only",
+              "oldRouteBlobSha": "e4decf0b28ff6d0f070d7ee0e5027255590bb816",
+              "newRouteBlobSha": "0acb38b1396b1e35adf02efd6e033cdd0416e0d0",
+              "sourceContractTest": "tests/tenant-private-document-id-boundary.test.mjs",
+              "currentHeadAuthenticatedPg16Http": "PENDING",
+              "independentSecurityReview": "PENDING",
+              "productionCertified": false,
+              "noNewMethodCredit": true
+            },
+            "historicalTransferSourceReview": "DENY-AMBIGUOUS-TRANSFER-RECORDS; issuance-time ownership still requires independent reconciliation"
+          }
+        }
+      },
+      "sourcePins": {
+        "src/app/api/documents/[id]/route.ts": "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6",
+        "tests/tenant-private-document-id-boundary.test.mjs": "6404dfe9c6421a12e302015567f5448db048cef6"
+      }
+    },
+    {
+      "name": "metadata",
+      "records": {
+        "src/app/api/documents/route.ts": {
+          "gitBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+          "route": "documents",
+          "methods": [
+            {
+              "name": "GET",
+              "line": 27,
+              "status": "GAP",
+              "reason": "SOURCE-CURRENT REVIEW-ONLY HOLD: legal-employer authorization hardening changes this entire document/HCM route source. GET is restricted to currently granted legal employer or denied; POST is disabled with an explicit no-data 503 in multi-entity mode because document/policy issuer attribution is unverified. Old full-route proof cannot credit this changed method until exact-head synthetic PG16 HTTP and independent HR/privacy review. No production acceptance.",
+              "testedBy": null,
+              "reviewedUncertified": {
+                "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
+                "method": "GET",
+                "previousRouteBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+                "routeBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+                "previousMethodProof": {
+                  "file": "scripts/qa/tenant-second-pass-http.mjs",
+                  "line": 500,
+                  "ownPositiveLine": 496,
+                  "foreignDenialLine": 500,
+                  "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
+                },
+                "coverageCredits": 0,
+                "exactHeadPg16Http": "PENDING",
+                "independentSecurityReview": "PENDING",
+                "productionCertified": false
+              }
+            },
+            {
+              "name": "POST",
+              "line": 115,
+              "status": "GAP",
+              "reason": "SOURCE-CURRENT REVIEW-ONLY HOLD: legal-employer authorization hardening changes this entire document/HCM route source. GET is restricted to currently granted legal employer or denied; POST is disabled with an explicit no-data 503 in multi-entity mode because document/policy issuer attribution is unverified. Old full-route proof cannot credit this changed method until exact-head synthetic PG16 HTTP and independent HR/privacy review. No production acceptance.",
+              "testedBy": null,
+              "reviewedUncertified": {
+                "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
+                "method": "POST",
+                "previousRouteBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+                "routeBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+                "previousMethodProof": {
+                  "file": "scripts/qa/tenant-document-upload-http.mjs",
+                  "line": 198,
+                  "ownPositiveLine": 198,
+                  "foreignDenialLine": 162,
+                  "forgedSelectorLine": 256,
+                  "unchangedDbLine": 248,
+                  "routeBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+                  "proofBlobSha": "2fee28caa971d4c8b5e89568dd06b220736d92c5",
+                  "sourceHead": "da1a6458e89f41d7a968dca6928ef7af99225928",
+                  "runLabel": "Local PG16 HTTP da1a6458e89f41d7a968dca6928ef7af99225928 security writes four profiles PASS",
+                  "label": "SOLO_VERIFIED_DEV_RECOVERY",
+                  "recoveryCredit": "security-three-writes",
+                  "postgresMajor": 16,
+                  "independentSecurityReview": "PENDING",
+                  "productionTested": false,
+                  "boundary": "Both legacy and private vault, owner plus employee self-upload; exact bytes/hash, foreign requirement/worker denial, pending vault intents remain unreadable after reached final-audit rejection."
+                },
+                "coverageCredits": 0,
+                "exactHeadPg16Http": "PENDING",
+                "independentSecurityReview": "PENDING",
+                "productionCertified": false
+              }
+            }
+          ],
+          "employerSources": {
+            "session": true,
+            "apiKey": false,
+            "scim": false,
+            "query": true,
+            "body": true
+          },
+          "guards": [
+            {
+              "line": 1,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 13,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 23,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 23,
+              "token": "assertScope"
+            },
+            {
+              "line": 23,
+              "token": "getAccess"
+            },
+            {
+              "line": 28,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 65,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 72,
+              "token": "getAccess"
+            },
+            {
+              "line": 116,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 119,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 183,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 190,
+              "token": "getAccess"
+            },
+            {
+              "line": 203,
+              "token": "assertScope"
+            }
+          ],
+          "callerSuppliedIds": [
+            {
+              "line": 31,
+              "token": "searchParams.get(\"organizationId\")"
+            }
+          ],
+          "businessIds": [
+            {
+              "line": 31,
+              "token": "organizationId"
+            },
+            {
+              "line": 31,
+              "token": "organizationId"
+            },
+            {
+              "line": 32,
+              "token": "organizationId"
+            },
+            {
+              "line": 33,
+              "token": "organizationId"
+            },
+            {
+              "line": 37,
+              "token": "employeeId"
+            },
+            {
+              "line": 38,
+              "token": "organizationId"
+            },
+            {
+              "line": 43,
+              "token": "employeeId"
+            },
+            {
+              "line": 43,
+              "token": "employeeId"
+            },
+            {
+              "line": 55,
+              "token": "organizationId"
+            },
+            {
+              "line": 55,
+              "token": "organizationId"
+            },
+            {
+              "line": 55,
+              "token": "employeeId"
+            },
+            {
+              "line": 55,
+              "token": "employeeId"
+            },
+            {
+              "line": 67,
+              "token": "organizationId"
+            },
+            {
+              "line": 72,
+              "token": "organizationId"
+            },
+            {
+              "line": 80,
+              "token": "employeeId"
+            }
+          ],
+          "sourceRevisionReview": {
+            "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
+            "oldRouteBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+            "newRouteBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+            "historicalSourceReview": null,
+            "scope": "Legal-employer restricted GET or no-data HCM 503; all POST requests explicitly fail closed with 503 while multi-entity is ON pending issuer/requirements attribution, OFF behavior retained",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false,
+            "noNewMethodCredit": true
+          }
+        },
+        "src/app/api/hcm/documents/route.ts": {
+          "gitBlobSha": "47910bb8ecfaad37e031c708a5ea949692a3f8c3",
+          "route": "hcm/documents",
+          "methods": [
+            {
+              "name": "GET",
+              "line": 59,
+              "status": "GAP",
+              "reason": "SOURCE-CURRENT REVIEW-ONLY HOLD: legal-employer authorization hardening changes this entire document/HCM route source. GET is restricted to currently granted legal employer or denied; POST is disabled with an explicit no-data 503 in multi-entity mode because document/policy issuer attribution is unverified. Old full-route proof cannot credit this changed method until exact-head synthetic PG16 HTTP and independent HR/privacy review. No production acceptance.",
+              "testedBy": null,
+              "reviewedUncertified": {
+                "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
+                "method": "GET",
+                "previousRouteBlobSha": "bd23d039f78f9747cdf979bb5a611604643f01f1",
+                "routeBlobSha": "47910bb8ecfaad37e031c708a5ea949692a3f8c3",
+                "previousMethodProof": {
+                  "file": "scripts/qa/tenant-dl02-http.mjs",
+                  "line": 265,
+                  "ownPositiveLine": 263,
+                  "foreignDenialLine": 265,
+                  "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+                  "victimIdOrderingLine": 144
+                },
+                "coverageCredits": 0,
+                "exactHeadPg16Http": "PENDING",
+                "independentSecurityReview": "PENDING",
+                "productionCertified": false
+              }
+            },
+            {
+              "name": "POST",
+              "line": 248,
+              "status": "GAP",
+              "reason": "SOURCE-CURRENT REVIEW-ONLY HOLD: legal-employer authorization hardening changes this entire document/HCM route source. GET is restricted to currently granted legal employer or denied; POST is disabled with an explicit no-data 503 in multi-entity mode because document/policy issuer attribution is unverified. Old full-route proof cannot credit this changed method until exact-head synthetic PG16 HTTP and independent HR/privacy review. No production acceptance.",
+              "testedBy": null,
+              "reviewedUncertified": {
+                "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
+                "method": "POST",
+                "previousRouteBlobSha": "bd23d039f78f9747cdf979bb5a611604643f01f1",
+                "routeBlobSha": "47910bb8ecfaad37e031c708a5ea949692a3f8c3",
+                "previousMethodProof": {
+                  "file": "scripts/qa/tenant-dl02-http.mjs",
+                  "line": 270,
+                  "ownPositiveLine": 266,
+                  "foreignDenialLine": 270,
+                  "unchangedDbLine": 326,
+                  "scope": "Own fictional victim + two attacker employers seeded by the DL-02 suite; MFA-verified owner or linked employee sessions; real own success, real victim-only object/employer denial or same-session revoked-membership 403, victim PostgreSQL snapshot unchanged (CI PG16 only). Victim-only ID ordering is checked against real persisted attacker-owned comparator objects (not merely a fixed serial floor), with a broader victim PostgreSQL snapshot; catalogs vs data exports have route-specific positive evidence.",
+                  "victimIdOrderingLine": 144
+                },
+                "coverageCredits": 0,
+                "exactHeadPg16Http": "PENDING",
+                "independentSecurityReview": "PENDING",
+                "productionCertified": false
+              }
+            }
+          ],
+          "employerSources": {
+            "session": true,
+            "apiKey": false,
+            "scim": false,
+            "query": true,
+            "body": true
+          },
+          "guards": [
+            {
+              "line": 17,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 17,
+              "token": "assertScope"
+            },
+            {
+              "line": 17,
+              "token": "getAccess"
+            },
+            {
+              "line": 19,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 34,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 60,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 68,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 76,
+              "token": "getAccess"
+            },
+            {
+              "line": 249,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 252,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 265,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 272,
+              "token": "getAccess"
+            },
+            {
+              "line": 301,
+              "token": "assertScope"
+            },
+            {
+              "line": 575,
+              "token": "assertScope"
+            },
+            {
+              "line": 659,
+              "token": "assertScope"
+            },
+            {
+              "line": 699,
+              "token": "assertScope"
+            }
+          ],
+          "callerSuppliedIds": [
+            {
+              "line": 63,
+              "token": "searchParams.get(\"organizationId\")"
+            },
+            {
+              "line": 259,
+              "token": "body.organizationId"
+            }
+          ],
+          "businessIds": [
+            {
+              "line": 63,
+              "token": "organizationId"
+            },
+            {
+              "line": 63,
+              "token": "organizationId"
+            },
+            {
+              "line": 64,
+              "token": "organizationId"
+            },
+            {
+              "line": 65,
+              "token": "organizationId"
+            },
+            {
+              "line": 70,
+              "token": "organizationId"
+            },
+            {
+              "line": 76,
+              "token": "organizationId"
+            },
+            {
+              "line": 84,
+              "token": "organizationId"
+            },
+            {
+              "line": 84,
+              "token": "organizationId"
+            },
+            {
+              "line": 87,
+              "token": "organizationId"
+            },
+            {
+              "line": 87,
+              "token": "organizationId"
+            },
+            {
+              "line": 90,
+              "token": "organizationId"
+            },
+            {
+              "line": 90,
+              "token": "organizationId"
+            },
+            {
+              "line": 93,
+              "token": "organizationId"
+            },
+            {
+              "line": 93,
+              "token": "organizationId"
+            },
+            {
+              "line": 100,
+              "token": "orgUnitId"
+            }
+          ],
+          "sourceRevisionReview": {
+            "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
+            "oldRouteBlobSha": "bd23d039f78f9747cdf979bb5a611604643f01f1",
+            "newRouteBlobSha": "47910bb8ecfaad37e031c708a5ea949692a3f8c3",
+            "historicalSourceReview": null,
+            "scope": "Legal-employer restricted GET or no-data HCM 503; all POST requests explicitly fail closed with 503 while multi-entity is ON pending issuer/requirements attribution, OFF behavior retained",
+            "exactHeadPg16Http": "PENDING",
+            "independentSecurityReview": "PENDING",
+            "productionCertified": false,
+            "noNewMethodCredit": true
+          }
+        },
+        "src/app/api/biometrics/sync/route.ts": {
+          "gitBlobSha": "27e24af5d8a396e611d307bf7972ad4e86568436",
+          "route": "biometrics/sync",
+          "methods": [
+            {
+              "name": "GET",
+              "line": 16,
+              "status": "COVERED",
+              "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+              "testedBy": {
+                "file": "scripts/qa/tenant-table-http.mjs",
+                "line": 251,
+                "ownPositiveLine": 251,
+                "foreignDenialLine": 260,
+                "unchangedDbLine": 280,
+                "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+                "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+                "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+                "rowLine": 36
+              }
+            },
+            {
+              "name": "POST",
+              "line": 53,
+              "status": "GAP",
+              "reason": "REVIEW-ONLY SOURCE HOLD: the sealed shared security-write receipt pins the changed documents route; fresh complete-method HTTP/PG16 execution is required. Zero credits and no production acceptance.",
+              "testedBy": null,
+              "reviewedUncertified": {
+                "kind": "document-metadata-shared-security-source-withdrawal-zero-credit",
+                "previousRouteBlobSha": "27e24af5d8a396e611d307bf7972ad4e86568436",
+                "routeBlobSha": "27e24af5d8a396e611d307bf7972ad4e86568436",
+                "previousMethodProof": {
+                  "file": "scripts/qa/tenant-bio01-biometric-http.mjs",
+                  "line": 183,
+                  "ownPositiveLine": 183,
+                  "foreignDenialLine": 280,
+                  "forgedSelectorLine": 214,
+                  "unchangedDbLine": 255,
+                  "routeBlobSha": "27e24af5d8a396e611d307bf7972ad4e86568436",
+                  "proofBlobSha": "f9f4e64ad2571edd1d34051a9fcb20713b9fa11d",
+                  "sourceHead": "da1a6458e89f41d7a968dca6928ef7af99225928",
+                  "runLabel": "Local PG16 HTTP da1a6458e89f41d7a968dca6928ef7af99225928 security writes four profiles PASS",
+                  "label": "SOLO_VERIFIED_DEV_RECOVERY",
+                  "recoveryCredit": "security-three-writes",
+                  "postgresMajor": 16,
+                  "independentSecurityReview": "PENDING",
+                  "productionTested": false,
+                  "boundary": "Both session and device credentials for each actor; foreign worker/device rejected or unmatched without victim mutation, exact own IN/OUT persistence and replay controls."
+                },
+                "coverageCredits": 0,
+                "exactHeadPg16Http": "PENDING",
+                "independentSecurityReview": "PENDING",
+                "productionCertified": false
+              }
+            }
+          ],
+          "employerSources": {
+            "session": true,
+            "apiKey": false,
+            "scim": false,
+            "query": true,
+            "body": true
+          },
+          "guards": [
+            {
+              "line": 1,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 5,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 6,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 17,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 25,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 55,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 58,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 61,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 98,
+              "token": "assertOrganizationRole"
+            }
+          ],
+          "callerSuppliedIds": [
+            {
+              "line": 20,
+              "token": "searchParams.get(\"organizationId\")"
+            },
+            {
+              "line": 73,
+              "token": "body.organizationId"
+            }
+          ],
+          "businessIds": [
+            {
+              "line": 20,
+              "token": "organizationId"
+            },
+            {
+              "line": 20,
+              "token": "organizationId"
+            },
+            {
+              "line": 21,
+              "token": "organizationId"
+            },
+            {
+              "line": 22,
+              "token": "organizationId"
+            },
+            {
+              "line": 27,
+              "token": "organizationId"
+            },
+            {
+              "line": 34,
+              "token": "organizationId"
+            },
+            {
+              "line": 34,
+              "token": "organizationId"
+            },
+            {
+              "line": 73,
+              "token": "organizationId"
+            },
+            {
+              "line": 73,
+              "token": "organizationId"
+            },
+            {
+              "line": 77,
+              "token": "organizationId"
+            },
+            {
+              "line": 78,
+              "token": "organizationId"
+            },
+            {
+              "line": 88,
+              "token": "organizationId"
+            },
+            {
+              "line": 100,
+              "token": "organizationId"
+            },
+            {
+              "line": 111,
+              "token": "organizationId"
+            },
+            {
+              "line": 111,
+              "token": "organizationId"
+            }
+          ]
+        },
+        "src/app/api/developer/route.ts": {
+          "gitBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
+          "route": "developer",
+          "methods": [
+            {
+              "name": "GET",
+              "line": 21,
+              "status": "COVERED",
+              "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+              "testedBy": {
+                "file": "scripts/qa/tenant-table-http.mjs",
+                "line": 251,
+                "ownPositiveLine": 251,
+                "foreignDenialLine": 260,
+                "unchangedDbLine": 280,
+                "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+                "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+                "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+                "rowLine": 39
+              }
+            },
+            {
+              "name": "POST",
+              "line": 66,
+              "status": "GAP",
+              "reason": "REVIEW-ONLY SOURCE HOLD: the sealed shared security-write receipt pins the changed documents route; fresh complete-method HTTP/PG16 execution is required. Zero credits and no production acceptance.",
+              "testedBy": null,
+              "reviewedUncertified": {
+                "kind": "document-metadata-shared-security-source-withdrawal-zero-credit",
+                "previousRouteBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
+                "routeBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
+                "previousMethodProof": {
+                  "file": "scripts/qa/tenant-developer-key-http.mjs",
+                  "line": 151,
+                  "ownPositiveLine": 151,
+                  "foreignDenialLine": 210,
+                  "forgedSelectorLine": 195,
+                  "unchangedDbLine": 335,
+                  "routeBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
+                  "proofBlobSha": "cb898793de3e6bdf0cface2bd8b54d5e0af58ff2",
+                  "sourceHead": "da1a6458e89f41d7a968dca6928ef7af99225928",
+                  "runLabel": "Local PG16 HTTP da1a6458e89f41d7a968dca6928ef7af99225928 security writes four profiles PASS",
+                  "label": "SOLO_VERIFIED_DEV_RECOVERY",
+                  "recoveryCredit": "security-three-writes",
+                  "postgresMajor": 16,
+                  "independentSecurityReview": "PENDING",
+                  "productionTested": false,
+                  "boundary": "All four actions, higher-ID real victim, actual API key consumer, forged endpoint selectors, signed mocked wire delivery and six reached audit rollbacks."
+                },
+                "coverageCredits": 0,
+                "exactHeadPg16Http": "PENDING",
+                "independentSecurityReview": "PENDING",
+                "productionCertified": false
+              }
+            }
+          ],
+          "employerSources": {
+            "session": true,
+            "apiKey": true,
+            "scim": false,
+            "query": true,
+            "body": true
+          },
+          "guards": [
+            {
+              "line": 11,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 15,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 15,
+              "token": "getAccess"
+            },
+            {
+              "line": 16,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 22,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 27,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 34,
+              "token": "getAccess"
+            },
+            {
+              "line": 67,
+              "token": "enforceSameOriginMutation"
+            },
+            {
+              "line": 70,
+              "token": "getSessionUser"
+            },
+            {
+              "line": 82,
+              "token": "assertOrganizationRole"
+            },
+            {
+              "line": 89,
+              "token": "getAccess"
+            }
+          ],
+          "callerSuppliedIds": [
+            {
+              "line": 26,
+              "token": "searchParams.get(\"organizationId\")"
+            },
+            {
+              "line": 77,
+              "token": "body.organizationId"
+            }
+          ],
+          "businessIds": [
+            {
+              "line": 26,
+              "token": "organizationId"
+            },
+            {
+              "line": 26,
+              "token": "organizationId"
+            },
+            {
+              "line": 29,
+              "token": "organizationId"
+            },
+            {
+              "line": 34,
+              "token": "organizationId"
+            },
+            {
+              "line": 40,
+              "token": "organizationId"
+            },
+            {
+              "line": 40,
+              "token": "organizationId"
+            },
+            {
+              "line": 41,
+              "token": "organizationId"
+            },
+            {
+              "line": 41,
+              "token": "organizationId"
+            },
+            {
+              "line": 42,
+              "token": "organizationId"
+            },
+            {
+              "line": 42,
+              "token": "organizationId"
+            },
+            {
+              "line": 77,
+              "token": "organizationId"
+            },
+            {
+              "line": 77,
+              "token": "organizationId"
+            },
+            {
+              "line": 79,
+              "token": "organizationId"
+            },
+            {
+              "line": 80,
+              "token": "organizationId"
+            },
+            {
+              "line": 84,
+              "token": "organizationId"
+            }
+          ]
+        }
+      },
+      "sourcePins": {
+        "src/app/api/documents/route.ts": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+        "src/app/api/hcm/documents/route.ts": "47910bb8ecfaad37e031c708a5ea949692a3f8c3",
+        "tests/tenant-document-metadata-entity-source.test.mjs": "96bdf6b13325e08e84f9617cd38bfcdbaaea95aa",
+        "src/app/api/biometrics/sync/route.ts": "27e24af5d8a396e611d307bf7972ad4e86568436",
+        "src/app/api/developer/route.ts": "f8ecdf3fc0063e296ded7184010237e37373cbd0"
+      },
+      "triggerPaths": [
+        "src/app/api/documents/route.ts",
+        "src/app/api/hcm/documents/route.ts"
+      ]
+    }
+  ],
+  "securityBefore": {
+    "src/app/api/documents/route.ts": {
+      "gitBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+      "route": "documents",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 27,
+          "status": "COVERED",
+          "reason": "Owned seeded document metadata 200, victim-org 403, victim documents excluded",
+          "testedBy": {
+            "file": "scripts/qa/tenant-second-pass-http.mjs",
+            "line": 500,
+            "ownPositiveLine": 496,
+            "foreignDenialLine": 500,
+            "scope": "Two independent attacker employers and a real seeded victim; method-specific positive and denial/list-scope verification"
+          }
+        },
+        {
+          "name": "POST",
+          "line": 115,
+          "status": "COVERED",
+          "reason": "SOLO_VERIFIED_DEV_RECOVERY: complete source-current two-attacker local PG16/production HTTP proof. Both legacy and private vault, owner plus employee self-upload; exact bytes/hash, foreign requirement/worker denial, pending vault intents remain unreadable after reached final-audit rejection. Independent security review PENDING; no production certification.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-document-upload-http.mjs",
+            "line": 198,
+            "ownPositiveLine": 198,
+            "foreignDenialLine": 162,
+            "forgedSelectorLine": 256,
+            "unchangedDbLine": 248,
+            "routeBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
+            "proofBlobSha": "2fee28caa971d4c8b5e89568dd06b220736d92c5",
+            "sourceHead": "da1a6458e89f41d7a968dca6928ef7af99225928",
+            "runLabel": "Local PG16 HTTP da1a6458e89f41d7a968dca6928ef7af99225928 security writes four profiles PASS",
+            "label": "SOLO_VERIFIED_DEV_RECOVERY",
+            "recoveryCredit": "security-three-writes",
+            "postgresMajor": 16,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "boundary": "Both legacy and private vault, owner plus employee self-upload; exact bytes/hash, foreign requirement/worker denial, pending vault intents remain unreadable after reached final-audit rejection."
+          }
+        }
+      ],
+      "employerSources": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      },
+      "guards": [
+        {
+          "line": 1,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 13,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 23,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 23,
+          "token": "assertScope"
+        },
+        {
+          "line": 23,
+          "token": "getAccess"
+        },
+        {
+          "line": 28,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 65,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 72,
+          "token": "getAccess"
+        },
+        {
+          "line": 116,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 119,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 183,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 190,
+          "token": "getAccess"
+        },
+        {
+          "line": 203,
+          "token": "assertScope"
+        }
+      ],
+      "callerSuppliedIds": [
+        {
+          "line": 31,
+          "token": "searchParams.get(\"organizationId\")"
+        }
+      ],
+      "businessIds": [
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 31,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 33,
+          "token": "organizationId"
+        },
+        {
+          "line": 37,
+          "token": "employeeId"
+        },
+        {
+          "line": 38,
+          "token": "organizationId"
+        },
+        {
+          "line": 43,
+          "token": "employeeId"
+        },
+        {
+          "line": 43,
+          "token": "employeeId"
+        },
+        {
+          "line": 55,
+          "token": "organizationId"
+        },
+        {
+          "line": 55,
+          "token": "organizationId"
+        },
+        {
+          "line": 55,
+          "token": "employeeId"
+        },
+        {
+          "line": 55,
+          "token": "employeeId"
+        },
+        {
+          "line": 67,
+          "token": "organizationId"
+        },
+        {
+          "line": 72,
+          "token": "organizationId"
+        },
+        {
+          "line": 80,
+          "token": "employeeId"
+        }
+      ]
+    },
+    "src/app/api/biometrics/sync/route.ts": {
+      "gitBlobSha": "27e24af5d8a396e611d307bf7972ad4e86568436",
+      "route": "biometrics/sync",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 16,
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 251,
+            "ownPositiveLine": 251,
+            "foreignDenialLine": 260,
+            "unchangedDbLine": 280,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 36
+          }
+        },
+        {
+          "name": "POST",
+          "line": 53,
+          "status": "COVERED",
+          "reason": "SOLO_VERIFIED_DEV_RECOVERY: complete source-current two-attacker local PG16/production HTTP proof. Both session and device credentials for each actor; foreign worker/device rejected or unmatched without victim mutation, exact own IN/OUT persistence and replay controls. Independent security review PENDING; no production certification.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-bio01-biometric-http.mjs",
+            "line": 183,
+            "ownPositiveLine": 183,
+            "foreignDenialLine": 280,
+            "forgedSelectorLine": 214,
+            "unchangedDbLine": 255,
+            "routeBlobSha": "27e24af5d8a396e611d307bf7972ad4e86568436",
+            "proofBlobSha": "f9f4e64ad2571edd1d34051a9fcb20713b9fa11d",
+            "sourceHead": "da1a6458e89f41d7a968dca6928ef7af99225928",
+            "runLabel": "Local PG16 HTTP da1a6458e89f41d7a968dca6928ef7af99225928 security writes four profiles PASS",
+            "label": "SOLO_VERIFIED_DEV_RECOVERY",
+            "recoveryCredit": "security-three-writes",
+            "postgresMajor": 16,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "boundary": "Both session and device credentials for each actor; foreign worker/device rejected or unmatched without victim mutation, exact own IN/OUT persistence and replay controls."
+          }
+        }
+      ],
+      "employerSources": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      },
+      "guards": [
+        {
+          "line": 1,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 5,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 6,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 17,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 25,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 55,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 58,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 61,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 98,
+          "token": "assertOrganizationRole"
+        }
+      ],
+      "callerSuppliedIds": [
+        {
+          "line": 20,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 73,
+          "token": "body.organizationId"
+        }
+      ],
+      "businessIds": [
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 20,
+          "token": "organizationId"
+        },
+        {
+          "line": 21,
+          "token": "organizationId"
+        },
+        {
+          "line": 22,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 73,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 78,
+          "token": "organizationId"
+        },
+        {
+          "line": 88,
+          "token": "organizationId"
+        },
+        {
+          "line": 100,
+          "token": "organizationId"
+        },
+        {
+          "line": 111,
+          "token": "organizationId"
+        },
+        {
+          "line": 111,
+          "token": "organizationId"
+        }
+      ]
+    },
+    "src/app/api/developer/route.ts": {
+      "gitBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
+      "route": "developer",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 21,
+          "status": "COVERED",
+          "reason": "Provisional: table-driven disposable PG16 real-HTTP proof (GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed): two independently authenticated attacker employers each get own-employer 200 whose body carries their own seeded marker, the real higher-ID victim employer is denied, and victim PostgreSQL rows and audit are unchanged; NOT production or blanket tenant certification; exact PR-head CI and reviewer acceptance required.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-table-http.mjs",
+            "line": 251,
+            "ownPositiveLine": 251,
+            "foreignDenialLine": 260,
+            "unchangedDbLine": 280,
+            "scope": "Organization-selector GET only. Owner sessions of two fictional employers; own ?organizationId= 200 with row-specific own-data proof, victim ?organizationId= denial, exact victim snapshot unchanged (CI PG16 only).",
+            "evidence": "Shared tenant-table workflow (.github/workflows/tenant-table-proof.yml); GitHub Actions run 40192690047 head 296ca9582d34f44b088f759d1506eccb5f60773e: default 16 writes/32 pairs/16 discriminating/14 forged; all three profiles passed",
+            "rowFile": "scripts/qa/tenant-table-rows/read/people.mjs",
+            "rowLine": 39
+          }
+        },
+        {
+          "name": "POST",
+          "line": 66,
+          "status": "COVERED",
+          "reason": "SOLO_VERIFIED_DEV_RECOVERY: complete source-current two-attacker local PG16/production HTTP proof. All four actions, higher-ID real victim, actual API key consumer, forged endpoint selectors, signed mocked wire delivery and six reached audit rollbacks. Independent security review PENDING; no production certification.",
+          "testedBy": {
+            "file": "scripts/qa/tenant-developer-key-http.mjs",
+            "line": 151,
+            "ownPositiveLine": 151,
+            "foreignDenialLine": 210,
+            "forgedSelectorLine": 195,
+            "unchangedDbLine": 335,
+            "routeBlobSha": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
+            "proofBlobSha": "cb898793de3e6bdf0cface2bd8b54d5e0af58ff2",
+            "sourceHead": "da1a6458e89f41d7a968dca6928ef7af99225928",
+            "runLabel": "Local PG16 HTTP da1a6458e89f41d7a968dca6928ef7af99225928 security writes four profiles PASS",
+            "label": "SOLO_VERIFIED_DEV_RECOVERY",
+            "recoveryCredit": "security-three-writes",
+            "postgresMajor": 16,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false,
+            "boundary": "All four actions, higher-ID real victim, actual API key consumer, forged endpoint selectors, signed mocked wire delivery and six reached audit rollbacks."
+          }
+        }
+      ],
+      "employerSources": {
+        "session": true,
+        "apiKey": true,
+        "scim": false,
+        "query": true,
+        "body": true
+      },
+      "guards": [
+        {
+          "line": 11,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 15,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 15,
+          "token": "getAccess"
+        },
+        {
+          "line": 16,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 22,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 27,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 34,
+          "token": "getAccess"
+        },
+        {
+          "line": 67,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 70,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 82,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 89,
+          "token": "getAccess"
+        }
+      ],
+      "callerSuppliedIds": [
+        {
+          "line": 26,
+          "token": "searchParams.get(\"organizationId\")"
+        },
+        {
+          "line": 77,
+          "token": "body.organizationId"
+        }
+      ],
+      "businessIds": [
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 26,
+          "token": "organizationId"
+        },
+        {
+          "line": 29,
+          "token": "organizationId"
+        },
+        {
+          "line": 34,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 40,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 41,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 42,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 77,
+          "token": "organizationId"
+        },
+        {
+          "line": 79,
+          "token": "organizationId"
+        },
+        {
+          "line": 80,
+          "token": "organizationId"
+        },
+        {
+          "line": 84,
+          "token": "organizationId"
+        }
+      ]
+    }
+  },
+  "securityDocumentSource": "import { enforceSameOriginMutation } from \"@/lib/security-request\";\nimport { createHash, randomUUID } from \"node:crypto\";\nimport { and, desc, eq, isNull, ne, notLike, or } from \"drizzle-orm\";\nimport { db } from \"@/db\";\nimport {\n  auditEvents,\n  documents,\n  employees,\n  hcmDocumentRequirements,\n  hcmEmployeeDocumentCompliance,\n} from \"@/db/schema\";\nimport { recordAuditEvent } from \"@/lib/audit\";\nimport { getSessionUser } from \"@/lib/auth\";\nimport { criticalReleaseFlagEnabled } from \"@/lib/critical-release-flags\";\nimport { documentObjectKey, putDocumentObject, verifyStoredDocumentObject } from \"@/lib/document-object-storage\";\nimport { canStaffOpenEmployeeVault, validExpiryCalendarDate } from \"@/lib/employee-document-vault\";\nimport { VAULT_PENDING_SOURCE_PREFIX } from \"@/lib/employee-vault-object-reconciliation\";\nimport { VAULT_REMOVED_SOURCE_PREFIX } from \"@/lib/employee-vault-profile\";\nimport {\n  canMutateLegacyHcmDocument, legacyDocumentInsertTable, legacyVisibleDocumentWhere,\n} from \"@/lib/document-schema-compat\";\nimport { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from \"@/lib/storage\";\nimport { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from \"@/lib/access\";\n\nexport const dynamic = \"force-dynamic\";\n\nexport async function GET(request: Request) {\n  const user = await getSessionUser();\n  if (!user) return Response.json({ error: \"Authentication required.\" }, { status: 401 });\n\n  const organizationId = Number(new URL(request.url).searchParams.get(\"organizationId\"));\n  if (!Number.isInteger(organizationId)) {\n    return Response.json({ error: \"organizationId is required.\" }, { status: 400 });\n  }\n\n  if (user.role === \"employee\") {\n    if (!user.employeeId) return Response.json({ error: \"Employee profile is not linked.\" }, { status: 403 });\n    const denied = await assertMembership(user.id, organizationId);\n    if (denied) return denied;\n\n    const rows = await db.select({\n      id: documents.id,\n      employeeId: documents.employeeId,\n      kind: documents.kind,\n      fileName: documents.fileName,\n      mimeType: documents.mimeType,\n      byteSize: documents.byteSize,\n      scannedClean: documents.scannedClean,\n      scanNote: documents.scanNote,\n      sourceType: documents.sourceType,\n      generationMetadata: documents.generationMetadata,\n      uploadedBy: documents.uploadedBy,\n      createdAt: documents.createdAt,\n    }).from(documents)\n      .where(and(eq(documents.organizationId, organizationId), eq(documents.employeeId, user.employeeId),\n        or(isNull(documents.sourceKey), and(notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + \"%\"), notLike(documents.sourceKey, VAULT_REMOVED_SOURCE_PREFIX + \"%\")))))\n      .orderBy(desc(documents.id));\n\n    return Response.json({\n      documents: rows,\n      limits: { maxBytes: MAX_UPLOAD_BYTES, accepted: [\"application/pdf\", \"image/png\", \"image/jpeg\"] },\n    });\n  }\n\n  const denied = await assertOrganizationRole(\n    user.id,\n    organizationId,\n    PEOPLE_ADMIN_ROLES,\n    \"Only People administrators can view company documents.\",\n  );\n  if (denied) return denied;\n  const access = await getAccess(user.id, organizationId);\n  if (!access) return Response.json({ error: \"You do not have access to this workspace.\" }, { status: 403 });\n  if (criticalReleaseFlagEnabled(\"employeeDocumentVault\") && !canStaffOpenEmployeeVault(access.role)) {\n    return Response.json({ error: \"Private HR documents are outside your role.\" }, { status: 403 });\n  }\n\n  const rows = await db.select({\n    id: documents.id,\n    employeeId: documents.employeeId,\n    kind: documents.kind,\n    fileName: documents.fileName,\n    mimeType: documents.mimeType,\n    byteSize: documents.byteSize,\n    scannedClean: documents.scannedClean,\n    scanNote: documents.scanNote,\n    uploadedBy: documents.uploadedBy,\n    createdAt: documents.createdAt,\n  }).from(documents)\n    .where(and(\n      eq(documents.organizationId, organizationId),\n      or(isNull(documents.sourceKey), and(notLike(documents.sourceKey, VAULT_PENDING_SOURCE_PREFIX + \"%\"), notLike(documents.sourceKey, VAULT_REMOVED_SOURCE_PREFIX + \"%\"))),\n      // Turning the A-5 flag back off must NOT reveal confidential 201-file\n      // metadata to bookkeeper/legacy People roles. The object-backed row\n      // remains private even during feature rollback.\n      canStaffOpenEmployeeVault(access.role) ? undefined : legacyVisibleDocumentWhere,\n    ))\n    .orderBy(desc(documents.id));\n\n  const staff = await db.select({ id: employees.id, first: employees.firstName, last: employees.lastName, orgUnitId: employees.orgUnitId })\n    .from(employees).where(eq(employees.organizationId, organizationId));\n  const visibleStaff = access.companyWide ? staff : staff.filter((row) => row.orgUnitId === access.orgUnitId);\n  const names = new Map(visibleStaff.map((row) => [row.id, `${row.first} ${row.last}`]));\n  const visibleEmployeeIds = new Set(visibleStaff.map((row) => row.id));\n  const visibleDocuments = access.companyWide\n    ? rows\n    : rows.filter((row) => row.employeeId != null && visibleEmployeeIds.has(row.employeeId));\n\n  return Response.json({\n    documents: visibleDocuments.map((row) => ({ ...row, employeeName: row.employeeId ? names.get(row.employeeId) ?? null : null })),\n    limits: { maxBytes: MAX_UPLOAD_BYTES, accepted: [\"application/pdf\", \"image/png\", \"image/jpeg\"] },\n  });\n}\n\nexport async function POST(request: Request) {\n  const originDenied = enforceSameOriginMutation(request);\n  if (originDenied) return originDenied;\n\n  const user = await getSessionUser();\n  if (!user) return Response.json({ error: \"Authentication required.\" }, { status: 401 });\n\n  if (!documentUploadsEnabled()) {\n    return Response.json(\n      {\n        error: \"Document uploads are disabled for this production rollout.\",\n        code: \"DOCUMENT_UPLOADS_DISABLED\",\n      },\n      { status: 503 },\n    );\n  }\n\n  const declaredLength = Number(request.headers.get(\"content-length\") ?? \"0\");\n  if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_BYTES + 1024 * 1024) {\n    return Response.json({ error: \"Upload body is too large.\" }, { status: 413 });\n  }\n\n  // This endpoint is multipart. Parse the form first, never clone it as JSON.\n  const form = await request.formData().catch(() => null);\n  if (!form) return Response.json({ error: \"Multipart form data is required.\" }, { status: 400 });\n\n  const organizationId = Number(form.get(\"organizationId\"));\n  const file = form.get(\"file\");\n  let kind = String(form.get(\"kind\") ?? \"other\").slice(0, 40);\n  const employeeRaw = form.get(\"employeeId\");\n  const requirementRaw = form.get(\"requirementId\");\n  const expiresAtRaw = String(form.get(\"expiresAt\") ?? \"\").trim();\n  const requirementId = requirementRaw && requirementRaw !== \"null\" && requirementRaw !== \"\"\n    ? Number(requirementRaw)\n    : null;\n  if (requirementId != null && !Number.isInteger(requirementId)) {\n    return Response.json({ error: \"requirementId must be an integer.\" }, { status: 422 });\n  }\n  const vaultEnabled = criticalReleaseFlagEnabled(\"employeeDocumentVault\");\n  // Unattached personal-vault uploads have a fixed category vocabulary.\n  // Assigned HCM requirements keep their existing, separately governed kinds.\n  if (vaultEnabled && requirementId === null &&\n      ![\"government_id\", \"contract\", \"certificate\", \"onboarding\", \"other\"].includes(kind)) {\n    return Response.json({ error: \"Invalid document category.\" }, { status: 422 });\n  }\n  if (vaultEnabled && expiresAtRaw && !validExpiryCalendarDate(expiresAtRaw)) {\n    return Response.json({ error: \"expiresAt must be a real YYYY-MM-DD date.\" }, { status: 422 });\n  }\n  const expiresAt = expiresAtRaw\n    ? (/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAtRaw) ? expiresAtRaw : null)\n    : null;\n  if (expiresAtRaw && !expiresAt) {\n    return Response.json({ error: \"expiresAt must use YYYY-MM-DD.\" }, { status: 422 });\n  }\n\n  if (!Number.isInteger(organizationId)) return Response.json({ error: \"organizationId is required.\" }, { status: 400 });\n  if (!(file instanceof File)) return Response.json({ error: \"A file is required.\" }, { status: 400 });\n  if (file.size > MAX_UPLOAD_BYTES) {\n    return Response.json({ error: `File exceeds the ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.` }, { status: 413 });\n  }\n\n  let employeeId: number | null = null;\n  if (user.role === \"employee\") {\n    if (!user.employeeId) return Response.json({ error: \"Employee profile is not linked.\" }, { status: 403 });\n    const denied = await assertMembership(user.id, organizationId);\n    if (denied) return denied;\n    employeeId = user.employeeId;\n  } else {\n    const denied = await assertOrganizationRole(\n      user.id,\n      organizationId,\n      PEOPLE_ADMIN_ROLES,\n      \"Only People administrators can upload company documents.\",\n    );\n    if (denied) return denied;\n    const access = await getAccess(user.id, organizationId);\n    if (!access) return Response.json({ error: \"You do not have access to this workspace.\" }, { status: 403 });\n    if (vaultEnabled && !canStaffOpenEmployeeVault(access.role)) {\n      return Response.json({ error: \"Private HR files require People authorization.\" }, { status: 403 });\n    }\n\n    if (employeeRaw && employeeRaw !== \"null\" && employeeRaw !== \"\") {\n      const candidate = Number(employeeRaw);\n      if (!Number.isInteger(candidate)) return Response.json({ error: \"employeeId must be an integer.\" }, { status: 422 });\n      const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId })\n        .from(employees)\n        .where(and(eq(employees.id, candidate), eq(employees.organizationId, organizationId)));\n      if (!employee) return Response.json({ error: \"Employee not found in this organization.\" }, { status: 404 });\n      const scope = assertScope(access, employee.orgUnitId);\n      if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });\n      employeeId = employee.id;\n    } else if (!access.companyWide) {\n      return Response.json({ error: \"Unit-scoped roles can upload documents only for employees in their own unit.\" }, { status: 403 });\n    }\n  }\n\n  if (employeeId != null) {\n    const [employee] = await db.select({ id: employees.id })\n      .from(employees)\n      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))\n      .limit(1);\n    if (!employee) return Response.json({ error: \"Employee not found in this organization.\" }, { status: 404 });\n  }\n\n  let requirement: typeof hcmDocumentRequirements.$inferSelect | null = null;\n  let complianceRow: typeof hcmEmployeeDocumentCompliance.$inferSelect | null = null;\n  if (requirementId != null) {\n    if (employeeId == null) {\n      return Response.json({ error: \"A required employee document must be linked to an employee.\" }, { status: 400 });\n    }\n    [requirement] = await db.select().from(hcmDocumentRequirements).where(and(\n      eq(hcmDocumentRequirements.id, requirementId),\n      eq(hcmDocumentRequirements.organizationId, organizationId),\n      eq(hcmDocumentRequirements.active, true),\n    )).limit(1);\n    if (!requirement) return Response.json({ error: \"Document requirement not found or inactive.\" }, { status: 404 });\n\n    [complianceRow] = await db.select().from(hcmEmployeeDocumentCompliance).where(and(\n      eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),\n      eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id),\n      eq(hcmEmployeeDocumentCompliance.employeeId, employeeId),\n    )).limit(1);\n    if (!complianceRow) {\n      return Response.json({ error: \"This document requirement is not assigned to the selected employee.\" }, { status: 403 });\n    }\n    if (complianceRow.status === \"waived\") {\n      return Response.json({ error: \"This document requirement was waived and is no longer open for upload.\" }, { status: 409 });\n    }\n    // If a private, independently governed A-5 file was previously attached,\n    // turning the feature OFF must not let the legacy upload path replace its\n    // compliance state or silently downgrade it to unverified inline base64.\n    // The helper reads old/new DB schemas without referring to absent columns.\n    if (!vaultEnabled && complianceRow.documentId !== null &&\n      !await canMutateLegacyHcmDocument({\n        organizationId, employeeId, documentId: complianceRow.documentId,\n      })) {\n      return Response.json({ error: \"Private document replacement is unavailable while the vault is disabled.\" }, { status: 409 });\n    }\n    if (requirement.expiryRequired && !expiresAt) {\n      return Response.json({ error: \"This required document needs an expiry date.\" }, { status: 400 });\n    }\n    kind = requirement.kind;\n  }\n\n  const bytes = new Uint8Array(await file.arrayBuffer());\n  const check = validateUpload(bytes, file.type, file.name);\n  if (!check.ok) return Response.json({ error: check.error }, { status: 422 });\n\n  const scan = await scanUpload(bytes, { fileName: file.name, mime: check.mime });\n  if (!scan.scannedClean) {\n    if (!scan.unavailable) {\n      await recordAuditEvent({\n        organizationId,\n        actor: user.name,\n        action: \"Document upload blocked by malware scan\",\n        resource: safeFileName(file.name),\n        metadata: { kind, employeeId, threat: scan.threat ?? null, engine: scan.engine ?? null },\n      });\n      return Response.json(\n        {\n          error: \"The file was rejected by malware scanning.\",\n          code: \"MALWARE_DETECTED\",\n        },\n        { status: 422 },\n      );\n    }\n\n    if (process.env.NODE_ENV === \"production\") {\n      return Response.json(\n        {\n          error: \"Document uploads are temporarily unavailable because malware scanning could not verify the file.\",\n          code: \"MALWARE_SCAN_UNAVAILABLE\",\n        },\n        { status: 503 },\n      );\n    }\n  }\n\n  if (vaultEnabled) {\n    if (!scan.scannedClean) {\n      return Response.json({ error: \"A completed clean malware scan is required for private vault storage.\" }, { status: 503 });\n    }\n    const hash = createHash(\"sha256\").update(bytes).digest(\"hex\");\n    const storageKey = documentObjectKey(organizationId, employeeId);\n    const pendingSourceKey = VAULT_PENDING_SOURCE_PREFIX + randomUUID();\n\n    // Commit an unreadable, tenant-bound recovery intent BEFORE any remote\n    // object PUT. The provider and PostgreSQL cannot participate in one\n    // transaction; this row makes an ambiguous PUT/failed commit recoverable.\n    let pendingDocumentId: number;\n    try {\n      pendingDocumentId = await db.transaction(async tx => {\n        const [intent] = await tx.insert(documents).values({\n          organizationId, employeeId, kind,\n          fileName: safeFileName(file.name), mimeType: check.mime,\n          byteSize: bytes.byteLength, sha256: hash,\n          scannedClean: false, scanNote: \"Pending verified private storage\",\n          sourceType: \"upload\", sourceKey: pendingSourceKey,\n          uploadedBy: user.name, uploadedByUserId: user.id,\n          objectStorageKey: storageKey, content: \"\",\n        }).returning({ id: documents.id });\n        await tx.insert(auditEvents).values({\n          organizationId, actor: user.name,\n          action: \"Pending private vault upload intent recorded\",\n          resource: String(intent.id),\n          metadata: { documentId: intent.id, employeeId,\n            sha256: hash, byteSize: bytes.byteLength, actorUserId: user.id },\n        });\n        return intent.id;\n      });\n    } catch {\n      // No object was written, because the intent failed to commit.\n      return Response.json({ error: \"Private document upload could not be reserved.\" }, { status: 409 });\n    }\n\n    try {\n      await putDocumentObject(storageKey, bytes, check.mime);\n      // An HTTP PUT receipt alone cannot prove the bytes survived unchanged.\n      await verifyStoredDocumentObject(storageKey, hash, bytes.byteLength);\n    } catch {\n      // Do NOT issue an immediate DELETE: a delayed/ambiguous remote PUT\n      // could complete after it. The durable unreadable intent is swept after\n      // the one-hour grace window, even if the feature flag is turned OFF.\n      return Response.json({ error: \"Private object storage verification failed; protected cleanup is queued.\" }, { status: 503 });\n    }\n\n    try {\n      const result = await db.transaction(async tx => {\n        const [pending] = await tx.select({\n          id: documents.id, scannedClean: documents.scannedClean,\n          sourceKey: documents.sourceKey, objectStorageKey: documents.objectStorageKey,\n        }).from(documents).where(and(\n          eq(documents.id, pendingDocumentId),\n          eq(documents.organizationId, organizationId),\n        )).for(\"update\").limit(1);\n        if (!pending || pending.scannedClean ||\n          pending.sourceKey !== pendingSourceKey ||\n          pending.objectStorageKey !== storageKey) throw new Error(\"VAULT_PENDING_INTENT_CHANGED\");\n\n        const [stored] = await tx.update(documents).set({\n          scannedClean: true, scanNote: scan.note, sourceKey: null,\n        }).where(and(\n          eq(documents.id, pendingDocumentId),\n          eq(documents.organizationId, organizationId),\n          eq(documents.sourceKey, pendingSourceKey),\n          eq(documents.scannedClean, false),\n        )).returning({\n          id: documents.id, fileName: documents.fileName,\n          byteSize: documents.byteSize, sha256: documents.sha256,\n        });\n        if (!stored) throw new Error(\"VAULT_PENDING_INTENT_CHANGED\");\n\n        let documentCompliance: typeof hcmEmployeeDocumentCompliance.$inferSelect | null = null;\n        if (requirement && complianceRow) {\n          // Existing optimistic conditions prevent a concurrent HR waiver,\n          // requirement edit, or replacement from being overwritten.\n          [documentCompliance] = await tx.update(hcmEmployeeDocumentCompliance).set({\n            documentId: stored.id, expiresAt, status: \"submitted\",\n            verifiedAt: null, verifiedByUserId: null,\n            verifiedByName: null, updatedAt: new Date(),\n          }).where(and(\n            eq(hcmEmployeeDocumentCompliance.id, complianceRow.id),\n            eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),\n            eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!),\n            eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id),\n            ne(hcmEmployeeDocumentCompliance.status, \"waived\"),\n            eq(hcmEmployeeDocumentCompliance.status, complianceRow.status),\n            complianceRow.expiresAt === null\n              ? isNull(hcmEmployeeDocumentCompliance.expiresAt)\n              : eq(hcmEmployeeDocumentCompliance.expiresAt, String(complianceRow.expiresAt)),\n            complianceRow.documentId === null\n              ? isNull(hcmEmployeeDocumentCompliance.documentId)\n              : eq(hcmEmployeeDocumentCompliance.documentId, complianceRow.documentId),\n          )).returning();\n          if (!documentCompliance) throw new Error(\"COMPLIANCE_CHANGED\");\n        }\n        await tx.insert(auditEvents).values({\n          organizationId, actor: user.name,\n          action: \"Employee document scanned and stored in private vault\",\n          resource: String(stored.id),\n          metadata: { documentId: stored.id, employeeId,\n            requirementId: requirement?.id ?? null,\n            sha256: hash, byteSize: bytes.byteLength, malwareScanClean: true,\n            uploadedByUserId: user.id },\n        });\n        return { row: stored, compliance: documentCompliance };\n      });\n      return Response.json({\n        id: result.row.id, fileName: result.row.fileName,\n        byteSize: result.row.byteSize, sha256: result.row.sha256,\n        detectedMime: check.mime, compliance: result.compliance,\n        scan: { scannedClean: true, note: scan.note, engine: scan.engine },\n        storage: \"private-object\",\n      }, { status: 201, headers: { \"Cache-Control\": \"private, no-store\" } });\n    } catch {\n      // The earlier intent transaction survives this rollback; it cannot be\n      // downloaded while scannedClean=false and will be retried by the sweeper.\n      return Response.json({ error: \"Private document approval failed; unreadable cleanup intent retained.\" }, { status: 409 });\n    }\n  }\n\n  // Legacy database-backed document and its compliance link/audit must commit\n  // together; stale cross-employer compliance cannot be reattached by id only.\n  const result = await db.transaction(async (tx) => {\n    if (requirement) {\n      // Reject a requirement deactivated or reconfigured during upload scanning.\n      const [currentRequirement] = await tx.select({ id: hcmDocumentRequirements.id })\n        .from(hcmDocumentRequirements).where(and(\n          eq(hcmDocumentRequirements.id, requirement.id),\n          eq(hcmDocumentRequirements.organizationId, organizationId),\n          eq(hcmDocumentRequirements.active, true),\n          eq(hcmDocumentRequirements.kind, requirement.kind),\n          eq(hcmDocumentRequirements.expiryRequired, requirement.expiryRequired),\n        )).for(\"update\").limit(1);\n      if (!currentRequirement) throw new Error(\"DOCUMENT_REQUIREMENT_CHANGED\");\n    }\n\n    if (complianceRow?.documentId != null) {\n      // The legacy branch must not replace a file converted into a private A-5 object.\n      const [previousLegacy] = await tx.select({ id: documents.id }).from(documents).where(and(\n        eq(documents.id, complianceRow.documentId),\n        eq(documents.organizationId, organizationId),\n        eq(documents.employeeId, employeeId!),\n        legacyVisibleDocumentWhere,\n      )).for(\"update\").limit(1);\n      if (!previousLegacy) throw new Error(\"DOCUMENT_PRIOR_FILE_CHANGED\");\n    }\n\n      const [row] = await tx.insert(legacyDocumentInsertTable).values({\n        organizationId,\n        employeeId,\n        kind,\n        fileName: safeFileName(file.name),\n        mimeType: check.mime,\n        byteSize: bytes.byteLength,\n        sha256: createHash(\"sha256\").update(bytes).digest(\"hex\"),\n        scannedClean: scan.scannedClean,\n        scanNote: scan.note,\n        uploadedBy: user.name,\n        content: Buffer.from(bytes).toString(\"base64\"),\n      }).returning({\n        id: legacyDocumentInsertTable.id,\n        fileName: legacyDocumentInsertTable.fileName,\n        byteSize: legacyDocumentInsertTable.byteSize,\n        sha256: legacyDocumentInsertTable.sha256,\n      });\n\n      let compliance = null;\n      if (requirement && complianceRow) {\n        [compliance] = await tx.update(hcmEmployeeDocumentCompliance).set({\n          documentId: row.id,\n          expiresAt,\n          status: \"submitted\",\n          verifiedAt: null,\n          verifiedByUserId: null,\n          verifiedByName: null,\n          updatedAt: new Date(),\n        }).where(and(\n          eq(hcmEmployeeDocumentCompliance.id, complianceRow.id),\n          eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),\n          eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!),\n          eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id),\n          // Match the same optimistic preconditions used by private-vault uploads.\n          // A waiver, document replacement or expiry edit must win over stale POST data.\n          ne(hcmEmployeeDocumentCompliance.status, \"waived\"),\n          eq(hcmEmployeeDocumentCompliance.status, complianceRow.status),\n          complianceRow.expiresAt === null\n            ? isNull(hcmEmployeeDocumentCompliance.expiresAt)\n            : eq(hcmEmployeeDocumentCompliance.expiresAt, String(complianceRow.expiresAt)),\n          complianceRow.documentId === null\n            ? isNull(hcmEmployeeDocumentCompliance.documentId)\n            : eq(hcmEmployeeDocumentCompliance.documentId, complianceRow.documentId),\n        )).returning();\n        if (!compliance) throw new Error(\"DOCUMENT_COMPLIANCE_SCOPE_CHANGED\");\n      }\n\n      await recordAuditEvent({\n        organizationId,\n        actor: user.name,\n        action: \"Document uploaded\",\n        resource: row.fileName,\n        metadata: {\n          kind,\n          employeeId,\n          sha256Verified: true,\n          avScanned: scan.scannedClean,\n          requirementId: requirement?.id ?? null,\n          complianceId: compliance?.id ?? null,\n          expiresAt,\n          status: compliance?.status ?? null,\n        },\n      }, tx);\n    return { row, compliance };\n  }).catch(() => null);\n  if (!result) return Response.json({\n    error: \"Document upload could not be committed. Refresh and retry.\",\n  }, { status: 409 });\n  const { row, compliance } = result;\n\n  return Response.json({\n    id: row.id,\n    fileName: row.fileName,\n    byteSize: row.byteSize,\n    sha256: row.sha256,\n    detectedMime: check.mime,\n    compliance,\n    scan,\n    note: \"Stored in Postgres. Configure object storage (S3/R2) before production volume.\",\n  }, { status: 201 });\n}\n"
+}

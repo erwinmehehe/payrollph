@@ -5,6 +5,7 @@
  * is sufficient to maintain these provisional SOLO_VERIFIED_DEV_RECOVERY credits.
  */
 import assert from "node:assert/strict";
+import {reviewedDocumentSourceHoldCount} from "./document-source-accounting.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
@@ -242,8 +243,8 @@ export function expectedFivePageCreditManifest(original, read = readFileSync) {
   // operator-only PG16 receipt. Never infer an additional page or method credit.
   const marketing = m.allApiRouteFiles["src/app/api/marketing/leads/route.ts"]?.methods
     .find(row => row.name === "GET");
-  const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;
-  if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,
+  const expectedApiGaps = (marketing?.status === "COVERED" ? 4 : 5) + reviewedDocumentSourceHoldCount(m, read);
+  if (marketing?.status === "COVERED") assert.equal(assertMkt01Receipt(m), 1,
     "The sole additional method must be independently source-pinned");
   assert.equal(historicOidcBatchView(m, read).metrics.gap, expectedApiGaps,
     "Five-page proof must not silently reclassify unrelated API methods");

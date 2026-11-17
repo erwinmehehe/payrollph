@@ -1,4 +1,4 @@
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 380 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 81 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
 > **CURRENT / #2006 PAYROLL-ENGINE SOURCE SUPERSESSION — 75 ZERO-CREDIT HOLDS:** 498 methods = **386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP**. The sealed #2005 PG16 receipt is historical: it pins the previous payroll engine. All 75 methods are GAP / zero-credit until fresh exact-source PG16 verification. Independent security/payroll sign-off, live release and production approval remain PENDING.
 
@@ -248,8 +248,8 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 14 | 2 | 0 | 10 | INCOMPLETE |
-| 1 | **DL-02** | 26 | 24 | 0 | 0 | 2 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 13 | 2 | 0 | 11 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 22 | 0 | 0 | 4 | INCOMPLETE |
 | 2 | **MNY-01** | 33 | 21 | 0 | 0 | 12 | INCOMPLETE |
 | 2 | **MNY-02** | 33 | 28 | 1 | 0 | 4 | INCOMPLETE |
 | 3 | **STA-01** | 27 | 9 | 0 | 0 | 18 | INCOMPLETE |
@@ -257,11 +257,11 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 4 | **PII-02** | 38 | 34 | 2 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 5 | **WRK-03** | 40 | 39 | 0 | 0 | 1 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 15 | 11 | 6 | 1 | INCOMPLETE |
-| 6 | **EDG-02** | 33 | 23 | 1 | 5 | 4 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 22 | 1 | 5 | 5 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **62 COVERED + 8 PUBLIC-BY-DESIGN + 22 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **319 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 58 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **61 COVERED + 8 PUBLIC-BY-DESIGN + 23 GAP**. 9 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -935,3 +935,12 @@ These seven methods were outside the immutable 406-method queue and are already 
 - ARCHIVED HOLD `GET /api/payroll-runs/[id]/release-checklist` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Xendit POST:** 458 COVERED / 5 API GAP. Four operations, two attacker employers, genuine victim positive, zero real providers. Independent and production acceptance PENDING.
+
+### Additional source withdrawals: legal-employer document metadata
+
+- `GET documents` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
+- `POST documents` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
+- `GET hcm/documents` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
+- `POST hcm/documents` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
+- `POST biometrics/sync` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
+- `POST developer` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
