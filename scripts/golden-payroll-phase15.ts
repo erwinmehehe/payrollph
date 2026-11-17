@@ -204,7 +204,37 @@ async function runEngine(catalog: Catalog) {
   return results;
 }
 
+async function requireDisposablePhase15() {
+  // This harness creates synthetic payroll runs and marks them Released for
+  // ANNUALIZATION ONLY. Never allow it to touch a developer/customer database.
+  for (const [name, expected] of Object.entries({
+    CI: "true",
+    GITHUB_ACTIONS: "true",
+    GOLDEN_PHASE15_DISPOSABLE: "github-actions-pg16-only",
+    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    PAYMONGO_DISBURSEMENTS_ENABLED: "false",
+    XENDIT_PAYOUTS_ENABLED: "false",
+    XENDIT_BILLING_ENABLED: "false",
+    WORKER_ENABLED: "false",
+    CENTRAL_SCHEDULER_ENABLED: "false",
+  })) {
+    assert.equal(process.env[name], expected, "PHASE15_REFUSED: unsafe " + name);
+  }
+  for (const name of [
+    "NEON_DATABASE_URL", "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY",
+    "STRIPE_SECRET_KEY", "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN",
+    "SMTP_PASSWORD", "OPENAI_API_KEY", "WORKER_TOKEN", "CRON_SECRET",
+  ]) {
+    assert.ok(!process.env[name], "PHASE15_REFUSED: provider credential " + name);
+  }
+  const version = Number((await pool.query("SHOW server_version_num")).rows[0].server_version_num);
+  assert.ok(version >= 160000 && version < 170000, "PHASE15_REFUSED: PG16 required");
+  const { rows: [count] } = await pool.query("SELECT COUNT(*)::int AS n FROM organizations");
+  assert.equal(count.n, 0, "PHASE15_REFUSED: database must contain no employers");
+}
+
 async function main() {
+  await requireDisposablePhase15();
   const raw = readFileSync(catalogPath, "utf8");
   const catalog = JSON.parse(raw) as Catalog;
   assert.equal(catalog.toleranceCentavos, 0, "Phase 15 compares exact centavos");
