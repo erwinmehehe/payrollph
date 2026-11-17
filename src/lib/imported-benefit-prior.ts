@@ -87,7 +87,13 @@ export function importedBenefitPrior(rows: readonly ImportedBenefitRow[], cutoff
         paidNow.set(employeeId, now);
       }
     }
-    if (reportedDeMinimis > gross) unverifiable.add(employeeId);
+    // The reported gross contains both de minimis and any 13th-month amount
+    // paid on this imported row. Checking each independently misses impossible
+    // overlaps (for example, 7,000 de minimis + 5,000 13th on 10,000 gross).
+    // Do not use such a row to reduce remaining exempt ceilings or estimate WHT.
+    if (!Number.isSafeInteger(reportedDeMinimis) ||
+        !Number.isSafeInteger(reportedDeMinimis + thirteenth) ||
+        reportedDeMinimis + thirteenth > gross) unverifiable.add(employeeId);
   }
   const employeeIds = new Set<number>(rows.map((row) => row.employeeId));
   for (const employeeId of employeeIds) {
