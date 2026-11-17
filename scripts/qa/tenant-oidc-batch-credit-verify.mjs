@@ -76,88 +76,6 @@ export function oidcStartCreditDelta(before,m,read=readFileSync){
  const current=m.allApiRouteFiles[OIDC_START].methods.find(x=>x.name==='GET');
  return prior.status==='GAP'&&current.status==='COVERED'?verifyOidcBatchMethod(m,OIDC_START,read):0;
 }
-/**
- * Rewind ONLY the exact, source-bound private-document GET zero-credit hold
- * when re-running older five/six/four-page proof generators. Those generators
- * predate this new legal-employer source and therefore expect the old GET proof
- * in their HISTORICAL counting view. Live manifest GAP and old receipts remain
- * unchanged. Rewind rejects altered grant guards, modified proof contracts,
- * forged proof credits or unrelated method downgrades.
- */
-export function historicalDocumentGetView(input, read = readFileSync) {
- const path = "src/app/api/documents/[id]/route.ts";
- const oldSha = "0acb38b1396b1e35adf02efd6e033cdd0416e0d0";
- const newSha = "7ec01fa9698db169e75569617aca825571842e7c";
- const row = input.allApiRouteFiles?.[path];
- const method = row?.methods?.find(m => m.name === "GET");
- const hold = method?.reviewedUncertified;
- if (hold?.kind !== "document-download-multi-entity-legal-employer-source-change-zero-credit")
-   return input;
- const expectedProof = {
-  file: "scripts/qa/tenant-second-pass-http.mjs",
-  line: 950, ownPositiveLine: 840, foreignDenialLine: 950,
-  scope: "Actual CI PostgreSQL, victim and two independent attacker employers; role and same-tenant coworker tests where applicable",
- };
- const priorReason =
-  "Real own clean attachment bytes HTTP 200, victim-only high document ID download and inline 403 for both attackers; read never changes victim document";
- const priorRevision = {
-  kind:"tenant-private-document-active-membership-prefilter-review-only",
-  oldRouteBlobSha:"e4decf0b28ff6d0f070d7ee0e5027255590bb816",
-  newRouteBlobSha:oldSha,
-  sourceContractTest:"tests/tenant-private-document-id-boundary.test.mjs",
-  currentHeadAuthenticatedPg16Http:"PENDING",
-  independentSecurityReview:"PENDING",
-  productionCertified:false,
-  noNewMethodCredit:true,
- };
- assert.equal(row?.gitBlobSha,newSha,"DOC_HISTORICAL_REFUSED: current route SHA changed");
- assert.equal(row.methods?.length,1,"DOC_HISTORICAL_REFUSED: changed method inventory");
- assert.equal(method.status,"GAP","DOC_HISTORICAL_REFUSED: current method must retain GAP");
- assert.equal(method.testedBy,null,"DOC_HISTORICAL_REFUSED: unexecuted credit must be absent");
- assert.deepEqual(hold.previousMethodProof,expectedProof,"DOC_HISTORICAL_REFUSED: prior sealed receipt changed");
- assert.equal(hold.previousRouteBlobSha,oldSha);
- assert.equal(hold.routeBlobSha,newSha);
- assert.equal(hold.sourceContractTest,"tests/tenant-private-document-id-boundary.test.mjs");
- assert.equal(hold.coverageCredits,0);
- assert.equal(hold.exactHeadPg16Http,"PENDING");
- assert.equal(hold.independentSecurityReview,"PENDING");
- assert.equal(hold.productionCertified,false);
- assert.equal(row.sourceRevisionReview?.kind,
-  "document-download-legal-employer-grant-source-revision-zero-credit");
- assert.equal(row.sourceRevisionReview?.oldRouteBlobSha,oldSha);
- assert.equal(row.sourceRevisionReview?.newRouteBlobSha,newSha);
- assert.equal(row.sourceRevisionReview?.noNewMethodCredit,true);
- assert.deepEqual(row.sourceRevisionReview?.priorActiveMembershipRevision,priorRevision,
-  "DOC_HISTORICAL_REFUSED: original source review modified");
- assert.ok(method.reason?.startsWith("REVIEW-ONLY SOURCE HOLD:"),
-  "DOC_HISTORICAL_REFUSED: current hold has no reviewed reason");
- assert.equal(blob(read(path)),newSha,"DOC_HISTORICAL_REFUSED: changed live authorization guard");
- assert.equal(blob(read(hold.sourceContractTest)),
-  "f4564a5e0a6a8afa7657c04789f464077ee46e50",
-  "DOC_HISTORICAL_REFUSED: original source contract changed");
- const actual = Object.values(input.allApiRouteFiles).flatMap(file => file.methods);
- assert.equal(input.metrics.methods,actual.length);
- assert.equal(input.metrics.gap,actual.filter(m => m.status === "GAP").length,
-  "DOC_HISTORICAL_REFUSED: live GAP tally changed");
- assert.equal(input.metrics.coveredAfter,actual.filter(m => m.status === "COVERED").length,
-  "DOC_HISTORICAL_REFUSED: live covered tally changed");
- const view = structuredClone(input);
- const projected = view.allApiRouteFiles[path];
- const old = projected.methods[0];
- projected.gitBlobSha=oldSha;
- old.status="COVERED";
- old.reason=priorReason;
- old.testedBy=structuredClone(expectedProof);
- delete old.reviewedUncertified;
- projected.sourceRevisionReview=structuredClone(priorRevision);
- view.metrics.coveredAfter++;
- view.metrics.gap--;
- view.acceptanceStatus=view.acceptanceStatus.replace(
-  /^NOT ACCEPTED: \d+ API methods/,
-  "NOT ACCEPTED: "+view.metrics.gap+" API methods");
- return view;
-}
-
 /** Validation-only reconstruction for sealed page/payroll receipts. Never write this view. */
 export function historicOidcBatchView(m,read=readFileSync){
  const view=structuredClone(m);
@@ -177,5 +95,5 @@ export function historicOidcBatchView(m,read=readFileSync){
  if(historic.allApiRouteFiles[SSO_RESOLVE_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN')historic=historicalSsoResolveView(historic,read);
   // Every affected wage-source claim stays held in the live ledger; this is
   // solely a source-verified in-memory projection of the older page receipt.
-  return historicalDocumentGetView(historicWageRegistryProofView(historic,read),read);
+  return historicWageRegistryProofView(historic,read);
 }
