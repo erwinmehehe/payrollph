@@ -101,7 +101,10 @@ jobs:
           npm run payroll:golden:phase2a
           npm run payroll:golden:phase2b
           npm run payroll:golden:pay-rules
-      - run: npm install --no-save --package-lock=false playwright@1.55.0
+      - name: Install browser tooling while retaining the application dependency lock
+        run: |
+          npm install --no-save --package-lock=true playwright@1.55.0
+          git diff --exit-code -- package.json package-lock.json
       - run: npx playwright install --with-deps chromium
       - name: Desktop and 390px signed review, unknown evidence and flag-OFF rendering
         run: node --import tsx scripts/qa/money-closes-component-browser.mjs

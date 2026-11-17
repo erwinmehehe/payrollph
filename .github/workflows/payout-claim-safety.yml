@@ -52,9 +52,7 @@ concurrency:
 
 jobs:
   payout-claim:
-    # Playwright 1.55 rejects Chromium installation on ubuntu-26.04.
-    # Keep the real browser journey enabled on a supported hosted runner.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04 # Playwright 1.55.0 Chromium supports Ubuntu 24.04; runner ubuntu-latest moved to 26.04
     timeout-minutes: 18
     env:
       CI: "true"

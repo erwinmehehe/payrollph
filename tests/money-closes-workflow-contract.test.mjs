@@ -1,11 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import {load} from 'js-yaml';
 
 // A-3 protection against a false green: source changes to money-critical
 // modules must invoke the focused synthetic PG16 release regression suites.
 // This is *not* independent financial sign-off or real-employer evidence.
 const workflow = readFileSync(".github/workflows/money-closes-qa.yml", "utf8");
+
+function assertLockedBrowserTooling(job){
+  const steps=job.steps,installIndex=steps.findIndex(step=>step.run?.includes('npm install')&&step.run.includes('playwright@'));
+  assert.ok(installIndex>=0,'Pinned browser dependency installation is required');
+  const install=steps[installIndex];
+  assert.ok(steps.slice(0,installIndex).some(step=>step.run==='npm ci'),'Locked application dependencies must be installed first');
+  assert.match(install.run,/npm install --no-save --package-lock=true playwright@1\.55\.0/);
+  assert.ok(!install.run.includes('--package-lock=false'),'Browser setup must not re-resolve the application runtime');
+  assert.match(install.run,/git diff --exit-code -- package\.json package-lock\.json/);
+  assert.ok(!install.run.includes('||'),'Dependency drift must fail the browser gate');
+  assert.notEqual(install['continue-on-error'],true);
+  assert.ok(steps.slice(installIndex+1).some(step=>step.run==='node --import tsx scripts/qa/money-closes-component-browser.mjs'),'The real browser proof must still execute');
+}
+
+test('browser setup retains locked runtime inputs and refuses hidden dependency drift',()=>{
+  const job=load(workflow).jobs['flag-on-money'];
+  assert.doesNotThrow(()=>assertLockedBrowserTooling(job));
+  for(const mutate of [
+    step=>{step.run=step.run.replace('--package-lock=true','--package-lock=false');},
+    step=>{step.run=step.run.replace('git diff --exit-code -- package.json package-lock.json','echo ignored');},
+    step=>{step.run+=' || true';},
+    step=>{step['continue-on-error']=true;},
+  ]){
+    const changed=structuredClone(job),install=changed.steps.find(step=>step.run?.includes('npm install')&&step.run.includes('playwright@'));
+    mutate(install);assert.throws(()=>assertLockedBrowserTooling(changed));
+  }
+});
 
 test("A-3 money-critical source changes trigger focused financial CI", () => {
   const criticalPaths = [

@@ -302,6 +302,24 @@ export function evaluatePayrollAssurance(
       });
     }
 
+    // #2003: This is a financial-correctness hold, NOT an ordinary
+    // acknowledgeable engine exception. /submit-review and /release both read
+    // assurance.findings.blocking, so accepting exceptions must not override an
+    // unverified first cutoff, an unreconciled month, or prior SSS/EC overpay.
+    const sssMonthEndBlock = flags.find((flag) =>
+      /^(?:SSS_PRIOR_OVER_COLLECTION_REVIEW_REQUIRED|FIXED_MONTHLY_CARRY_SOURCE_REVIEW_REQUIRED|STATUTORY_TRUE_UP_INPUT_MISSING):/.test(flag)
+    );
+    if (sssMonthEndBlock) {
+      findings.push({
+        code: "SSS_MONTH_END_RECONCILIATION_BLOCKED",
+        severity: "high",
+        blocking: true,
+        title: "SSS/month-end payroll source is not reconciled",
+        detail: "The prior cutoff or actual-month SSS contribution cannot be safely reconciled. Correct the source evidence and recalculate before checker approval or release. Exception acknowledgment cannot bypass this hold. " + sssMonthEndBlock,
+        employeeId: entry.employeeId,
+      });
+    }
+
     // A mandatory shortfall is NEVER acknowledgeable. Cross-check the printed
     // liability marker, engine flags, and all three centavo-exact trace totals.
     // This also catches malformed/missing/duplicated trace fields rather than

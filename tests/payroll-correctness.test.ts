@@ -598,6 +598,42 @@ test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave
       },
     ]).returning();
 
+    // #2003: this remains a final (16-30) cutoff lifecycle test. Supply an
+    // independently calculated first (1-15) cutoff instead of waiving the
+    // new month-end SSS/EC release blocker for an existing employee.
+    // The test DB Released marker is synthetic ledger evidence ONLY, not
+    // a real approval/release or proof of bank/agency posting.
+    await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: activeEmployee.id,
+      workDate: "2026-09-10",
+      timeIn: new Date("2026-09-10T09:00:00+08:00"),
+      timeOut: new Date("2026-09-10T18:00:00+08:00"),
+      breakStart: new Date("2026-09-10T12:00:00+08:00"),
+      breakEnd: new Date("2026-09-10T13:00:00+08:00"),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+    });
+    const [priorRun] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Synthetic first September cutoff for month-end SSS ledger",
+      periodStart: "2026-09-01",
+      periodEnd: "2026-09-15",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-15",
+    }).returning();
+    await seedMonthlyPayProfilesForRun(priorRun.id);
+    await enqueuePayrollRun(priorRun.id, 25);
+    await drainPayrollQueue(10, priorRun.id);
+    const priorEntries = await db.select().from(payrollEntries)
+      .where(eq(payrollEntries.payrollRunId, priorRun.id));
+    assert.equal(priorEntries.length, 1, "the final cutoff requires one real first-cutoff calculation");
+    assert.ok((priorEntries[0].lineItems as Array<{ code?: string }>).some(line => line.code === "SSS"),
+      "the synthetic prior ledger must contain first-cutoff SSS evidence");
+    await db.update(payrollRuns).set({ status: "Released" }).where(eq(payrollRuns.id, priorRun.id));
+
     const [loan] = await db.insert(employeeLoans).values({
       organizationId: org.id,
       employeeId: activeEmployee.id,
