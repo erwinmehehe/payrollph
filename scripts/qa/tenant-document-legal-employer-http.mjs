@@ -79,8 +79,9 @@ export async function proveDocumentLegalEmployer() {
       assert.equal((await db.select().from(s[name]).limit(1)).length,0,
         "Non-empty database is not disposable: "+name);
     const nonce=randomUUID().replaceAll("-","").slice(0,10);
+    const fillers=[];
     for(let i=0;i<7;i++)
-      await fixture.seedEmployer("DOC_FILLER_"+i,nonce,fixture.standaloneMakeSession);
+      fillers.push(await fixture.seedEmployer("DOC_FILLER_"+i,nonce,fixture.standaloneMakeSession));
     const a=await fixture.seedEmployer("DOC_A",nonce,fixture.standaloneMakeSession);
     const b=await fixture.seedEmployer("DOC_B",nonce,fixture.standaloneMakeSession);
     const victim=await fixture.seedEmployer("DOC_C",nonce,fixture.standaloneMakeSession);
@@ -115,6 +116,10 @@ export async function proveDocumentLegalEmployer() {
       }).returning();
       return {row,data,marker};
     };
+    // Employer IDs and document IDs use separate PostgreSQL sequences. Seed
+    // real filler documents too, preserving the higher-ID victim control.
+    for(const [i,x] of fillers.entries())
+      await makeDocument({org:x.org,worker:x.worker,owner:x.owner,marker:"DOC_FILLER_"+i+"_"+nonce});
     const ownA=await makeDocument({org:a.org,worker:a.worker,owner:a.owner,marker:"DOC_A_"+nonce});
     const ownB=await makeDocument({org:b.org,worker:b.worker,owner:b.owner,marker:"DOC_B_"+nonce});
     const ownC=await makeDocument({org:victim.org,worker:victim.worker,owner:victim.owner,marker:"DOC_C_"+nonce});
