@@ -8,7 +8,7 @@
 
 `GET /api/hcm/documents`: currently aggregates organization-wide policy bodies and target rules, requirement definitions, employee/compliance details, expiry notices and private document metadata. Filtering the employees array alone would still expose cross-legal-employer policy content and references. **Until policies/requirements have approved legal-employer attribution, the entire GET fails closed with 503 and no parent data** under `MULTI_ENTITY_ENABLED=true`, after checking role and session/entity selection. Feature-OFF behavior is unchanged. Availability impact for multi-entity-on HR administrators is an explicit residual and requires product/security owner review.
 
-The `POST` handlers in the modified route files were not intentionally altered. However, both routes have new whole-file SHA and original evidence was tied to the old source, so **GET and POST on both routes (4 methods total)** are conservatively `GAP/testedBy:null`, with their prior receipts retained only as historical. Branch ledger: **457 covered / 4 GAP / 25 public / 12 privileged of 498**, not independently approved.
+**Both `POST` handlers now explicitly fail closed with a private/no-store 503 whenever multi-entity mode is enabled.** File uploads lack immutable issuer legal-employer attribution, and HCM document-policy mutations can affect parent-wide rules/compliance for other employers. The refusal occurs after authentication and same-origin validation but before multipart/JSON body parsing or writes. This intentionally blocks multi-entity-on upload and HCM policy mutation until a fully attributed workflow is approved; feature-OFF POST behavior stays unchanged. All four changed GET/POST methods are conservatively `GAP/testedBy:null`, with their original receipts historical only. Branch ledger: **457 covered / 4 GAP / 25 public / 12 privileged of 498**, not independently approved.
 
 ## Source-current disposable test
 
@@ -19,6 +19,7 @@ The `POST` handlers in the modified route files were not intentionally altered. 
 - Own source document lists populated; A-only grant omits B’s document and unattributed parent rows in same parent organization
 - Forged header, query, duplicate legal-employer selectors, parent-tenant cross-read and revoked-grant request refuse without changing protected DB rows
 - HCM policy GET 503 contains no private employee/document/policy data and is no-store
+- Both documents and HCM document-policy POST return 503 without processing mutations or altering employer documents/audit records
 - No production database credentials, external providers, live money, or method-credit promotion
 
 ## Remaining acceptance
