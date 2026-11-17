@@ -1,3 +1,5 @@
+> **HISTORICAL #2005 PG16 RENEWAL — SUPERSEDED BY #2006:** The original 75 method receipts below remain authentic evidence for the previous payroll engine only. The modified #2006 engine invalidates their current-source status; all 75 affected methods are GAP / zero-credit until fresh verification. This document does not authorize production or restore credits.
+
 # Fresh wage-source API credit renewals
 
 SOLO_VERIFIED_DEV_RECOVERY. Before: 386 COVERED / 75 GAP. After: 461 COVERED / 0 GAP; 498 methods total, including 25 public and 12 privileged-token methods.

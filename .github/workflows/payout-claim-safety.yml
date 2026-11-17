@@ -52,7 +52,7 @@ concurrency:
 
 jobs:
   payout-claim:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.55.0 Chromium supports Ubuntu 24.04; runner ubuntu-latest moved to 26.04
     timeout-minutes: 18
     env:
       CI: "true"

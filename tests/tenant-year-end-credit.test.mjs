@@ -54,7 +54,7 @@ test("forged receipt, altered financial source, and fake approval fail closed", 
       const fake=structuredClone(m);change(fake);
       assert.throws(()=>verifyWageYearEndHold(fake),"Tampered wage-source hold cannot restore credit");
     }
-    assert.throws(()=>verifyYearEndCredits(m),/current-source proof required/);
+    assert.throws(()=>verifyYearEndCredits(m),/(?:current-source proof required|source\/proof changed; renew PG16 review)/);
     return;
   }
   if (isYearEndHeld(m)) {
