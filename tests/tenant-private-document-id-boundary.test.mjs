@@ -89,3 +89,34 @@ test("vault removal scopes document lookup before employee authorization and pre
     "organizationId: row.organizationId, employeeId: row.employeeId",
   ]) assert.ok(source.includes(guard), "preserve removal authorization: " + guard);
 });
+
+test("private document bytes and signed URLs require the actual worker legal-employer grant", () => {
+  const source = read(downloadPath);
+  const workerEntity = source.indexOf("legalEntityId: employees.legalEntityId");
+  const flag = source.indexOf('if (criticalReleaseFlagEnabled("multiEntity"))');
+  const context = source.indexOf("const entityScope = await resolveMultiEntityContext({");
+  const grant = source.indexOf("assertEntityResource(entityScope.context, employee.legalEntityId)");
+  const unit = source.indexOf("assertScope(access, employee.orgUnitId)");
+  const signedUrl = source.indexOf("signedDocumentObjectUrl(document.objectStorageKey");
+  const legacyBytes = source.indexOf('Buffer.from(document.content, "base64")');
+  assert.ok(workerEntity > 0 && flag > workerEntity && context > flag &&
+    grant > context && unit > grant && signedUrl > unit && legacyBytes > signedUrl,
+    "Bound legal-employer check must run before any private object URL or legacy bytes");
+  assert.ok(source.includes("userId: user.id, organizationId: document.organizationId, request,"),
+    "Legal-employer access must be checked with the signed-in actor, resource employer and actual request");
+  assert.match(source, /if \(!entityScope\.ok \|\| assertEntityResource\(entityScope\.context, employee\.legalEntityId\)\)/);
+  assert.ok(source.includes('if (!entityScope.ok || assertEntityResource(entityScope.context, employee.legalEntityId)) {\n          return Response.json({ error: "Document not found." }, { status: 404 });'),
+    "Denied, revoked and nonexistent legal employers must not reveal which document exists");
+});
+
+test("multi-entity documents with no employee attribution must fail closed until reconciled", () => {
+  const source = read(downloadPath);
+  const orphan = source.indexOf('} else if (criticalReleaseFlagEnabled("multiEntity")) {');
+  const legacyFallback = source.indexOf('} else if (!access.companyWide) {');
+  const bytes = source.indexOf("if (document.objectStorageKey)");
+  assert.ok(orphan > 0 && legacyFallback > orphan && bytes > legacyFallback,
+    "Unassigned parent-company documents cannot bypass the legal-employer boundary");
+  assert.match(source.slice(orphan, legacyFallback), /return Response\.json\(\{ error: "Document not found\." \}, \{ status: 404 \}\)/);
+  // Do not equate source-only guards to executed PostgreSQL/HTTP approval.
+  assert.doesNotMatch(source, /SECURITY_ACCEPTED|PRODUCTION_CERTIFIED/);
+});
