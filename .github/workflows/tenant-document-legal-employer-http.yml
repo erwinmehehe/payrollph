@@ -54,6 +54,13 @@ jobs:
       S3_SECRET_ACCESS_KEY: ""
       R2_ACCESS_KEY_ID: ""
       R2_SECRET_ACCESS_KEY: ""
+      # Synthetic signing only. HTTPS loopback has no object server or writes;
+      # never supply real S3/R2 credentials to this disposable proof.
+      DOCUMENT_OBJECT_STORAGE_ENDPOINT: https://127.0.0.1:8444/
+      DOCUMENT_OBJECT_STORAGE_BUCKET: ci-documents-fixtures
+      DOCUMENT_OBJECT_STORAGE_REGION: ap-southeast-1
+      DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: CI_ONLY_SIGNING_KEY_FAKE
+      DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: CI_ONLY_NO_REMOTE_STORAGE
     services:
       postgres:
         image: postgres:16
