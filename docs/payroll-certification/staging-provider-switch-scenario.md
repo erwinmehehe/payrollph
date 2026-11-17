@@ -1,22 +1,77 @@
-# Staging scenario: provider-switch year, calculated-cutoff withholding
+# Local disposable scenario: provider-switch year, calculated-cutoff withholding
 
-Verifies PR #2013 on a staging tenant. The expected values are the hand-derived
-Phase 15 catalog values (`certification/golden-payroll-phase15.json`); staging
+Verifies PR #2013 on this computer's disposable PostgreSQL 16 only. The expected values are the hand-derived
+Phase 15 catalog values (`certification/golden-payroll-phase15.json`); observations
 must reproduce them to the centavo. The engine harness
 (`scripts/golden-payroll-phase15.ts`) is the ground truth for how each fixture
 row is built.
 
 ## Safety rules
 
-- Staging only, on a disposable tenant with fictional employees. Never run this
-  on a production tenant or with real employee data.
+- Local disposable PostgreSQL 16 only, with fictional employees. Never use production,
+  a Vercel preview (which shares the production database), any remote/shared database,
+  or real employee data. Never redirect or tunnel the local port to another server.
 - Payment rails off: `PAYMONGO_DISBURSEMENTS_ENABLED=false`,
   `XENDIT_PAYOUTS_ENABLED=false`, `XENDIT_BILLING_ENABLED=false`,
   `WORKER_ENABLED=false`, `CENTRAL_SCHEDULER_ENABLED=false`. No payout, no
   disbursement, no emails.
 - `EXACT_THIRTEENTH_CENTAVOS_ENABLED` stays off. This scenario does not test it.
-- The deployed build must contain #2013 (check the build SHA against the merge
-  commit or PR head).
+- The checkout must contain #2013 (a1d969e90 or later). Record the exact checkout SHA.
+  Do not represent a CLI engine receipt as a Next.js build or browser witness.
+
+## Local execution, one step at a time
+
+The operator runs these steps and shares sanitized results before continuing.
+This document is a recipe, not evidence of execution. Local execution remains
+NOT_RUN until an actual receipt is attached. No password, API key, environment
+dump or real employee data should be pasted.
+
+1. Stop only an older disposable database you recognize. From the main checkout,
+   start `node .qa-local/pg16-server.mjs .qa-local/pg16-phase15` with a fresh data
+   directory. Confirm PostgreSQL 16 listens on 127.0.0.1:5432. If the port is occupied
+   or the directory already contains data, stop and investigate; do not reset it.
+2. In a separate PowerShell terminal in the #2013 checkout, confirm `git rev-parse HEAD`
+   and that the relevant source is committed. Install dependencies with `npm ci`
+   if needed. Set this session's environment:
+
+   ```powershell
+   $env:DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/app_db'
+   $env:GOLDEN_PHASE15_DISPOSABLE = 'local-disposable-pg16-only'
+   $env:GOLDEN_PHASE15_LOCAL_CONFIRM = 'fresh-empty-fictional-database'
+   $env:TZ = 'Asia/Manila'
+   Remove-Item Env:CI, Env:GITHUB_ACTIONS -ErrorAction SilentlyContinue
+   $off = @('PAYMONGO_DISBURSEMENTS_ENABLED', 'XENDIT_PAYOUTS_ENABLED',
+     'XENDIT_BILLING_ENABLED', 'WORKER_ENABLED', 'CENTRAL_SCHEDULER_ENABLED',
+     'EXACT_THIRTEENTH_CENTAVOS_ENABLED', 'FINAL_PAY_SIGNED_REVIEW_ENABLED',
+     'FINAL_PAY_MANUAL_RELEASE_ENABLED', 'PAYROLL_CALCULATION_HISTORY_ENABLED', 'NEXT_CSP_ENABLED')
+   foreach ($name in $off) { Set-Item -Path "Env:$name" -Value 'false' }
+   foreach ($name in @('PII_ENCRYPTION_KEY', 'BANK_DATA_ENCRYPTION_KEY', 'TOTP_ENCRYPTION_KEY')) {
+     $ephemeral = node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))"
+     Set-Item -Path "Env:$name" -Value $ephemeral
+   }
+   Remove-Variable ephemeral
+   ```
+
+   Provider/email keys and deployment variables must be absent. The preflight
+   names any forbidden variable without displaying its value. Do not load a
+   deployed environment file. Keep ephemeral encryption keys local if the app
+   requires them; never print or share them.
+3. Prepare the empty local schema with
+   `node --import tsx scripts/qa/golden-phase15-local-bootstrap.ts`.
+   It checks target, PG16 identity, loopback server/client and zero employers
+   before schema writes, then applies two hash-pinned source baseline files.
+   It does not reset/drop a database. Do not use the CI-only
+   `apply-isolated-baseline.mjs`, or set CI variables to bypass its guard.
+4. Run `node --import tsx scripts/golden-payroll-phase15.ts` and preserve
+   `qa-artifacts/golden-payroll-phase15-reconciliation.json`. This invokes the real engine
+   directly; `npm run dev` is unnecessary. Browser/import-screen verification is
+   separate and NOT_RUN; do not infer menu paths or UI success from this receipt.
+
+The harness checks every cutoff before setting its synthetic run to Released
+for annualization. This fixture marker is not a human approval or payout.
+On failure it stops further cutoffs, retains the fictional database, and records
+available run/entry IDs and observations. Stop, capture those payslips and IDs,
+and do not merge. Unexecuted cutoffs and year-end results are NOT_RUN.
 
 ## Setup
 
@@ -104,14 +159,19 @@ All of the following, to the centavo:
 ## Fail and stop conditions
 
 - A withholds 484.95 at cutoff 21 or later: the fix is not active on the
-  deployed build. Stop and confirm the build SHA.
+  tested checkout. Stop and confirm the checkout SHA.
 - D is anything but Ready, or any employee shows a different amount to the
   centavo: capture the payslip and run id, and do not merge.
 - Any unexpected status flip to Ready on A, B or C: the review hold was
   lost. Stop and do not merge.
+- Any payout or email appears: stop, preserve the evidence, and do not merge.
 
 ## Evidence to attach to the PR
 
-Build SHA, the four run ids, a per-cutoff table of observed withholding and
-status for each employee, the year-end figures, and confirmation that all
-payment rails were off.
+Attach the receipt with exact checkout SHA and source hashes, four employee IDs,
+all actual run/entry IDs (12 shared cutoff runs on a complete run), the 48-cell
+observed withholding/status/flags table, every year-end figure and confirmation
+that all payment rails were off. Do not invent four run IDs: each cutoff run
+contains the four employees. If separately testing the UI, also record its actual
+build SHA. Evidence is SOLO_VERIFIED_DEV_RECOVERY, not an independent witness or
+production acceptance. CI success does not substitute for the operator's local run.

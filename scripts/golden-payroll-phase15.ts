@@ -8,11 +8,18 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {execFileSync} from "node:child_process";
 import { and, eq } from "drizzle-orm";
-import { db, pool } from "../src/db";
 import { deMinimisGrants, employeePayProfiles, employees, historicalPayrollEntries, organizations, payrollEntries, payrollRuns, yearEndAdjustments } from "../src/db/schema";
-import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
-import { runYearEndAnnualization } from "../src/lib/year-end";
+import {requirePhase15Environment,requirePhase15Database,PHASE15_OFF,type Phase15Mode} from "./qa/golden-phase15-safety";
+import {phase15Centavos,phase15CutoffFailures,type Phase15Observation} from "./qa/golden-phase15-observations";
+
+let db: typeof import("../src/db").db;
+let pool: typeof import("../src/db").pool;
+let drainPayrollQueue: typeof import("../src/lib/payroll-engine").drainPayrollQueue;
+let enqueuePayrollRun: typeof import("../src/lib/payroll-engine").enqueuePayrollRun;
+let runYearEndAnnualization: typeof import("../src/lib/year-end").runYearEndAnnualization;
+const executedRunIds:number[]=[];
 
 type Money = Record<string, number | string>;
 type ImportedRow = {
@@ -28,7 +35,7 @@ type Spec = {
 };
 type Catalog = { version: string; toleranceCentavos: number; sources: Record<string, string>; assumptions: string[]; employees: Record<string, Spec>; limitations: string[] };
 type CaseResult = { id: string; part: string; status: "passed" | "failed"; expected: unknown; actual?: unknown; failures: string[] };
-type CutoffObservation = { status: string; withholding: number; noBreakdownFlag: boolean; poolFlag: boolean };
+type CutoffObservation = Phase15Observation & {runId:number;entryId:number;employeeId:number;payDate:string};
 
 const catalogPath = "certification/golden-payroll-phase15.json";
 const artifactPath = "qa-artifacts/golden-payroll-phase15-reconciliation.json";
@@ -39,12 +46,15 @@ const MONTH_END = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const NO_BREAKDOWN_FLAG = "has no de minimis category breakdown";
 const POOL_FLAG = "does not identify the shared PHP 90,000";
 
-const cents = (value: number, label: string) => {
-  assert.ok(Number.isFinite(value), `${label}: non-finite amount`);
-  const result = Math.round((value + Number.EPSILON) * 100);
-  assert.ok(Number.isSafeInteger(result), `${label}: unsafe centavo amount`);
-  return result;
-};
+const cents=phase15Centavos;
+
+async function assertNoRails() {
+  const {rows:[counts]}=await pool.query(`SELECT
+    (SELECT count(*)::int FROM outbox) AS emails,
+    (SELECT count(*)::int FROM payout_batches) AS batches,
+    (SELECT count(*)::int FROM payout_transfers) AS transfers`);
+  assert.deepEqual(counts,{emails:0,batches:0,transfers:0},"PHASE15_STOP: email or payout state appeared; preserve evidence and do not merge");
+}
 
 function compare(id: string, expected: Money, actual: Record<string, unknown>) {
   const failures: string[] = [];
@@ -95,6 +105,7 @@ async function runCutoff(orgId: number, cutoff: number, employeeIds: Map<number,
     organizationId: orgId, periodLabel: period.label, scopeLabel: "All locations", status: "Draft",
     periodStart: period.periodStart, periodEnd: period.periodEnd, payDate: period.periodEnd,
   }).returning();
+  executedRunIds.push(run.id);
   await enqueuePayrollRun(run.id, 25);
   await drainPayrollQueue(10, run.id);
   const rows = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
@@ -116,31 +127,15 @@ async function runCutoff(orgId: number, cutoff: number, employeeIds: Map<number,
       `${key} cutoff ${cutoff}: withholding must be a finite deduction (negative WHT line), got ${String(rawWht)}`);
     const flags = ((row.trace as { flags?: unknown })?.flags ?? []) as unknown[];
     observed.set(key, {
+      runId:run.id,entryId:row.id,employeeId:row.employeeId,payDate:period.periodEnd,
       status: row.status,
       withholding: -wht,
+      flags:flags.map(String),
       noBreakdownFlag: flags.some((flag) => String(flag).includes(NO_BREAKDOWN_FLAG)),
       poolFlag: flags.some((flag) => String(flag).includes(POOL_FLAG)),
     });
   }
-  // The year-end annualization reads Released runs; the release approval workflow is not part of this certification.
-  await db.update(payrollRuns).set({ status: "Released" }).where(eq(payrollRuns.id, run.id));
   return observed;
-}
-
-function checkCutoffs(id: string, spec: Spec, byCutoff: Map<number, CutoffObservation>) {
-  const failures: string[] = [];
-  for (let cutoff = 13; cutoff <= 24; cutoff++) {
-    const seen = byCutoff.get(cutoff);
-    if (!seen) { failures.push(`${id} cutoff ${cutoff}: not observed`); continue; }
-    const expectedWht = spec.cutoffs.withholdingOverrides?.[String(cutoff)] ?? spec.cutoffs.withholdingEachCutoff;
-    if (cents(seen.withholding, id) !== cents(expectedWht, id)) failures.push(`${id} cutoff ${cutoff} withholding: expected ₱${expectedWht.toFixed(2)}, got ₱${seen.withholding.toFixed(2)}`);
-    if (seen.status !== spec.cutoffs.status) failures.push(`${id} cutoff ${cutoff} status: expected ${spec.cutoffs.status}, got ${seen.status}`);
-    const wantBreakdown = spec.cutoffs.noBreakdownFlagFrom !== null && cutoff >= spec.cutoffs.noBreakdownFlagFrom;
-    if (seen.noBreakdownFlag !== wantBreakdown) failures.push(`${id} cutoff ${cutoff} no-breakdown review flag: expected ${wantBreakdown}, got ${seen.noBreakdownFlag}`);
-    const wantPool = spec.cutoffs.poolFlagFrom !== null && cutoff >= spec.cutoffs.poolFlagFrom;
-    if (seen.poolFlag !== wantPool) failures.push(`${id} cutoff ${cutoff} pool review flag: expected ${wantPool}, got ${seen.poolFlag}`);
-  }
-  return failures;
 }
 
 async function runEngine(catalog: Catalog) {
@@ -149,8 +144,11 @@ async function runEngine(catalog: Catalog) {
   const [org] = await db.insert(organizations).values({ name: "Golden P15 provider-switch cutoffs", legalName: "Golden P15 provider-switch cutoffs Inc.", plan: "Core", statutoryDeductionTiming: "split" }).returning();
   const failuresById = new Map<string, string[]>();
   const fail = (id: string, message: string) => failuresById.set(id, [...(failuresById.get(id) ?? []), message]);
+  const workers = new Map<string, typeof employees.$inferSelect>();
+  const observed = new Map<string, Map<number, CutoffObservation>>(specs.map(([id]) => [id, new Map()]));
+  const yearEnds=new Map<string,Record<string,unknown>>();
+  let completed=false;
   try {
-    const workers = new Map<string, typeof employees.$inferSelect>();
     for (const [id] of specs) workers.set(id, await hire(org.id, id));
     const idByEmployee = new Map<number, string>([...workers].map(([id, employee]) => [employee.id, id]));
     for (const [id, spec] of specs) {
@@ -172,12 +170,17 @@ async function runEngine(catalog: Catalog) {
         });
       }
     }
-    const observed = new Map<string, Map<number, CutoffObservation>>(specs.map(([id]) => [id, new Map()]));
     for (let cutoff = 13; cutoff <= 24; cutoff++) {
       const perWorker = await runCutoff(org.id, cutoff, idByEmployee);
       for (const [id, seen] of perWorker) observed.get(id)!.set(cutoff, seen);
+      for(const [id,spec]of specs)for(const message of phase15CutoffFailures(id,spec.cutoffs,cutoff,perWorker.get(id)!))fail(id,message);
+      assert.equal(failuresById.size,0,`PHASE15_STOP: cutoff ${cutoff} differs; retain payslip/run IDs and do not merge`);
+      await assertNoRails();
+      // Synthetic annualization fixture ONLY, after all four observed rows pass.
+      // This does not perform a human approval, disbursement or real release.
+      const runId=perWorker.values().next().value!.runId;
+      await db.update(payrollRuns).set({status:"Released"}).where(eq(payrollRuns.id,runId));
     }
-    for (const [id, spec] of specs) for (const message of checkCutoffs(id, spec, observed.get(id)!)) fail(id, message);
 
     await runYearEndAnnualization(org.id, TAX_YEAR, "golden-phase15");
     const adjustments = await db.select().from(yearEndAdjustments).where(and(eq(yearEndAdjustments.organizationId, org.id), eq(yearEndAdjustments.taxYear, TAX_YEAR)));
@@ -189,52 +192,52 @@ async function runEngine(catalog: Catalog) {
         statutoryContributions: Number(row.statutoryContributions), taxableIncome: Number(row.taxableIncome), taxDue: Number(row.taxDue),
         taxWithheld: Number(row.taxWithheld), adjustment: Number(row.adjustment), outcome: row.outcome,
       };
+      yearEnds.set(id,{...actual,adjustmentId:row.id});
       for (const message of compare(`${id} year-end`, spec.yearEnd, actual)) fail(id, message);
     }
-    for (const [id, spec] of specs) {
-      const row = adjustments.find((item) => item.employeeId === workers.get(id)!.id);
+    await assertNoRails();
+    completed=failuresById.size===0;
+  } catch(error) {
+    const message=errorText(error);
+    for(const [id]of specs)fail(id,"STOP / remaining observations NOT_RUN: "+message);
+  } finally {
+    for(const [id,spec]of specs){
+      const cutoffs=Object.fromEntries(observed.get(id)!);
       results.push(outcome(id, "engine", { cutoffs: spec.cutoffs, yearEnd: spec.yearEnd },
-        { cutoff13: observed.get(id)!.get(13), cutoff24: observed.get(id)!.get(24), taxDue: row ? Number(row.taxDue) : undefined, adjustment: row ? Number(row.adjustment) : undefined },
+        {organizationId:org.id,employeeId:workers.get(id)?.id,runIds:executedRunIds,
+          cutoffs,cutoff13:observed.get(id)!.get(13),cutoff24:observed.get(id)!.get(24),
+          yearEnd:yearEnds.get(id)??null,taxDue:yearEnds.get(id)?.taxDue,adjustment:yearEnds.get(id)?.adjustment,
+          fictionalDatabaseRetainedForFailure:!completed},
         failuresById.get(id) ?? []));
     }
-  } finally {
-    await db.delete(yearEndAdjustments).where(eq(yearEndAdjustments.organizationId, org.id));
-    await db.delete(organizations).where(eq(organizations.id, org.id));
+    if(completed){
+      await db.delete(yearEndAdjustments).where(eq(yearEndAdjustments.organizationId, org.id));
+      await db.delete(organizations).where(eq(organizations.id, org.id));
+    }
   }
   return results;
 }
 
-async function requireDisposablePhase15() {
-  // This harness creates synthetic payroll runs and marks them Released for
-  // ANNUALIZATION ONLY. Never allow it to touch a developer/customer database.
-  for (const [name, expected] of Object.entries({
-    CI: "true",
-    GITHUB_ACTIONS: "true",
-    GOLDEN_PHASE15_DISPOSABLE: "github-actions-pg16-only",
-    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
-    PAYMONGO_DISBURSEMENTS_ENABLED: "false",
-    XENDIT_PAYOUTS_ENABLED: "false",
-    XENDIT_BILLING_ENABLED: "false",
-    WORKER_ENABLED: "false",
-    CENTRAL_SCHEDULER_ENABLED: "false",
-  })) {
-    assert.equal(process.env[name], expected, "PHASE15_REFUSED: unsafe " + name);
-  }
-  for (const name of [
-    "NEON_DATABASE_URL", "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY",
-    "STRIPE_SECRET_KEY", "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN",
-    "SMTP_PASSWORD", "OPENAI_API_KEY", "WORKER_TOKEN", "CRON_SECRET",
-  ]) {
-    assert.ok(!process.env[name], "PHASE15_REFUSED: provider credential " + name);
-  }
-  const version = Number((await pool.query("SHOW server_version_num")).rows[0].server_version_num);
-  assert.ok(version >= 160000 && version < 170000, "PHASE15_REFUSED: PG16 required");
-  const { rows: [count] } = await pool.query("SELECT COUNT(*)::int AS n FROM organizations");
-  assert.equal(count.n, 0, "PHASE15_REFUSED: database must contain no employers");
+async function requireDisposablePhase15(mode:Phase15Mode) {
+  const {rows:[state]}=await pool.query(`SELECT current_setting('server_version_num')::int AS version,
+    current_database() AS database, host(inet_server_addr()) AS "serverAddress", host(inet_client_addr()) AS "clientAddress",
+    (SELECT count(*)::int FROM organizations) AS employers`);
+  requirePhase15Database(state,mode);
+  await assertNoRails();
 }
 
 async function main() {
-  await requireDisposablePhase15();
+  const mode=requirePhase15Environment(process.env);
+  const sourceHead=execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim();
+  const sourceFiles=["scripts/golden-payroll-phase15.ts","scripts/qa/golden-phase15-safety.ts",
+    "scripts/qa/golden-phase15-observations.ts","src/lib/payroll-engine.ts","src/lib/imported-benefit-prior.ts",
+    "src/lib/year-end.ts","src/lib/ph-compliance.ts",catalogPath];
+  execFileSync("git",["diff","--quiet","HEAD","--",...sourceFiles],{stdio:"ignore"});
+  const database=await import("../src/db");db=database.db;pool=database.pool;
+  await requireDisposablePhase15(mode);
+  const engine=await import("../src/lib/payroll-engine");
+  drainPayrollQueue=engine.drainPayrollQueue;enqueuePayrollRun=engine.enqueuePayrollRun;
+  ({runYearEndAnnualization}=await import("../src/lib/year-end"));
   const raw = readFileSync(catalogPath, "utf8");
   const catalog = JSON.parse(raw) as Catalog;
   assert.equal(catalog.toleranceCentavos, 0, "Phase 15 compares exact centavos");
@@ -247,6 +250,10 @@ async function main() {
   const failed = results.filter((r) => r.status === "failed");
   mkdirSync("qa-artifacts", { recursive: true });
   writeFileSync(artifactPath, JSON.stringify({
+    evidenceLabel:"SOLO_VERIFIED_DEV_RECOVERY",executionMode:mode,engineCheckoutSha:sourceHead,
+    sourceSha256:Object.fromEntries(sourceFiles.map(file=>[file,createHash("sha256").update(readFileSync(file)).digest("hex")])),
+    flags:Object.fromEntries(PHASE15_OFF.map(name=>[name,process.env[name]])),
+    exactThirteenthCentavosEnabled:false,productionAccepted:false,
     version: catalog.version, catalogSha256: createHash("sha256").update(raw).digest("hex"), status: failed.length ? "failed" : "passed",
     caseCount: results.length, sources: catalog.sources, assumptions: catalog.assumptions, results, limitations: catalog.limitations,
   }, null, 2) + "\n");
@@ -255,4 +262,4 @@ async function main() {
   if (failed.length) process.exitCode = 1;
 }
 
-main().finally(() => pool.end());
+main().catch(error=>{console.error(errorText(error));process.exitCode=1;}).finally(async()=>{if(pool)await pool.end();});

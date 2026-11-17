@@ -9,6 +9,8 @@ on:
       - "certification/golden-payroll-phase15.json"
       - "src/lib/imported-benefit-prior.ts"
       - "tests/imported-benefit-prior.test.ts"
+      - "scripts/qa/golden-phase15-*.ts"
+      - "tests/golden-phase15-safety.test.ts"
       - "src/lib/payroll-engine.ts"
       - "src/lib/year-end.ts"
       - "src/lib/ph-compliance.ts"
@@ -57,6 +59,7 @@ jobs:
       XENDIT_BILLING_ENABLED: "false"
       WORKER_ENABLED: "false"
       CENTRAL_SCHEDULER_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
       NEON_DATABASE_URL: ""
       PAYMONGO_SECRET_KEY: ""
       XENDIT_SECRET_KEY: ""
@@ -96,7 +99,7 @@ jobs:
       - name: Apply reviewed disposable schema baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Verify imported monetary evidence, including negative controls
-        run: node --import tsx --test tests/imported-benefit-prior.test.ts
+        run: node --import tsx --test tests/imported-benefit-prior.test.ts tests/golden-phase15-safety.test.ts
       - name: Execute all 4 real-engine cutoff and year-end cases
         run: npx tsx scripts/golden-payroll-phase15.ts
       - name: Verify artifact has all four genuine passed cases

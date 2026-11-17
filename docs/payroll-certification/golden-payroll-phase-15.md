@@ -2,7 +2,7 @@
 
 Phase 14 certified the **year-end settlement** of a company that switched payroll provider part-way through the year and said, under "Not covered": *withholding in the calculated cutoffs is not asserted*. Phase 15 closes that gap. It runs the real engine for cutoffs 13–24 after six imported months and checks, for every calculated cutoff, the withholding on the payslip, the payroll entry status and the review flags, and then that the real `runYearEndAnnualization()` closes the year exactly.
 
-Run: `npx tsx scripts/golden-payroll-phase15.ts` against the disposable PostgreSQL used by CI. Expected values are immutable hand-derived literals in `certification/golden-payroll-phase15.json`, never computed with PayrollPH functions.
+Run: `npx tsx scripts/golden-payroll-phase15.ts` against disposable PostgreSQL 16, either in the existing guarded CI job or the explicit local mode in [the local operator runbook](staging-provider-switch-scenario.md). Never impersonate CI to run locally. Expected values are immutable hand-derived literals in `certification/golden-payroll-phase15.json`, never computed with PayrollPH functions. A CI receipt does not certify a local or browser witness; report those NOT_RUN until actually executed.
 
 ## What it certifies (4 cases, 12 calculated cutoffs each)
 
