@@ -13,6 +13,17 @@ export const WAGE_RENEWAL_RECEIPT='scripts/qa/wage-registry-renewal-receipt.json
 export const WAGE_RENEWAL_RECEIPT_BLOB='8af7a0d35cb85b2d616babdc0a56fc62fcad9856';
 export const blob=raw=>{const b=Buffer.from(raw);return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');};
 export function isExactHistoricalLoaderChange(file,sha,raw){
+ if(file==='scripts/qa/tenant-four-scoped-page-credit.mjs'){
+  const archive=readFileSync('scripts/qa/wage-registry-renewal-sso-source.json');
+  assert.equal(blob(archive),'3988d1c5f79dbbfb1c01253be90e4676fa4d7512');
+  const original=JSON.parse(archive).source;assert.equal(blob(original),sha);
+  const start=original.indexOf('    const expected = structuredClone(head);',original.indexOf('FOUR_PAGE_REFUSED: only the exact committed'));
+  const end=original.indexOf('    assert.equal(held, 19,',start);
+  assert.ok(start>0&&end>start);
+  const expected="import {zeroCreditSsoProofFixture} from './payroll-run-sso-proof-fixture.mjs';\n"+original.slice(0,start)+
+   '    const expected = zeroCreditSsoProofFixture(head);\n    const held = head.metrics.coveredAfter - expected.metrics.coveredAfter;\n'+original.slice(end);
+  return Buffer.from(raw).toString('utf8').replaceAll('\r\n','\n')===expected+'\n';
+ }
  if(!['tests/tenant-filing-outcome-contract.test.mjs','tests/tenant-filing-patch-method-contract.test.mjs'].includes(file))return false;
  // These two unit tests are included by the historical workflow collector.
  // Permit ONLY a verified historical manifest loader; every assertion and

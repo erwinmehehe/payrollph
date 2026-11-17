@@ -5,6 +5,7 @@ import test from 'node:test';
 import {zeroCreditSsoProofFixture} from '../scripts/qa/payroll-run-sso-proof-fixture.mjs';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {historicWageRegistryProofView} from '../scripts/qa/wage-registry-source-hold.mjs';
+import {verifyCurrentScopedPageGapCount} from '../scripts/qa/tenant-four-scoped-page-credit.mjs';
 const read=()=>readWageWithdrawalFixture();
 test('fresh wage renewals can be zeroed only in the disposable nineteen-method fixture, without changing the live ledger',()=>{
  const path='scripts/qa/tenant-isolation-coverage-manifest.json',raw=readFileSync(path,'utf8'),m=JSON.parse(raw);
@@ -18,6 +19,13 @@ test('fresh wage renewals can be zeroed only in the disposable nineteen-method f
  }
  assert.equal(verifyOracleSourceHolds(f).size,19);
  assert.doesNotThrow(()=>historicWageRegistryProofView(f),'SSO replay must retain the complete exact wage-withdrawal history');
+ const prior={CI:process.env.CI,GITHUB_ACTIONS:process.env.GITHUB_ACTIONS,TENANT_SECOND_PASS_MODE:process.env.TENANT_SECOND_PASS_MODE};
+ try{
+  Object.assign(process.env,{CI:'true',GITHUB_ACTIONS:'true',TENANT_SECOND_PASS_MODE:'isolated-ci-only'});
+  assert.equal(verifyCurrentScopedPageGapCount(f),0);
+  const tampered=structuredClone(f);tampered.scopedPages[0].reason+=' forged';
+  assert.throws(()=>verifyCurrentScopedPageGapCount(tampered));
+ }finally{for(const [key,value]of Object.entries(prior)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
  assert.deepEqual(zeroCreditSsoProofFixture(f),f);
  assert.equal(readFileSync(path,'utf8'),raw);
 });

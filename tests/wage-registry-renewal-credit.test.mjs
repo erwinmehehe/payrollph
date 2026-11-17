@@ -40,6 +40,10 @@ test('historical loader compatibility cannot change an assertion, add executable
  assert.equal(isExactHistoricalLoaderChange(file,r.sourcePins[file],raw.replace('assert.match(manifest.acceptanceStatus','assert.doesNotMatch(manifest.acceptanceStatus')),false);
  assert.equal(isExactHistoricalLoaderChange(file,r.sourcePins[file],raw+'\nconsole.log("extra code");'),false);
  assert.equal(isExactHistoricalLoaderChange('scripts/qa/tenant-filing-outcome-http.mjs',r.sourcePins[file],raw),false);
+ const four='scripts/qa/tenant-four-scoped-page-credit.mjs',source=readFileSync(four,'utf8');
+ assert.equal(isExactHistoricalLoaderChange(four,r.sourcePins[four],source),true);
+ assert.equal(isExactHistoricalLoaderChange(four,r.sourcePins[four],source.replace('assert.equal(held, 19,','assert.equal(held, 18,')),false);
+ assert.equal(isExactHistoricalLoaderChange(four,r.sourcePins[four],source.replace('assert.deepEqual(manifest, expected,','assert.notDeepEqual(manifest, expected,')),false);
 });
 
 test('all 75 exact methods have bounded, complete original proof family requirements',()=>{
