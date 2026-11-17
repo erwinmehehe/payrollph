@@ -40,6 +40,11 @@ function requireDisposable(env=process.env) {
     assert.ok(!env[k],"DOCUMENT_ENTITY_REFUSED: external secret "+k);
   for (const [file,pin] of Object.entries(PINS))
     assert.equal(sha(readFileSync(file)),pin,"DOCUMENT_ENTITY_REFUSED: changed source "+file);
+  const ledger=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+  const record=ledger.allApiRouteFiles[ROUTE]?.methods?.find(x=>x.name==="GET");
+  assert.deepEqual({status:record?.status,credits:record?.reviewedUncertified?.coverageCredits,proof:record?.testedBy},
+    {status:"GAP",credits:0,proof:null},
+    "Source-only real HTTP may not auto-promote a stale or unreviewed private-document method");
   return true;
 }
 
