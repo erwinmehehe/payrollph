@@ -271,7 +271,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...yearEndAnnualizationSourceHold(oldProofView, manifest),
     ...reviewedWorker360LegalEmployerSupersession(oldProofView, manifest),
     ...reviewedOidcSourceSupersession(oldProofView, manifest),
-    ...verifyOracleSourceHolds(manifest, base.manifest),
+    ...verifyOracleSourceHolds(manifest, oldProofView),
     ...reviewedWageRegistrySourceWithdrawals(oldProofView, manifest),
     ...reviewedTransitiveWageWithdrawals(oldProofView, manifest),
     ...reviewedSealedWageWithdrawals(oldProofView, manifest),
