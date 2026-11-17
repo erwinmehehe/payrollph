@@ -140,6 +140,16 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
+  // The documents table cannot attribute legacy or new uploads to a legal
+  // employer at issuance. Until a reviewed immutable owner field exists,
+  // no staff or employee upload may create un-attributed multi-entity files.
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal-employer document uploads require source reconciliation.",
+      code: "DOCUMENT_UPLOAD_ENTITY_SCOPE_PENDING",
+    }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
+
   if (!documentUploadsEnabled()) {
     return Response.json(
       {
