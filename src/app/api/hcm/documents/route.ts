@@ -270,6 +270,16 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
+  // A parent-wide policy write can change other legal employers' document
+  // requirements, compliance, or uploaded files. Until every affected row has
+  // a reviewed issuer/employer authority, reject ALL HCM policy mutations.
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "HCM document policy mutation requires legal-employer reconciliation.",
+      code: "HCM_DOCUMENT_MUTATION_ENTITY_SCOPE_PENDING",
+    }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
+
   const demoDenied = publicDemoMutationDenied(user.email, "HCM documents and policy controls");
   if (demoDenied) return demoDenied;
 
