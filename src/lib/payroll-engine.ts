@@ -1181,6 +1181,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     ? await reader.select({
         employeeId: historicalPayrollEntries.employeeId,
         payDate: historicalPayrollEntries.payDate,
+        grossPay: historicalPayrollEntries.grossPay,
         thirteenthMonth: historicalPayrollEntries.thirteenthMonth,
         deMinimisBreakdown: historicalPayrollEntries.deMinimisBreakdown,
       })
