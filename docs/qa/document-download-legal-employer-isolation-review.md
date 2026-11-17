@@ -8,6 +8,7 @@
 The source change:
 - Retains the parent-tenant path-ID prefilter; anonymous and foreign-parent IDs remain excluded.
 - For staff downloads linked to a worker, resolves the request's selected legal-employer context from current persisted grants and session policy, then compares the actual employee `legalEntityId` using `assertEntityResource`. Missing/grant-revoked/foreign legal employer produces the same opaque 404 as an unknown document, before signed URLs, document bytes or audit writes.
+- When the multi-entity flag is ON, staff GET also returns opaque 404 if a worker has an `applied` legal-employer transfer request or a historical assignment to a different legal employer. This blocks using the worker's current employer to read an ambiguously issued legacy document before attribution.
 - When the multi-entity flag is ON, returns 404 for documents with no employee attribution because `documents` has no legal-employer column. These require a separate approved attribution/migration plan; do not infer parent-company access authorizes every legal employer.
 - When the flag is OFF, retains existing employer membership, role/unit, employee ownership, scanner/integrity, content security and audit behavior.
 - Does not grant `group_hr` access through legacy document endpoints.
@@ -23,3 +24,8 @@ Before promotion/merge, security must run a new exact-head real HTTP/disposable 
 5. Reconcile source pins and source-current method inventory and **only then** consider a new method credit after human privacy/security review. Do not replace old immutable evidence with an invented success label.
 
 Also inspect metadata list routes `/api/documents` and `/api/hcm/documents` for same-parent cross-legal-employer exposure; this draft does not certify or fix those other methods. Track overall acceptance in #2012 and HR/COE in #1966.
+
+## Recorded transfer-history negative tests
+The source-current [disposable PG16 HTTP runner](../../scripts/qa/tenant-document-legal-employer-http.mjs) additionally seeds a *real conflicting historical employer assignment* for an otherwise authorized employee and an *applied former-to-current legal-employer transfer* for a second authorized employee. Both previously readable documents must become opaque 404 while session and current employer grant remain active. Protected documents, employees, audit, assignments and transfer rows must remain unchanged by each denied request. This is a deliberately conservative read-only hold, not a claim to infer issuance-time employer from current worker attribution.
+
+**Residual limitation:** The legacy `documents` schema has no immutable legal-employer-at-issuance field. Unrecorded or incorrectly migrated transfer history, employee self-document behavior, object signing and metadata list routes remain separate review requirements. Keep the `GET /api/documents/[id]` method at **GAP / zero credit** pending exact current-head reproof, transfer migration reconciliation and independent HR/security review. Do not edit old sealed receipts or enable production multi-entity access from this draft.
