@@ -80,10 +80,14 @@ assert.equal(verifySixPageCredits(liveManifest), selectedTargets().length,
 // Current renewals must pass their complete source/job/SQL proof verifier before
 // old receipt/catalogue tests inspect the immutable withdrawal fixture below.
 const manifest = wageRenewalHoldView(historicSixPageView(liveManifest));
+// The archived view is for immutable old-receipt checks only. Never compare
+// its 75 source-withdrawal GAPs with a newer main as if they were live losses.
+// Current method counts and base-ref regression checks use the source-current ledger.
+assertLiveTenantCounts(assert, liveManifest);
 // Verify the exact 23+47+5 immutable, zero-credit wage-source holds.
 const archivedWageManifest = historicWageRegistryProofView(manifest);
-verifyMergedProofCredits(manifest);
-verifyReconciledFamilyCredits(manifest);
+verifyMergedProofCredits(liveManifest);
+verifyReconciledFamilyCredits(liveManifest);
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
 
 function normalize(value) { return value.split(sep).join("/"); }
@@ -1785,7 +1789,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     "src/app/api/self/performance/action-items/route.ts PATCH",
     "src/app/api/workforce-planning/demand-handoff/route.ts POST",
   ].includes(key)) {
-    assert.equal(verifyPost1523Credits(manifest), 3);
+    assert.equal(verifyPost1523Credits(liveManifest), 3);
     return; // Exact identities and immutable PG16 source/workflow hashes.
   }
   if (isNewOrChanged && method.status === "GAP" &&
@@ -4450,7 +4454,7 @@ test("#1302 verifies actual own/foreign first-payroll and legal-employer HTTP wi
     ["GET", "COVERED", "scripts/qa/tenant-pii01-identifier-review-http.mjs"],
     ["POST", "COVERED", "scripts/qa/tenant-pii01-identifier-review-http.mjs"],
   ], "Only the separate GET and POST identifier review proofs add provisional method credits");
-  assertLiveTenantCounts(assert, manifest);
+  assertLiveTenantCounts(assert, liveManifest);
 });
 
 test("group reports use three genuine tenant readers and refuse foreign legal employer attribution", () => {
@@ -4971,7 +4975,7 @@ test("all credited proof links point to the claimed route and every recertified 
         continue; // Exactly four executed, source-bound methods; not a generic allowlist.
       }
       if (proof?.verifiedMainCommit === "5a3c209dffb2198e8944d0781025c42b117024b0") {
-        assert.equal(verifyPost1523Credits(manifest), 3);
+        assert.equal(verifyPost1523Credits(liveManifest), 3);
         continue; // Exactly three independently source-pinned methods.
       }
       if (proof?.verifiedMainCommit === "a7dc1f5184f59f3c5ac348e37b4ca88810f10651") {
@@ -5069,7 +5073,7 @@ test("all credited proof links point to the claimed route and every recertified 
         continue;
       }
       if (["scripts/qa/tenant-benefit-enrollments-http.mjs", "scripts/qa/tenant-worksites-http.mjs"].includes(proof?.file)) {
-        assert.equal(verifyMergedProofCredits(manifest), 4);
+        assert.equal(verifyMergedProofCredits(liveManifest), 4);
         continue;
       }
       if (proof?.file === "scripts/qa/underpayment-posting-http.mjs") {
@@ -8786,7 +8790,7 @@ test("2026-11-02 exact-head promotion sweep pins six four-part method receipts a
   }
   // Live manifest counts must be derived and non-regressing against the PR base.
   // Never pin a moving six-credit tally inside a regression test.
-  assertLiveTenantCounts(assert, manifest);
+  assertLiveTenantCounts(assert, liveManifest);
 });
 
 test("PayMongo transfer webhook credit requires the exact passing run, byte-pinned inputs, the provider-callback rule and a cited call per case", () => {
