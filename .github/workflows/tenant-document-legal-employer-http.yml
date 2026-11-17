@@ -23,7 +23,6 @@ jobs:
     env:
       CI: "true"
       GITHUB_ACTIONS: "true"
-      NODE_ENV: production
       TZ: Asia/Manila
       NEXT_TELEMETRY_DISABLED: "1"
       TENANT_DOCUMENT_ENTITY_PROOF: disposable-pg16-real-http
@@ -101,6 +100,8 @@ jobs:
       - name: Apply reviewed isolated database baseline
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Build private routes in local production-mode runtime only
+        env:
+          NODE_ENV: production
         run: npm run build
       - name: Start localhost-only application
         shell: bash
@@ -114,6 +115,8 @@ jobs:
           tail -n 60 /tmp/doc-entity-local.log
           exit 1
       - name: Execute owned bytes, same-parent denied IDs, revoked grants and unchanged SQL
+        env:
+          NODE_ENV: production
         run: node --import tsx scripts/qa/tenant-document-legal-employer-http.mjs
       - name: Bounded localhost diagnostic on failure
         if: failure()
