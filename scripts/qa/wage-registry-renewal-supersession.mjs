@@ -47,6 +47,30 @@ export function verifyWageRenewalEngineWithdrawal(manifest, read = readFileSync)
 }
 
 /** Permit ONLY exact prior #2005 CURRENT->GAP demotions, no arbitrary regression. */
+/** Historical zero-credit projection for legacy guard comparisons ONLY.
+ * Never use this as a current manifest or to assert live method coverage. */
+export function historicalWageHoldProjection(before, read = readFileSync) {
+  const {inventory, receipt} = originalProof(read);
+  const view = structuredClone(before);
+  let withdrawn = 0;
+  for (const entry of inventory.methods) {
+    const old = method(before, entry);
+    if (old?.testedBy?.kind !== WAGE_RENEWAL_KIND) {
+      assert.deepEqual(old, entry.held, "Old row must remain a source-exact hold");
+      continue;
+    }
+    assert.deepEqual(old, wageRenewalRow(entry, receipt), "Old executed source receipt was altered");
+    const rows = view.allApiRouteFiles[entry.path].methods;
+    rows[rows.findIndex(row => row.name === entry.verb)] = structuredClone(entry.held);
+    withdrawn++;
+  }
+  view.metrics.coveredAfter -= withdrawn;
+  view.metrics.gap += withdrawn;
+  view.acceptanceStatus = view.acceptanceStatus.replace(/^NOT ACCEPTED: \d+ API methods/,
+    "NOT ACCEPTED: " + view.metrics.gap + " API methods");
+  return view;
+}
+
 export function reviewedWageRenewalEngineWithdrawal(before, after, read = readFileSync) {
   const previous = Object.values(before.allApiRouteFiles).flatMap(file => file.methods)
     .filter(row => row.testedBy?.kind === WAGE_RENEWAL_KIND);

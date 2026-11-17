@@ -17,7 +17,7 @@ import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts
 import { reviewedWageRegistrySourceWithdrawals } from "../../scripts/qa/wage-registry-source-hold.mjs";
 import { reviewedTransitiveWageWithdrawals } from "../../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import { reviewedSealedWageWithdrawals } from "../../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
-import { reviewedWageRenewalEngineWithdrawal } from "../../scripts/qa/wage-registry-renewal-supersession.mjs";
+import { reviewedWageRenewalEngineWithdrawal, historicalWageHoldProjection } from "../../scripts/qa/wage-registry-renewal-supersession.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Newly restored methods only, backed by the sealed executed renewal. */
@@ -264,16 +264,18 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     return { live, base: null };
   }
   const before = tallyTenantManifest(base.manifest);
+  const invalidatedRenewals = reviewedWageRenewalEngineWithdrawal(base.manifest, manifest);
+  const oldProofView = invalidatedRenewals.size ? historicalWageHoldProjection(base.manifest) : base.manifest;
   const explicitlySuperseded = new Set([
-    ...reviewedYearEndSourceSupersession(base.manifest, manifest),
-    ...yearEndAnnualizationSourceHold(base.manifest, manifest),
-    ...reviewedWorker360LegalEmployerSupersession(base.manifest, manifest),
-    ...reviewedOidcSourceSupersession(base.manifest, manifest),
+    ...reviewedYearEndSourceSupersession(oldProofView, manifest),
+    ...yearEndAnnualizationSourceHold(oldProofView, manifest),
+    ...reviewedWorker360LegalEmployerSupersession(oldProofView, manifest),
+    ...reviewedOidcSourceSupersession(oldProofView, manifest),
     ...verifyOracleSourceHolds(manifest, base.manifest),
-    ...reviewedWageRegistrySourceWithdrawals(base.manifest, manifest),
-    ...reviewedTransitiveWageWithdrawals(base.manifest, manifest),
-    ...reviewedSealedWageWithdrawals(base.manifest, manifest),
-    ...reviewedWageRenewalEngineWithdrawal(base.manifest, manifest),
+    ...reviewedWageRegistrySourceWithdrawals(oldProofView, manifest),
+    ...reviewedTransitiveWageWithdrawals(oldProofView, manifest),
+    ...reviewedSealedWageWithdrawals(oldProofView, manifest),
+    ...invalidatedRenewals,
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
