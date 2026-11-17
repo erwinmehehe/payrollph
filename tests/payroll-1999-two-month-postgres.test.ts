@@ -40,7 +40,7 @@ test('1999: two completed months / four actual engine cutoffs / eight workers / 
   const [entity]=await db.insert(legalEntities).values({organizationId:org.id,code:'FICTIONAL1999',legalName:'Fictional single-site employer',displayName:'Fictional #1999',primaryEntity:true}).returning();
   const ids=new Map<string,number>();
   for(const w of WORKERS){
-   const [employee]=await db.insert(employees).values({organizationId:org.id,legalEntityId:entity.id,employeeNo:'F1999-'+w.key,firstName:'Fictional',lastName:w.key,title:'Test only',avatarInitials:'FQ',basicRate:pesos(w.rate),startDate:'2026-01-01',restDay:null,region:'NCR'}).returning();
+   const [employee]=await db.insert(employees).values({organizationId:org.id,legalEntityId:entity.id,employeeNo:'F1999-'+w.key,firstName:'Fictional',lastName:w.key,title:'Test only',avatarInitials:'FQ',basicRate:pesos(w.rate),startDate:'2026-01-01',restDay:null,region:'NCR',mobile:'09170001999'}).returning();
    ids.set(w.key,employee.id);
    await db.insert(employeePayProfiles).values({organizationId:org.id,employeeId:employee.id,payBasis:w.basis,rateAmount:pesos(w.rate),standardWorkDaysPerMonth:String(w.divisor)+'.00',standardHoursPerDay:'8.00'});
   }
