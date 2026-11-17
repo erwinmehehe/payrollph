@@ -24,7 +24,7 @@ export function readWageRenewalInventory(read=readFileSync){
 }
 export function captureWageRenewalInventory(){
  const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
- assert.equal(verifiedWageCreditHolds(manifest).size,75);
+ assert.equal(verifiedWageCreditHolds(manifest).size,75,'Never overwrite or recapture the inventory after credits have been promoted');
  const baseMainCommit=execFileSync('git',['rev-parse','origin/main'],{encoding:'utf8'}).trim();
  const base=JSON.parse(execFileSync('git',['show',baseMainCommit+':scripts/qa/tenant-isolation-coverage-manifest.json'],{encoding:'utf8',maxBuffer:16*1024*1024}));
  assert.deepEqual(manifest,base,'Capture only current main, before any promotions');
