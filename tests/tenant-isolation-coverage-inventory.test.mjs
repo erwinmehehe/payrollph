@@ -4804,6 +4804,37 @@ test("new sensitive download, legal-employer, leave mutation, and ESS proofs are
   for (const spec of cases) {
     const path = "src/app/api/" + spec.route + "/route.ts";
     const method = manifest.allApiRouteFiles[path]?.methods.find((m) => m.name === spec.method);
+    // The original second-pass document GET evidence belongs to the old
+    // source. The later legal-employer guard deliberately revokes that method
+    // credit until its own exact-head proof is independently accepted.
+    // Keep every other second-pass method's historical receipt unchanged.
+    if (spec.route === "documents/[id]") {
+      assert.equal(method?.status, "GAP",
+        "Changed document GET must not inherit prior tenant-only credit");
+      assert.equal(method.testedBy, null);
+      const hold = method.reviewedUncertified;
+      assert.equal(hold?.kind,
+        "document-download-multi-entity-legal-employer-source-change-zero-credit");
+      assert.equal(hold?.routeBlobSha, "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6");
+      assert.equal(hold?.coverageCredits, 0);
+      assert.equal(hold?.exactHeadPg16Http, "PENDING");
+      assert.equal(hold?.independentSecurityReview, "PENDING");
+      assert.equal(hold?.previousMethodProof?.file, "scripts/qa/tenant-second-pass-http.mjs");
+      assert.equal(hold?.previousMethodProof?.ownPositiveLine, 840);
+      assert.equal(hold?.previousMethodProof?.foreignDenialLine, 950);
+      assert.equal(gitBlobSha(readFileSync(path)), hold.routeBlobSha,
+        "Runtime document guard must match the zero-credit source review");
+      const currentHttp = readFileSync(hold.historicalTransferTests, "utf8");
+      for (const required of [
+        "assert.equal(signed.status,302",
+        "opaque404(deniedPrivateAfterRevoke,absent",
+        "assert.deepEqual(await snapshot(),before",
+        "signedUrlForeignAndRevokedDenied:true",
+        "independentGrantRevocationWithoutTransfer:true",
+      ]) assert.ok(currentHttp.includes(required),
+        "Document same-parent transfer/signed-URL review missing: " + required);
+      continue;
+    }
     assert.equal(method?.status, "COVERED", path + " " + spec.method + " must retain own/victim proof");
     const proof = method.testedBy;
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs");
