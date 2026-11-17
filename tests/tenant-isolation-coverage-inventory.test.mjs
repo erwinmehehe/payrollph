@@ -4295,7 +4295,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   // The base comparison helper verifies the exact route SHA, older proof,
   // present source guard, and source contract (no arbitrary downgrade).
   if (isNewOrChanged && key === "src/app/api/documents/[id]/route.ts GET" &&
-      currentBlob === "7ec01fa9698db169e75569617aca825571842e7c") {
+      currentBlob === "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6") {
     const path = "src/app/api/documents/[id]/route.ts";
     const oldView = structuredClone(liveManifest);
     const oldRow = oldView.allApiRouteFiles[path];
