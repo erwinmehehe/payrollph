@@ -42,8 +42,13 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
       assert.equal(method.reviewedUncertified.coverageCredits, 0);
       assert.equal(method.reviewedUncertified.independentSecurityReview, "PENDING");
     }
-    assert.throws(() => verifyYearEndCredits(manifest), /current-source proof required/,
-      "Old 1804 proof cannot certify current wage-dependent year-end calculations");
+    // #2003 changes the transitive payroll engine source while the 47 methods
+    // remain GAP with zero credits. A stale #1804 receipt can now fail either
+    // at its source-blob pin (before method inspection) or at the held-method
+    // status check. Both failures mean NO credit; never update old proof SHAs.
+    assert.throws(() => verifyYearEndCredits(manifest),
+      /(?:current-source proof required|source\/proof changed; renew PG16 review)/,
+      "Old 1804 proof cannot certify changed payroll-engine or wage-dependent year-end calculations");
   } else if (isYearEndHeld(manifest)) {
     assert.equal(verifyYearEndHold(manifest), 0, "A withdrawn year-end credit is held at zero until a fresh exact-head PG16 proof renews it");
     for (const method of yearEnd.methods) { assert.equal(method.status, "GAP"); assert.equal(method.testedBy, null); }
