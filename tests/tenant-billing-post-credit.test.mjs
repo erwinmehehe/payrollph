@@ -1,4 +1,5 @@
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
+import {wageRenewalHoldView,WAGE_RENEWAL_KIND} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
 import { verifyAllTransitiveWageHolds } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
@@ -96,6 +97,7 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
   const base = baseTenantManifest();
   if (base) {
     const before = tallyTenantManifest(base.manifest);
+    const archivedBase=wageRenewalHoldView(base.manifest);
     let wageWithdrawalsFromBase = 0;
     for (const key of wageHoldKeys) {
       const at = key.indexOf(" "), verb = key.slice(0, at), path = key.slice(at + 1);
@@ -105,8 +107,14 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
       assert.equal(current.testedBy, null, key + ": prior proof may not be credited");
       assert.equal(current.reviewedUncertified?.coverageCredits, 0, key + ": no invented proof credit");
       if (previous?.status === "COVERED") {
-        assert.deepEqual(current.reviewedUncertified.priorProof, previous.testedBy,
-          key + ": archived prior proof must match the actual inspected base");
+        if(previous.testedBy?.kind===WAGE_RENEWAL_KIND){
+          const archived=archivedBase.allApiRouteFiles[path].methods.find(row=>row.name===verb);
+          assert.deepEqual(current,archived,
+            key + ": historical withdrawal must match the exact sealed #2005 inventory");
+        }else{
+          assert.deepEqual(current.reviewedUncertified.priorProof,previous.testedBy,
+            key + ": archived prior proof must match the actual inspected base");
+        }
         wageWithdrawalsFromBase++;
       }
     }
