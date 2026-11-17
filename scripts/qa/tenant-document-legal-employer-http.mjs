@@ -12,7 +12,7 @@ import {readFileSync} from "node:fs";
 const URL_ROOT = "http://127.0.0.1:3000";
 const ROUTE = "src/app/api/documents/[id]/route.ts";
 const PINS = Object.freeze({
-  [ROUTE]: "7ec01fa9698db169e75569617aca825571842e7c",
+  [ROUTE]: "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6",
   "src/lib/private-document-tenant-lookup.ts": "746c735d3c5475636eb8b37297443305906386e9",
   "src/lib/multi-entity-server.ts": "f38a8bb77a5026d581d4a92b22533fc879ea7e00",
 });
@@ -75,7 +75,7 @@ export async function proveDocumentLegalEmployer() {
   try {
     const version=Number((await pool.query("SHOW server_version_num")).rows[0].server_version_num);
     assert.ok(version>=160000&&version<170000,"Only PostgreSQL 16");
-    for(const name of ["organizations","documents","users","userLegalEntityGrants","auditEvents"])
+    for(const name of ["organizations","documents","users","userLegalEntityGrants","auditEvents","employeeEntityAssignments","entityTransferRequests"])
       assert.equal((await db.select().from(s[name]).limit(1)).length,0,
         "Non-empty database is not disposable: "+name);
     const nonce=randomUUID().replaceAll("-","").slice(0,10);
@@ -133,6 +133,8 @@ export async function proveDocumentLegalEmployer() {
       documents:await db.select().from(s.documents).orderBy(asc(s.documents.id)),
       employees:await db.select().from(s.employees).orderBy(asc(s.employees.id)),
       audits:await db.select().from(s.auditEvents).orderBy(asc(s.auditEvents.id)),
+      assignments:await db.select().from(s.employeeEntityAssignments).orderBy(asc(s.employeeEntityAssignments.id)),
+      transfers:await db.select().from(s.entityTransferRequests).orderBy(asc(s.entityTransferRequests.id)),
     });
     async function ownPositive(actor,doc) {
       const res=await getDocument({id:doc.row.id,cookie:actor.cookie});
@@ -173,6 +175,40 @@ export async function proveDocumentLegalEmployer() {
       assert.deepEqual(await snapshot(),before,label+" must not mutate documents, employees or audit");
       rejected++;
     }
+    // A CURRENT employer grant cannot confer access to a legacy attachment
+    // from an earlier legal employer; the file lacks issuance-time ownership.
+    const [oldAssignment]=await db.insert(s.employeeEntityAssignments).values({
+      organizationId:a.org.id,employeeId:a.worker.id,legalEntityId:otherEntity.id,
+      effectiveFrom:"2025-01-01",effectiveUntil:"2025-12-31",
+    }).returning();
+    assert.ok(oldAssignment?.id);
+    const beforeAmbiguousAssignment=await snapshot();
+    const oldEmployerDocument=await getDocument({id:ownA.row.id,cookie:a.cookie});
+    opaque404(oldEmployerDocument,absent,"historical different legal-employer assignment",[ownA.marker]);
+    assert.deepEqual(await snapshot(),beforeAmbiguousAssignment,
+      "Old legal-entity assignment denial must not modify documents, employees or audit");
+
+    const [bOldEmployer]=await db.insert(s.legalEntities).values({
+      organizationId:b.org.id,code:"DOC_PREV_"+nonce,
+      legalName:"Fictional prior B legal employer",
+      displayName:"B previous legal employer",primaryEntity:false,active:true,
+    }).returning();
+    const [appliedTransfer]=await db.insert(s.entityTransferRequests).values({
+      organizationId:b.org.id,employeeId:b.worker.id,
+      fromLegalEntityId:bOldEmployer.id,toLegalEntityId:b.entity.id,
+      effectiveDate:"2025-12-31",status:"applied",
+      reason:"Synthetic historical transfer acceptance",
+      serviceStartDate:"2025-01-01",
+      continuityNote:"Only synthetic historic document ambiguity is tested",
+      requestedByUserId:b.owner.id,
+    }).returning();
+    assert.ok(appliedTransfer?.id);
+    const beforeTransferredWorker=await snapshot();
+    const transferredDocument=await getDocument({id:ownB.row.id,cookie:b.cookie});
+    opaque404(transferredDocument,absent,"applied employee legal-entity transfer",[ownB.marker]);
+    assert.deepEqual(await snapshot(),beforeTransferredWorker,
+      "Applied transfer denial must not modify protected documents or audit");
+
     const [deleted]=await db.delete(s.userLegalEntityGrants).where(and(
       eq(s.userLegalEntityGrants.organizationId,a.org.id),
       eq(s.userLegalEntityGrants.userId,a.owner.id),
@@ -192,6 +228,8 @@ export async function proveDocumentLegalEmployer() {
       positiveCleanDocumentBytes:3,
       deniedOwnParentOtherLegalEmployerAndForged:rejected,
       sameSessionGrantRevocationDenied:true,
+      ambiguousHistoricalAssignmentDenied:true,
+      appliedLegalEmployerTransferDenied:true,
       identicalAbsentAndForeign404:true,
       verifiedAuditBeforeOwnBytes:true,
       deniedDatabaseUnchanged:true,
