@@ -75,7 +75,7 @@ export function verifiedFirstCutoffForFixedMonthlyCarry(input: {
 }): boolean {
   if (
     input.priorEntries !== 1
-    || !/^\\d{4}-\\d{2}-16$/.test(input.finalPeriodStart)
+    || !/^\d{4}-\d{2}-16$/.test(input.finalPeriodStart)
     || input.priorPeriodStart !== input.finalPeriodStart.slice(0, 7) + "-01"
     || input.priorPeriodEnd !== input.finalPeriodStart.slice(0, 7) + "-15"
     || input.priorPayBasis !== "monthly"
