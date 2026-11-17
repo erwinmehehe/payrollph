@@ -19,4 +19,13 @@ test('manually worked source controls check the separate reference calculator',(
  assert.deepEqual([first.sss,last.sss,first.net,last.net],[60000,90000,1091255,1575590]);
  const sept=expectedCutoff(WORKERS[7],MONTHS[0],2),oct=expectedCutoff(WORKERS[7],MONTHS[1],2);
  assert.deepEqual([sept.benefitExempt,oct.benefitExempt],[6000000,3000000]);
+ assert.deepEqual([sept.net,oct.net],[7327130,5141590]);
+ const monthly40=expectedCutoff(WORKERS[1],MONTHS[0],1);
+ assert.deepEqual([monthly40.gross,monthly40.sss,monthly40.ph,monthly40.wht,monthly40.net],[2000000,87500,50000,130910,1721590]);
+ for(const w of WORKERS.filter(w=>w.basis!=='monthly')){
+  const ordinary=expectedCutoff(w,MONTHS[0],1);
+  assert.deepEqual([ordinary.gross,ordinary.sss,ordinary.ph,ordinary.pag,ordinary.wht,ordinary.net],[1000000,50000,27500,10000,0,912500]);
+ }
+ const phFirst=expectedCutoff(WORKERS[3],MONTHS[0],1),phLast=expectedCutoff(WORKERS[3],MONTHS[0],2);
+ assert.deepEqual([phFirst.phEr,phLast.phEr,phFirst.net],[12501,12500,452510],'Explicit unverified odd-cent assignment must not silently change');
 });
