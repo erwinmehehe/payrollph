@@ -3,6 +3,8 @@ import {readFileSync} from "node:fs";
 import test from "node:test";
 const staff = readFileSync("src/app/api/documents/route.ts","utf8");
 const hcm = readFileSync("src/app/api/hcm/documents/route.ts","utf8");
+const proxy = readFileSync("src/proxy.ts","utf8");
+const hcmHold = readFileSync("src/lib/multi-entity-hcm-hold.ts","utf8");
 const runner = readFileSync("scripts/qa/tenant-document-metadata-entity-http.mjs","utf8");
 const workflow = readFileSync(".github/workflows/tenant-document-metadata-entity-http.yml","utf8");
 const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
@@ -31,6 +33,14 @@ test("HCM GET refuses all un-attributed policies and documents before loading pa
  assert.ok(get.includes('if (criticalReleaseFlagEnabled("multiEntity"))'));
  assert.ok(get.includes("status: 503"));
  assert.ok(get.includes('"Cache-Control": "private, no-store"'));
+});
+test("HCM proxy embargo is authoritative for document GET/POST before route-level 503",()=>{
+ assert.ok(proxy.includes("multiEntityHcmRequestDeferred(path, request.method)"));
+ assert.ok(proxy.includes('code: "ENTITY_HCM_DEFERRED"'));
+ assert.ok(proxy.includes("status: 403"));
+ assert.ok(hcmHold.includes('pathname === "/api/hcm/salary-corrections/preview"'));
+ assert.ok(!hcmHold.includes('pathname === "/api/hcm/documents"'));
+ assert.ok(hcmHold.includes("return !isolatedSalaryPreviewProof"));
 });
 test("document and HCM POST refuse un-attributed legal-employer mutations before parsing or writing",()=>{
  const raw=staff.slice(staff.indexOf("export async function POST("));
@@ -65,9 +75,9 @@ test("exact-head proof requires real own documents and same-parent/forged/revoke
    'MULTI_ENTITY_ENABLED:"true"','EMPLOYEE_DOCUMENT_VAULT_ENABLED:"true"',
    "const ownA=await save(", "const ownB=await save(", "const ownVictim=await save(",
    "const sameParentForeign=await save(", "const unassigned=await save(",
-   "realForeignSelectorDenials:blocked","hcmUnattributedPolicy503:true",
+   "realForeignSelectorDenials:blocked","hcmProxyEmbargoGet403:true",
    "revokedGrantDenied:true","deniedSqlUnchanged:true",
-   "uploadMutation503:true","hcmPolicyMutation503:true",
+   "uploadMutation503:true","hcmProxyEmbargoPost403:true",
    "methodCredits:0","productionAccepted:false",
  ]) assert.ok(runner.includes(required),"missing synthetic proof boundary: "+required);
  assert.ok(workflow.includes("image: postgres:16"));
