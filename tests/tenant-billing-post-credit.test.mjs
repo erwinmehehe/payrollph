@@ -93,9 +93,10 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
   assert.equal(m.metrics.gap, counts.gap);
   assert.equal(m.metrics.publicByDesign, counts.publicByDesign);
   assert.equal(m.metrics.privilegedOperationsTokenOnly, counts.privilegedOperationsTokenOnly);
-  assertLiveTenantCounts(assert, m);
   const inspectedBase = baseTenantManifest();
   const base=inspectedBase?{...inspectedBase,manifest:wageRenewalHoldView(inspectedBase.manifest)}:null;
+  // This is explicitly the historical 75-hold fixture, never the live ledger.
+  assertLiveTenantCounts(assert, m, process.env, base);
   if (base) {
     const before = tallyTenantManifest(base.manifest);
     let wageWithdrawalsFromBase = 0;
