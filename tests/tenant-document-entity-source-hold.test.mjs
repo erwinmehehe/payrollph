@@ -37,6 +37,8 @@ test("forged source, receipt, approval and unrelated method downgrades cannot bo
     m => {m.allApiRouteFiles[path].methods[0].reviewedUncertified.independentSecurityReview = "APPROVED";},
     m => {m.allApiRouteFiles[path].methods[0].reviewedUncertified.previousMethodProof = {file:"fabricated.mjs"};},
     m => {m.allApiRouteFiles[path].sourceRevisionReview.noNewMethodCredit = false;},
+    m => {m.allApiRouteFiles[path].reviewedUncertified.historicalTransferTests = "fabricated.mjs";},
+    m => {m.allApiRouteFiles[path].sourceRevisionReview.historicalTransferSourceReview = "unreviewed";},
   ]) {
     const altered = structuredClone(current);
     changed(altered);
