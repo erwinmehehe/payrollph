@@ -1,11 +1,10 @@
 /** One bounded promotion pass. No arbitrary run labels, method lists or metric edits. */
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import {readWageRenewalInventory} from './wage-registry-renewal-plan.mjs';
 import {reconcilePlan} from './payroll-run-credit-renewal.mjs';
 import {regeneratedOverview,regeneratedClosure} from './tenant-mkt01-marketing-credit.mjs';
-import {readWageRenewalReceipt,wageRenewalRow,wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
+import {blob,readWageRenewalReceipt,wageRenewalRow,wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 const DOCS=['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md'];
 export function reconcileWageRenewal({write=false}={}){
@@ -50,15 +49,16 @@ export function reconcileWageRenewal({write=false}={}){
   }
   else{
    for(const field of ['coveredAfter','gap'])text=text.replace(new RegExp('^\\| '+field+' \\| \\d+ \\|$','m'),'| '+field+' | '+manifest.metrics[field]+' |');
-   const lines=text.split('\n'),original=execFileSync('git',['show',inventory.baseMainCommit+':'+file],{encoding:'utf8'}).split('\n');
+   const lines=text.split('\n'),rawAnchors=readFileSync('scripts/qa/wage-registry-renewal-doc-anchors.json');
+   assert.equal(blob(rawAnchors),'c1c303bc5e02e7f9a3ce751f5fae0a548577d1ba','Historical documentation anchors changed');
+   const original=JSON.parse(rawAnchors);
    for(const entry of inventory.methods){
     const route=entry.path.slice('src/app/api/'.length,-'/route.ts'.length);
     const index=lines.findIndex(line=>line.startsWith('| [`'+route+'` '+entry.verb+']'));
     assert.ok(index>=0,'Missing inventory row '+route);
     const row=manifest.allApiRouteFiles[entry.path].methods.find(r=>r.name===entry.verb),cells=lines[index].split(' | ');
-    const oldLine=original.find(line=>line.startsWith('| [`'+route+'` '+entry.verb+']'));
-    const oldCells=oldLine.split(' | ');
-    cells[cells.length-2]=oldCells[oldCells.length-2]+' + [Fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json)';
+    const oldAnchors=original[entry.verb+' '+entry.path];assert.equal(typeof oldAnchors,'string');
+    cells[cells.length-2]=oldAnchors+' + [Fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json)';
     cells[cells.length-1]='**'+row.status+'** |';lines[index]=cells.join(' | ');
    }
    text=lines.join('\n');
