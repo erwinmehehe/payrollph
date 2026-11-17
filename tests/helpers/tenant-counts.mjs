@@ -17,6 +17,7 @@ import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts
 import { reviewedWageRegistrySourceWithdrawals } from "../../scripts/qa/wage-registry-source-hold.mjs";
 import { reviewedTransitiveWageWithdrawals } from "../../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import { reviewedSealedWageWithdrawals } from "../../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
+import { wageRenewalHoldView, WAGE_RENEWAL_KIND } from "../../scripts/qa/wage-registry-renewal-verify.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Newly restored methods only, backed by the sealed executed renewal. */
@@ -239,6 +240,116 @@ export function baseTenantManifest(env = process.env) {
   return null;
 }
 
+/**
+ * Historical-only test projections withdraw the 75 sealed wage-source method
+ * renewals for old receipt assertions. Compare that archived fixture against
+ * the equally withdrawn source-current main, never against 75 restored credits.
+ *
+ * This is deliberately NOT a general downgrade exception:
+ * - The committed PR manifest must be byte-for-byte equivalent to the main base
+ *   (a PR changing coverage cannot borrow the archive comparison).
+ * - All 75 renewed method identities and exact old hold records must match the
+ *   sealed current-source receipt, including the unchanged route and proof pins.
+ * - Every OTHER method still goes through the ordinary non-regression guard.
+ * - This only returns a temporary in-memory comparison base; no credits, flags,
+ *   tests, production data or repository ledgers are changed.
+ */
+function historicalWageComparisonBase(assert, manifest, baseManifest) {
+  const original = JSON.parse(readFileSync(MANIFEST, "utf8"));
+  if (JSON.stringify(original) !== JSON.stringify(baseManifest)) return baseManifest;
+  const methods = Object.values(baseManifest.allApiRouteFiles).flatMap(row => row.methods);
+  const restored = methods.filter(row => row.testedBy?.kind === WAGE_RENEWAL_KIND);
+  if (restored.length !== 75) return baseManifest;
+  const held = Object.values(manifest.allApiRouteFiles).flatMap(row => row.methods)
+    .filter(row => row.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal");
+  // A partial/forged downgrade must remain subject to the original hard fail.
+  if (held.length !== 23) return baseManifest;
+  const projected = wageRenewalHoldView(baseManifest);
+  const renewedRows = [];
+  for (const [path, row] of Object.entries(baseManifest.allApiRouteFiles)) {
+    for (const method of row.methods) {
+      if (method.testedBy?.kind !== WAGE_RENEWAL_KIND) continue;
+      const historical = projected.allApiRouteFiles[path].methods.find(x => x.name === method.name);
+      const supplied = manifest.allApiRouteFiles[path]?.methods.find(x => x.name === method.name);
+      assert.deepEqual(supplied, historical,
+        "Historical wage projection must preserve every sealed withdrawal: " + method.name + " " + path);
+      renewedRows.push(method.name + " " + path);
+    }
+  }
+  assert.equal(new Set(renewedRows).size, 75, "The exact 75 historical method identities must be preserved");
+  return projected;
+}
+
+/**
+ * The private-document GET source was strengthened to bind access to a worker's
+ * legal employer, invalidating the old parent-tenant-only HTTP receipt.
+ * Authorize ONLY the exact reviewed one-method zero-credit withdrawal.
+ * This never grants a credit, proves the updated handler over HTTP, or waives
+ * other changed route/receipt tests.
+ */
+export function reviewedPrivateDocumentSourceHold(beforeManifest, afterManifest, read = readFileSync) {
+  const path = "src/app/api/documents/[id]/route.ts";
+  const priorSha = "0acb38b1396b1e35adf02efd6e033cdd0416e0d0";
+  const currentSha = "7ec01fa9698db169e75569617aca825571842e7c";
+  const prior = beforeManifest.allApiRouteFiles?.[path];
+  const current = afterManifest.allApiRouteFiles?.[path];
+  const before = prior?.methods?.find(m => m.name === "GET");
+  const now = current?.methods?.find(m => m.name === "GET");
+  const hold = now?.reviewedUncertified;
+  const none = new Set();
+  if (prior?.gitBlobSha !== priorSha || current?.gitBlobSha !== currentSha ||
+      prior.methods?.length !== 1 || current.methods?.length !== 1 ||
+      before?.status !== "COVERED" || now?.status !== "GAP" ||
+      now.testedBy !== null || before.testedBy?.file !== "scripts/qa/tenant-second-pass-http.mjs" ||
+      before.testedBy?.ownPositiveLine !== 840 ||
+      before.testedBy?.foreignDenialLine !== 950 ||
+      hold?.kind !== "document-download-multi-entity-legal-employer-source-change-zero-credit" ||
+      hold.previousRouteBlobSha !== priorSha || hold.routeBlobSha !== currentSha ||
+      JSON.stringify(hold.previousMethodProof) !== JSON.stringify(before.testedBy) ||
+      hold.sourceContractTest !== "tests/tenant-private-document-id-boundary.test.mjs" ||
+      hold.exactHeadPg16Http !== "PENDING" ||
+      hold.independentSecurityReview !== "PENDING" ||
+      hold.productionCertified !== false || hold.coverageCredits !== 0 ||
+      !now.reason.startsWith("REVIEW-ONLY SOURCE HOLD:") ||
+      current.sourceRevisionReview?.noNewMethodCredit !== true ||
+      current.sourceRevisionReview?.newRouteBlobSha !== currentSha ||
+      current.sourceRevisionReview?.oldRouteBlobSha !== priorSha ||
+      JSON.stringify(current.sourceRevisionReview?.priorActiveMembershipRevision) !==
+        JSON.stringify(prior.sourceRevisionReview)) return none;
+  function gitBlob(bytes) {
+    const b = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+    return createHash("sha1").update("blob " + b.length + "\0").update(b).digest("hex");
+  }
+  let source;
+  try {
+    source = read(path).toString("utf8");
+    if (gitBlob(source) !== currentSha ||
+        gitBlob(read(hold.sourceContractTest)) !== "f4564a5e0a6a8afa7657c04789f464077ee46e50")
+      return none;
+  } catch { return none; }
+  const chain = [
+    "legalEntityId: employees.legalEntityId",
+    'if (criticalReleaseFlagEnabled("multiEntity"))',
+    "const entityScope = await resolveMultiEntityContext({",
+    "assertEntityResource(entityScope.context, employee.legalEntityId)",
+    "assertScope(access, employee.orgUnitId)",
+    "signedDocumentObjectUrl(document.objectStorageKey",
+    'Buffer.from(document.content, "base64")',
+  ];
+  let last = -1;
+  for (const check of chain) {
+    const next = source.indexOf(check, last + 1);
+    if (next < 0 || next <= last) return none;
+    last = next;
+  }
+  const orphan = source.indexOf('} else if (criticalReleaseFlagEnabled("multiEntity")) {');
+  const unscoped = source.indexOf('} else if (!access.companyWide) {');
+  if (!(orphan > chain[0].length && unscoped > orphan && unscoped < source.indexOf("if (document.objectStorageKey)")) ||
+      !source.includes('if (!entityScope.ok || assertEntityResource(entityScope.context, employee.legalEntityId)) {\n          return Response.json({ error: "Document not found." }, { status: 404 });'))
+    return none;
+  return new Set(["GET " + path]);
+}
+
 export function assertLiveTenantCounts(assert, manifest, env = process.env, injectedBase = undefined) {
   const live = tallyTenantManifest(manifest);
   for (const key of ["routeFiles", "methods", "coveredAfter", "publicByDesign", "privilegedOperationsTokenOnly", "gap"]) {
@@ -262,16 +373,18 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     assert.ok(!(env.CI === "true" && env.FAIL_CLOSED_GUARD_BASE_REF), "the CI base manifest must be readable");
     return { live, base: null };
   }
-  const before = tallyTenantManifest(base.manifest);
+  const comparisonBase = historicalWageComparisonBase(assert, manifest, base.manifest);
+  const before = tallyTenantManifest(comparisonBase);
   const explicitlySuperseded = new Set([
-    ...reviewedYearEndSourceSupersession(base.manifest, manifest),
-    ...yearEndAnnualizationSourceHold(base.manifest, manifest),
-    ...reviewedWorker360LegalEmployerSupersession(base.manifest, manifest),
-    ...reviewedOidcSourceSupersession(base.manifest, manifest),
-    ...verifyOracleSourceHolds(manifest, base.manifest),
-    ...reviewedWageRegistrySourceWithdrawals(base.manifest, manifest),
-    ...reviewedTransitiveWageWithdrawals(base.manifest, manifest),
-    ...reviewedSealedWageWithdrawals(base.manifest, manifest),
+    ...reviewedYearEndSourceSupersession(comparisonBase, manifest),
+    ...yearEndAnnualizationSourceHold(comparisonBase, manifest),
+    ...reviewedWorker360LegalEmployerSupersession(comparisonBase, manifest),
+    ...reviewedOidcSourceSupersession(comparisonBase, manifest),
+    ...verifyOracleSourceHolds(manifest, comparisonBase),
+    ...reviewedWageRegistrySourceWithdrawals(comparisonBase, manifest),
+    ...reviewedTransitiveWageWithdrawals(comparisonBase, manifest),
+    ...reviewedSealedWageWithdrawals(comparisonBase, manifest),
+    ...reviewedPrivateDocumentSourceHold(base.manifest, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
