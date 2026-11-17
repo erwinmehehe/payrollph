@@ -11,7 +11,6 @@ import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-em
 import { verifyWorker360PageCredit, verifyFiveMethodCredits } from "./tenant-five-method-credit-verify.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
 import { historicOidcBatchView } from "./tenant-oidc-batch-credit-verify.mjs";
-import { reviewedPrivateDocumentSourceHold } from "../../tests/helpers/tenant-counts.mjs";
 import { historicSixPageView, verifySixPageCredits } from "./tenant-six-scoped-page-credit.mjs";
 import { historicFourPageView, verifyFourPageCredits } from "./tenant-four-scoped-page-credit.mjs";
 import { verifyCareersPublicPage } from "./tenant-careers-public-page-classification.mjs";
@@ -199,43 +198,6 @@ export function historicWorker360ProofView(manifest) {
   return old;
 }
 
-/**
- * Historical page-verifier view only. The older five-page receipt was sealed
- * before this branch's document GET legal-employer source rewrite. Its old
- * evidence may be reconstructed for that historical count comparison only,
- * never written into the live ledger or credited as current-source proof.
- *
- * The document source, prior receipt, exact zero-credit hold and guard order
- * must all pass reviewedPrivateDocumentSourceHold before any in-memory view
- * replaces one historical method row. No other GAP is accepted or projected.
- */
-export function historicPrivateDocumentPageCountView(manifest, read = readFileSync) {
-  const path = "src/app/api/documents/[id]/route.ts";
-  const current = manifest.allApiRouteFiles[path];
-  const held = current?.methods?.find(row => row.name === "GET");
-  if (held?.reviewedUncertified?.kind !==
-    "document-download-multi-entity-legal-employer-source-change-zero-credit") return manifest;
-  const prior = structuredClone(manifest);
-  const row = prior.allApiRouteFiles[path];
-  row.gitBlobSha = held.reviewedUncertified.previousRouteBlobSha;
-  row.methods[0].status = "COVERED";
-  row.methods[0].testedBy = structuredClone(held.reviewedUncertified.previousMethodProof);
-  delete row.methods[0].reviewedUncertified;
-  row.methods[0].reason = held.reviewedUncertified.previousMethodReason ??
-    row.methods[0].reason;
-  row.sourceRevisionReview = structuredClone(current.sourceRevisionReview.priorActiveMembershipRevision);
-  assert.deepEqual([...reviewedPrivateDocumentSourceHold(prior, manifest, read)],
-    ["GET " + path], "Historical projection requires exact current-source zero-credit hold");
-  const historical = structuredClone(manifest);
-  historical.allApiRouteFiles[path] = row;
-  historical.metrics.coveredAfter++;
-  historical.metrics.gap--;
-  historical.acceptanceStatus = historical.acceptanceStatus.replace(
-    /^NOT ACCEPTED: \d+ API methods/,
-    "NOT ACCEPTED: " + historical.metrics.gap + " API methods");
-  return historical;
-}
-
 export function expectedFivePageCreditManifest(original, read = readFileSync) {
   verifyFivePageProofInputs(read);
   const m = structuredClone(original);
@@ -283,15 +245,14 @@ export function expectedFivePageCreditManifest(original, read = readFileSync) {
   const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;
   if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,
     "The sole additional method must be independently source-pinned");
-  const historicalApiView = historicPrivateDocumentPageCountView(historicOidcBatchView(m, read), read);
-  assert.equal(historicalApiView.metrics.gap, expectedApiGaps,
+  assert.equal(historicOidcBatchView(m, read).metrics.gap, expectedApiGaps,
     "Five-page proof must not silently reclassify unrelated API methods");
   assert.equal(m.scopedPages.filter(p => p.status === "COVERED").length, 10);
   assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 11);
   const nextPrefix = "NOT ACCEPTED: " + m.metrics.gap + " API methods and 11 page/action GAPs";
   const acceptancePrefix = new RegExp("^NOT ACCEPTED: " + expectedApiGaps +
     " API methods and (16|11) page/action GAPs");
-  assert.match(historicalApiView.acceptanceStatus, acceptancePrefix);
+  assert.match(historicOidcBatchView(m, read).acceptanceStatus, acceptancePrefix);
   m.acceptanceStatus = m.acceptanceStatus.replace(
     /^NOT ACCEPTED: \d+ API methods and (16|11) page\/action GAPs/, nextPrefix);
   const note = " Current five page-only SOLO_VERIFIED_DEV_RECOVERY proposals: 10/21 scoped pages " +
