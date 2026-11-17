@@ -2182,6 +2182,7 @@ export function calculateEmployeePay(input: {
   // The denominator remains the full cutoff while timeline coverage begins on
   // the actual employment start date, so a mid-cutoff hire receives only the
   // earned fraction of the semi-monthly salary.
+  const flags: string[] = [];
   const unroundedSemiMonthlyBasic = fixedMonthlyBasicForTimeline(
     timeline,
     input.periodStart,
@@ -2280,7 +2281,6 @@ export function calculateEmployeePay(input: {
   const nightDifferentialPremiumApplications: AppliedNightDifferentialPremiumRule[] = [];
   const nightDifferentialPremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
 
-  const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
   const overtimeMinutesByWorkDate = new Map<string, number>();
