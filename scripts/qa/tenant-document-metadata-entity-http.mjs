@@ -151,20 +151,23 @@ export async function proveDocumentMetadata(){
    blocked++;
   }
   const policy=await get("/api/hcm/documents?organizationId="+a.org.id,a.cookie);
-  assert.equal(policy.status,503,"Unscoped HCM policy response must refuse in multi-entity mode");
-  assert.equal(policy.json?.code,"HCM_DOCUMENT_LEGAL_EMPLOYER_SCOPE_PENDING");
+  // The existing HCM proxy embargo runs BEFORE this route. Never bypass it
+  // merely to observe the route-level defense-in-depth 503.
+  assert.equal(policy.status,403,"HCM proxy embargo must refuse multi-entity GET");
+  assert.equal(policy.json?.code,"ENTITY_HCM_DEFERRED");
   assert.ok(!policy.text.includes("DML_FOREIGN_IN_A_")&&!policy.text.includes("DML_A_"+nonce));
   assert.match(policy.headers.get("cache-control")??"",/no-store/i);
   assert.deepEqual(await snapshot(),before,"HCM refusal must not touch protected SQL");
   // No legal-employer-at-issuance attribution exists for these upload/policy
   // mutations. Refuse all multi-entity writes BEFORE parsing or touching SQL.
-  for (const [endpoint,expectedCode] of [
-    ["/api/documents","DOCUMENT_UPLOAD_ENTITY_SCOPE_PENDING"],
-    ["/api/hcm/documents","HCM_DOCUMENT_MUTATION_ENTITY_SCOPE_PENDING"],
+  for (const [endpoint,expectedStatus,expectedCode] of [
+    ["/api/documents",503,"DOCUMENT_UPLOAD_ENTITY_SCOPE_PENDING"],
+    // HCM cannot reach the route-level 503 until the separate global embargo is reviewed.
+    ["/api/hcm/documents",403,"ENTITY_HCM_DEFERRED"],
   ]) {
     const beforePost=await snapshot();
     const rejectedPost=await post(endpoint,a.cookie);
-    assert.equal(rejectedPost.status,503,"Multi-entity document mutation must fail closed");
+    assert.equal(rejectedPost.status,expectedStatus,"Multi-entity document mutation must fail closed");
     assert.equal(rejectedPost.json?.code,expectedCode);
     assert.ok(!rejectedPost.text.includes("DML_FOREIGN_IN_A_"));
     assert.match(rejectedPost.headers.get("cache-control")??"",/no-store/i);
@@ -187,8 +190,8 @@ export async function proveDocumentMetadata(){
     pgMajor:16,localhost:true,principals:3,higherIdVictim:true,
     ownPopulatedListGets:3,realForeignSelectorDenials:blocked,
     unassignedDocumentExcluded:true,
-    hcmUnattributedPolicy503:true,
-    uploadMutation503:true,hcmPolicyMutation503:true,revokedGrantDenied:true,
+    hcmProxyEmbargoGet403:true,
+    uploadMutation503:true,hcmProxyEmbargoPost403:true,revokedGrantDenied:true,
     deniedSqlUnchanged:true,
     privacyReview:"PENDING",methodCredits:0,productionAccepted:false,
     externalProviders:0,moneyMoved:false,
