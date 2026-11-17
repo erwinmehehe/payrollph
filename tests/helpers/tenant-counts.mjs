@@ -17,6 +17,7 @@ import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts
 import { reviewedWageRegistrySourceWithdrawals } from "../../scripts/qa/wage-registry-source-hold.mjs";
 import { reviewedTransitiveWageWithdrawals } from "../../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import { reviewedSealedWageWithdrawals } from "../../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
+import { reviewedWageRenewalEngineWithdrawal } from "../../scripts/qa/wage-registry-renewal-supersession.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Newly restored methods only, backed by the sealed executed renewal. */
@@ -272,6 +273,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...reviewedWageRegistrySourceWithdrawals(base.manifest, manifest),
     ...reviewedTransitiveWageWithdrawals(base.manifest, manifest),
     ...reviewedSealedWageWithdrawals(base.manifest, manifest),
+    ...reviewedWageRenewalEngineWithdrawal(base.manifest, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
