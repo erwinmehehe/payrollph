@@ -1,0 +1,99 @@
+name: Two-month fictional payroll parity (1999, no money)
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'tests/payroll-1999-*.test.ts'
+      - 'tests/fixtures/payroll-1999-reference.ts'
+      - 'docs/payroll-certification/two-month-2026-1999.md'
+      - '.github/workflows/payroll-1999-two-month.yml'
+      - 'src/lib/payroll-engine.ts'
+      - 'src/lib/payroll-settlement.ts'
+      - 'src/lib/payroll-rules.ts'
+      - 'src/lib/ph-statutory-rule-packs.ts'
+      - 'src/lib/pay-basis.ts'
+      - 'src/lib/payroll-journal-export.ts'
+      - 'src/lib/annualization.ts'
+      - 'src/lib/wage-orders.ts'
+permissions:
+  contents: read
+concurrency:
+  group: payroll-1999-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  two-month:
+    name: Two-month real engine PG${{ matrix.postgres }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TZ: Asia/Manila
+      CI: 'true'
+      PAYROLL_1999_DISPOSABLE: github-actions-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: 'false'
+      APP_BASE_URL: http://127.0.0.1:3000
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      FINAL_PAY_MANUAL_RELEASE_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_LIVE_APPROVED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact proposed source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral fictional data keys
+        run: |
+          for name in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - name: Provision only this fresh disposable database
+        run: npm run db:push
+      - name: Existing isolated PG16 audit guard
+        if: matrix.postgres == 16
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Existing reviewed baseline, no repository migrations
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npx tsc --noEmit
+      - name: Actual four-cutoff engine, released-record, payslip and GL reconciliation
+        run: npx tsx --test --test-concurrency=1 tests/payroll-1999-reference.test.ts tests/payroll-1999-two-month-postgres.test.ts
+      - name: Preserve observed discrepancies even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: payroll-1999-pg${{ matrix.postgres }}
+          path: outputs/payroll-1999/result.json
+          if-no-files-found: error
+          retention-days: 14
