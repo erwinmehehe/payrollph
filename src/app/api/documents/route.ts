@@ -60,7 +60,7 @@ export async function GET(request: Request) {
     return Response.json({
       documents: rows,
       limits: { maxBytes: MAX_UPLOAD_BYTES, accepted: ["application/pdf", "image/png", "image/jpeg"] },
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
   const denied = await assertOrganizationRole(
