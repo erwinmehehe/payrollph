@@ -54,7 +54,12 @@ test("forged receipt, altered financial source, and fake approval fail closed", 
       const fake=structuredClone(m);change(fake);
       assert.throws(()=>verifyWageYearEndHold(fake),"Tampered wage-source hold cannot restore credit");
     }
-    assert.throws(()=>verifyYearEndCredits(m),/current-source proof required/);
+    // An edited payroll engine is rejected at the historical source-blob pin
+    // before the verifier reaches the older held-method check. Both outcomes
+    // fail closed; neither grants coverage to the 47 zero-credit wage holds.
+    assert.throws(() => verifyYearEndCredits(m),
+      /(?:current-source proof required|source\/proof changed; renew PG16 review)/,
+      "Stale #1804 source receipt must not restore year-end GET/POST coverage");
     return;
   }
   if (isYearEndHeld(m)) {
