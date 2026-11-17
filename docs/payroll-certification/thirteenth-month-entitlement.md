@@ -27,8 +27,8 @@ An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing 
 ## Recorded legacy divergences
 
 1. **Rounding — report screening repaired.** The previous report builder computed `round2(basic / 12)` in floating point. `year-end.ts` still uses its exact centavo method only when the `exactThirteenthCentavos` flag is on. Over every basic amount from 100.00 to 600,000.00 the legacy report formula differed from the exact method in 518,758 of 59,990,001 cases (0.87%), always one centavo LOW, never high. Example: basic 100.02 gave 8.33 with the old formula and 8.34 exact. The report now uses the exact result for verifiable, supported centavo inputs; its legacy fallback remains for other inputs. Year-end rounding behavior is unchanged.
-2. **Reversals ignored.** `readBasicAndThirteenth` (`final-pay.ts`) and the DOLE report apply `Math.max(0, amount)` per payout line, so a reversal is dropped and the original payout still counts as granted. The tests show 95,000.00 reported still due where 100,000.00 is.
-3. **Possible double count, NOT reproduced.** The DOLE report adds payroll, historical and final-pay 13th amounts. If one payout is recorded both as a payroll line and in the separation record it would count twice. This was read from the code path only; it needs a database-backed reproduction before anyone relies on it.
+2. **Reversals ignored (latent, no producer found).** `readBasicAndThirteenth` (`final-pay.ts`) and the DOLE report apply `Math.max(0, amount)` per payout line or source, so a negative 13th-month line would be dropped and the original payout would still count as granted. The tests show 95,000.00 reported still due where 100,000.00 is. However, the only entry point for a 13th-month earning (the `payroll-earnings` route) rejects `amount <= 0`, and a search of the payroll engine, payslip and adjustment code found nothing that writes a negative 13th-month line. Today this is a defect in waiting, not a live one. It becomes live if a correction or clawback feature ever emits negative payout lines.
+3. **Double count: not a double count by design (code reading, not database-reproduced).** Final pay stores `prorated13thMonth = thirteenthDue = max(0, entitlement - thirteenthPaidYtd)` (`final-pay.ts`), the incremental amount still owed, and the separation route writes no payroll entry. The DOLE report's sum of payroll-paid plus final-pay due therefore equals the entitlement, not twice it. A larger total would appear only if a normal payroll run pays a 13th month after the final pay was computed, and then the larger granted figure is correct. Sources read: `final-pay.ts`, `separation/route.ts`, `dole-thirteenth-month-report-server.ts`.
 
 ## SOURCE NOT VERIFIED
 
@@ -44,4 +44,14 @@ An unknown code is excluded and flagged (`UNCLASSIFIED_LINE_EXCLUDED`); missing 
 ## Not built yet
 
 - Rewiring `year-end.ts`, `final-pay.ts`, `dole-thirteenth-month-report-server.ts` and the routes that import them. Those files carry tenant-ledger pins and need blob repins and inventory rows, so each needs its own proof.
-- A database-backed reproduction of the possible double count (item 3 above).
+
+## Effect of `EXACT_THIRTEENTH_CENTAVOS_ENABLED` (measured, flag stays OFF)
+
+Pure-function measurement, fictional amounts, `tests/exact-thirteenth-flag-impact.test.ts`. The flag is off unless the variable is exactly `true`. It switches final pay (`final-pay.ts`), year-end (`year-end.ts`) and the standalone helper (`ph-compliance.ts`) between the legacy float formula and exact centavo half-up, and adds a `thirteenthRoundingPolicy` marker to the frozen final-pay and year-end evidence.
+
+- **Size:** over basic 100.00 to 60,000.00 (5,990,001 amounts) the two modes differ in 54,577 (0.91%), always by 0.01, always with the flag OFF one centavo LOW. Over 100.00 to 1,000.00 it is 831 of 90,001 (pinned in the test, recounted with the bare formulas).
+- **Approvals:** turning it on or off changes the frozen final-pay source fingerprint in both directions, so an approval frozen under the other setting is rejected as stale (existing test `hcm-final-pay-source-transaction.test.ts`). Expect re-approval of any open final-pay package after a flip.
+- **Settled records:** the separation route only recomputes for a new or still-open package; a `released` package starts a new separation, so a released record's stored `prorated13thMonth` is not rewritten by a flip (read from `separation/route.ts`, not exercised end to end here). Approved year-end adjustments are blocked from recompute (`year-end-atomicity.test.ts`).
+- **Inconsistency while OFF:** the DOLE screening is exact regardless of the flag, but final pay and year-end are float while OFF. For basic 100.02 with 8.33 granted, final pay owes 0.00 while the DOLE screening lists a 0.01 shortfall that payroll can never clear. Turning the flag on removes the disagreement.
+- **Not known:** the production value of the flag. It lives in deployment environment variables, which were not read.
+- **Not decided here:** whether and when to enable it. That needs the flag's own approval evidence (tie/boundary tests, flag-off parity, stale-approval rejection, golden reconciliation).
