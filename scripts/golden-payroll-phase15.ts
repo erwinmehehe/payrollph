@@ -104,12 +104,20 @@ async function runCutoff(orgId: number, cutoff: number, employeeIds: Map<number,
     const key = employeeIds.get(row.employeeId);
     assert.ok(key, `cutoff ${cutoff}: unknown employee ${row.employeeId}`);
     const items = row.lineItems as Array<{ code?: string; amount?: string | number }>;
-    const wht = items.find((item) => item.code === "WHT");
-    assert.ok(wht, `${key} cutoff ${cutoff}: no withholding line`);
+    // A payslip must show withholding as one deduction. Taking Math.abs()
+    // would silently certify a reversed-sign tax earning or duplicate WHT.
+    const whtLines = items.filter((item) => item.code === "WHT");
+    assert.equal(whtLines.length, 1, `${key} cutoff ${cutoff}: expected exactly one withholding deduction`);
+    const rawWht = whtLines[0].amount;
+    assert.ok(rawWht !== undefined && (typeof rawWht !== "string" || rawWht.trim().length > 0),
+      `${key} cutoff ${cutoff}: withholding amount missing`);
+    const wht = Number(rawWht);
+    assert.ok(Number.isFinite(wht) && wht <= 0,
+      `${key} cutoff ${cutoff}: withholding must be a finite deduction (negative WHT line), got ${String(rawWht)}`);
     const flags = ((row.trace as { flags?: unknown })?.flags ?? []) as unknown[];
     observed.set(key, {
       status: row.status,
-      withholding: Math.abs(Number(wht.amount)),
+      withholding: -wht,
       noBreakdownFlag: flags.some((flag) => String(flag).includes(NO_BREAKDOWN_FLAG)),
       poolFlag: flags.some((flag) => String(flag).includes(POOL_FLAG)),
     });
