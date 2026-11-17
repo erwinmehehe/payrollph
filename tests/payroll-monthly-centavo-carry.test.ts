@@ -9,7 +9,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { splitFixedMonthlyBasic } from "../src/lib/payroll-money";
+import { splitFixedMonthlyBasic, verifiedFirstCutoffForFixedMonthlyCarry } from "../src/lib/payroll-money";
 import { computeCutoffStatutoryDeduction, computeSss } from "../src/lib/payroll-rules";
 
 type Case = {
@@ -82,5 +82,32 @@ test("a one-cent lower actual month requires an explicit second-cutoff remainder
 test("invalid / fractional-cent salaries cannot be silently allocated", () => {
   for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, -1, 5249.991, 100_000_000_000_000]) {
     assert.throws(() => splitFixedMonthlyBasic(invalid));
+  }
+});
+
+test("second cutoff requires one matching released first-cutoff source", () => {
+  const valid = {
+    monthlySalary: 5249.99,
+    finalPeriodStart: "2026-07-16",
+    priorEntries: 1,
+    priorPeriodStart: "2026-07-01",
+    priorPeriodEnd: "2026-07-15",
+    priorPayBasis: "monthly",
+    priorRateAmount: 5249.99,
+    priorBasicAmount: 2625.00,
+  };
+  assert.equal(verifiedFirstCutoffForFixedMonthlyCarry(valid), true);
+  const bad = [
+    { priorEntries: 0 }, { priorEntries: 2 },
+    { priorPeriodStart: "2026-07-02" }, { priorPeriodEnd: "2026-07-14" },
+    { priorPeriodStart: "2026-06-01" }, { priorPayBasis: "hourly" },
+    { priorRateAmount: 5250 }, { priorBasicAmount: 2624.99 },
+    { priorRateAmount: null }, { priorBasicAmount: null },
+    { finalPeriodStart: "2026-07-15" }, { finalPeriodStart: "2026-08-16" },
+  ];
+  for (const mutation of bad) {
+    const evidence = { ...valid, ...mutation };
+    assert.equal(verifiedFirstCutoffForFixedMonthlyCarry(evidence), false,
+      "unverified prior evidence must not receive an approved centavo carry: " + JSON.stringify(mutation));
   }
 });
