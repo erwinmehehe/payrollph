@@ -31,7 +31,7 @@ export type ImportedBenefitPrior = {
 /** Reject missing, negative, non-finite, non-centavo or unparseable imported monetary evidence. */
 function verifiedCentavos(raw: unknown): number | null {
   if (typeof raw !== "number" && typeof raw !== "string") return null;
-  if (typeof raw === "string" && !/^[0-9]+(?:\\.[0-9]{1,2})?$/.test(raw.trim())) return null;
+  if (typeof raw === "string" && !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(raw.trim())) return null;
   const amount = Number(raw);
   const cents = amount * 100;
   if (!Number.isFinite(amount) || amount < 0 ||
