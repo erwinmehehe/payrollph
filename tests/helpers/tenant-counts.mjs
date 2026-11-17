@@ -290,7 +290,7 @@ function historicalWageComparisonBase(assert, manifest, baseManifest) {
 export function reviewedPrivateDocumentSourceHold(beforeManifest, afterManifest, read = readFileSync) {
   const path = "src/app/api/documents/[id]/route.ts";
   const priorSha = "0acb38b1396b1e35adf02efd6e033cdd0416e0d0";
-  const currentSha = "7ec01fa9698db169e75569617aca825571842e7c";
+  const currentSha = "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6";
   const prior = beforeManifest.allApiRouteFiles?.[path];
   const current = afterManifest.allApiRouteFiles?.[path];
   const before = prior?.methods?.find(m => m.name === "GET");
@@ -307,12 +307,15 @@ export function reviewedPrivateDocumentSourceHold(beforeManifest, afterManifest,
       hold.previousRouteBlobSha !== priorSha || hold.routeBlobSha !== currentSha ||
       JSON.stringify(hold.previousMethodProof) !== JSON.stringify(before.testedBy) ||
       hold.sourceContractTest !== "tests/tenant-private-document-id-boundary.test.mjs" ||
+      hold.historicalTransferTests !== "scripts/qa/tenant-document-legal-employer-http.mjs" ||
       hold.exactHeadPg16Http !== "PENDING" ||
       hold.independentSecurityReview !== "PENDING" ||
       hold.productionCertified !== false || hold.coverageCredits !== 0 ||
       !now.reason.startsWith("REVIEW-ONLY SOURCE HOLD:") ||
       current.sourceRevisionReview?.noNewMethodCredit !== true ||
       current.sourceRevisionReview?.newRouteBlobSha !== currentSha ||
+      current.sourceRevisionReview?.historicalTransferSourceReview !==
+        "DENY-AMBIGUOUS-TRANSFER-RECORDS; issuance-time ownership still requires independent reconciliation" ||
       current.sourceRevisionReview?.oldRouteBlobSha !== priorSha ||
       JSON.stringify(current.sourceRevisionReview?.priorActiveMembershipRevision) !==
         JSON.stringify(prior.sourceRevisionReview)) return none;
@@ -324,7 +327,7 @@ export function reviewedPrivateDocumentSourceHold(beforeManifest, afterManifest,
   try {
     source = read(path).toString("utf8");
     if (gitBlob(source) !== currentSha ||
-        gitBlob(read(hold.sourceContractTest)) !== "f4564a5e0a6a8afa7657c04789f464077ee46e50")
+        gitBlob(read(hold.sourceContractTest)) !== "6404dfe9c6421a12e302015567f5448db048cef6")
       return none;
   } catch { return none; }
   const chain = [
@@ -332,6 +335,10 @@ export function reviewedPrivateDocumentSourceHold(beforeManifest, afterManifest,
     'if (criticalReleaseFlagEnabled("multiEntity"))',
     "const entityScope = await resolveMultiEntityContext({",
     "assertEntityResource(entityScope.context, employee.legalEntityId)",
+    "const [appliedTransfer, otherAssignment] = await Promise.all([",
+    'eq(entityTransferRequests.status, "applied")',
+    "ne(employeeEntityAssignments.legalEntityId, employee.legalEntityId)",
+    "if (appliedTransfer.length > 0 || otherAssignment.length > 0)",
     "assertScope(access, employee.orgUnitId)",
     "signedDocumentObjectUrl(document.objectStorageKey",
     'Buffer.from(document.content, "base64")',
