@@ -1,12 +1,39 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync,existsSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
 import {readWageRenewalInventory} from '../scripts/qa/wage-registry-renewal-plan.mjs';
 import {requiredWageFamilies,methodKey} from '../scripts/qa/wage-registry-renewal-methods.mjs';
 import {validateWageReceiptResults,readWageRenewalReceipt,WAGE_RENEWAL_RECEIPT,WAGE_RENEWAL_RECEIPT_BLOB,wageRenewalHoldView,isExactHistoricalLoaderChange} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import {reconcileWageRenewal} from '../scripts/qa/wage-registry-renewal-credit.mjs';
 import {assertWageLedgerDelta} from './helpers/wage-source-holds.mjs';
+import {renewalWorkflow} from '../scripts/qa/wage-registry-renewal-workflow.mjs';
 const receipt=()=>JSON.parse(readFileSync(WAGE_RENEWAL_RECEIPT,'utf8'));
+test('source-only Worker 360 CI validates current receipts without any npm dependency',()=>{
+ const code=`import {registerHooks} from 'node:module';
+ registerHooks({resolve(s,c,n){if(!s.startsWith('node:')&&!s.startsWith('.')&&!s.startsWith('file:'))throw Error('npm dependency '+s);return n(s,c)}});
+ const assert=(await import('node:assert/strict')).default;
+ const fs=await import('node:fs');
+ const {verifySixPageCredits,historicSixPageView,selectedTargets}=await import('./scripts/qa/tenant-six-scoped-page-credit.mjs');
+ const {verifyFivePageCredits,historicWorker360ProofView}=await import('./scripts/qa/tenant-five-scoped-page-credit.mjs');
+ const {verifyWorker360PageCredit}=await import('./scripts/qa/tenant-five-method-credit-verify.mjs');
+ const {verifyWorker360LegalEmployerCredits}=await import('./scripts/qa/tenant-worker360-legal-employer-credit.mjs');
+ const live=JSON.parse(fs.readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+ assert.equal(verifySixPageCredits(live),selectedTargets().length);
+ const historical=historicSixPageView(live);assert.equal(verifyFivePageCredits(historical),5);
+ const worker=historicWorker360ProofView(historical);assert.equal(verifyWorker360LegalEmployerCredits(worker),2);assert.equal(verifyWorker360PageCredit(worker),16);`;
+ assert.doesNotThrow(()=>execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8'}));
+});
+test('dependency-free sealed job catalog equals every actual workflow job and matrix variant',()=>{
+ const expected={};
+ for(const [jobKey,job] of Object.entries(renewalWorkflow().jobs)){
+  const family=jobKey.split('__')[0],matrix=job.strategy?.matrix||{};
+  assert.ok(!matrix.include&&!matrix.exclude);
+  const variants=Object.entries(matrix).reduce((all,[key,values])=>all.flatMap(v=>values.map(value=>({...v,[key]:value}))),[{}]);
+  (expected[family]??=[]).push(...variants.map(variant=>({jobKey,variant})));
+ }
+ assert.deepEqual(JSON.parse(readFileSync('scripts/qa/wage-registry-renewal-jobs.json','utf8')),expected);
+});
 test('historical loader compatibility cannot change an assertion, add executable code or alter an HTTP proof',()=>{
  const r=receipt(),file='tests/tenant-filing-outcome-contract.test.mjs',raw=readFileSync(file,'utf8');
  assert.equal(isExactHistoricalLoaderChange(file,r.sourcePins[file],raw),true);

@@ -2,26 +2,24 @@
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {execFileSync} from 'node:child_process';
 import {readWageRenewalInventory,INVENTORY_BLOB} from './wage-registry-renewal-plan.mjs';
 import {requiredWageFamilies,methodKey} from './wage-registry-renewal-methods.mjs';
 import {verifyWageFamilyResults} from './wage-registry-renewal-results.mjs';
 import {verifyCompleteWageMethod} from './wage-registry-renewal-complete.mjs';
-import {renewalWorkflow} from './wage-registry-renewal-workflow.mjs';
 
 export const WAGE_RENEWAL_KIND='wage-registry-current-source-pg16-http-renewal';
 export const WAGE_RENEWAL_RECEIPT='scripts/qa/wage-registry-renewal-receipt.json';
 // Set only after inspecting real exact-source successful jobs and their output.
 export const WAGE_RENEWAL_RECEIPT_BLOB='8af7a0d35cb85b2d616babdc0a56fc62fcad9856';
 export const blob=raw=>{const b=Buffer.from(raw);return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');};
-const historicalLoaderSources=new Map();
 export function isExactHistoricalLoaderChange(file,sha,raw){
  if(!['tests/tenant-filing-outcome-contract.test.mjs','tests/tenant-filing-patch-method-contract.test.mjs'].includes(file))return false;
  // These two unit tests are included by the historical workflow collector.
  // Permit ONLY a verified historical manifest loader; every assertion and
  // every HTTP/runtime proof byte must remain unchanged. Never rewrite receipt pins.
- if(!historicalLoaderSources.has(sha))historicalLoaderSources.set(sha,execFileSync('git',['show',sha]));
- const original=historicalLoaderSources.get(sha);assert.equal(blob(original),sha);
+ const archive=readFileSync('scripts/qa/wage-registry-renewal-unit-loaders.json');
+ assert.equal(blob(archive),'d3d675220aed7dcda9f6afb5f8ecc2d7f16ee784','Executed unit-test source archive changed');
+ const original=Buffer.from(JSON.parse(archive)[file]);assert.equal(blob(original),sha);
  const text=original.toString('utf8').replaceAll('\r\n','\n');
  const changed=text.replace(/JSON\.parse\(readFileSync\(\s*(['"])scripts\/qa\/tenant-isolation-coverage-manifest\.json\1\s*(?:,\s*(['"])utf8\2)?\s*\)\)/g,'readWageWithdrawalFixture()');
  if(changed===text)return false;
@@ -48,17 +46,13 @@ export const ACCOUNTING_ONLY=Object.freeze([
  'tests/helpers/wage-source-holds.mjs',
 ]);
 const rowAt=(m,e)=>m.allApiRouteFiles[e.path]?.methods.find(x=>x.name===e.verb);
-function variants(matrix={}){
- assert.ok(!matrix.include&&!matrix.exclude,'New matrix semantics need explicit review');
- return Object.entries(matrix).reduce((all,[key,values])=>all.flatMap(v=>values.map(value=>({...v,[key]:value}))),[{}]);
-}
-let expectedJobDefinitions;
 export function expectedWageJobs(family){
- // Receipt source-pin validation still hashes the actual workflow bytes on
- // every call, including mutation readers; this caches only matrix expansion.
- expectedJobDefinitions??=renewalWorkflow().jobs;
- return Object.entries(expectedJobDefinitions).filter(([key])=>key.startsWith(family+'__'))
-  .flatMap(([jobKey,job])=>variants(job.strategy?.matrix).map(variant=>({jobKey,variant})));
+ // Source-only ledger jobs intentionally have no npm install. Use the sealed
+ // reviewed expansion, and test parity against the full YAML generator.
+ // Actual executing and original workflow bytes remain receipt-source pinned.
+ const raw=readFileSync('scripts/qa/wage-registry-renewal-jobs.json');
+ assert.equal(blob(raw),'734d3496f426d85fe22ab6d5c6298f68bfedd2b1','Reviewed job/matrix catalog changed');
+ return JSON.parse(raw)[family]||[];
 }
 const stable=value=>Array.isArray(value)?value.map(stable):value&&typeof value==='object'
  ?Object.fromEntries(Object.keys(value).sort().map(k=>[k,stable(value[k])])):value;

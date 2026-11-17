@@ -1,7 +1,7 @@
 /** Reuse the earlier full-method result contracts, with genuinely NEW execution. */
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {verifyStudioPostResults} from './tenant-studio-post-credit.mjs';
+import {verifyStudioPostResults} from './wage-registry-renewal-studio-results.mjs';
 import {verifyPayrollRenewalResults,PAYROLL_RENEWAL_COHORTS} from './payroll-run-credit-renewal-contract.mjs';
 const find=(jobs,predicate)=>{for(const j of jobs||[])for(const result of j.results||[])if(predicate(result))return {j,result};throw new Error('Missing actual complete-method result/artifact');};
 const cohort=({j,result})=>({conclusion:j.conclusion,postgresMajor:16,transport:'real-http',sourceHead:j.sourceHead,runId:j.runId,jobId:j.jobId,result});
