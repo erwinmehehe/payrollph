@@ -1,6 +1,6 @@
 # Document metadata lists — same-parent legal-employer boundary (draft)
 
-**SECURITY NOT ACCEPTED. Source-only candidate, synthetic disposable PG16 acceptance required. No production release, schema migration, identity provider, money or external storage calls.**
+**SECURITY NOT ACCEPTED. The bounded synthetic PG16 scenario passed on `d7be035c6`; final-head CI and the separate acceptance gates below remain required. No production release, schema migration, identity provider, money or external storage calls.**
 
 ## Source changes
 
@@ -8,7 +8,7 @@
 
 `GET /api/hcm/documents`: currently aggregates organization-wide policy bodies and target rules, requirement definitions, employee/compliance details, expiry notices and private document metadata. Filtering employees alone would still expose cross-legal-employer policy content. **The existing `src/proxy.ts` HCM-wide embargo returns 403 / `ENTITY_HCM_DEFERRED` before this route executes** when multi-entity is enabled. The new route-level 503 / `HCM_DOCUMENT_LEGAL_EMPLOYER_SCOPE_PENDING` is defense in depth should the separate embargo ever be lifted after approval; it is NOT currently reachable in the multi-entity HTTP workflow. Both responses refuse without loading parent data. Feature-OFF behavior is unchanged. Availability impact requires product/security owner review.
 
-**Both `POST` mutations fail closed under multi-entity mode.** `/api/documents` returns a route-level private/no-store 503 after authentication and same-origin checks, before upload parsing or SQL. `/api/hcm/documents` is blocked earlier by the existing HCM proxy embargo with private/no-store 403 / `ENTITY_HCM_DEFERRED`; the route-level 503 remains defense in depth and cannot be treated as an executed HTTP proof. No multipart/JSON body or SQL mutation runs. All four changed GET/POST methods remain `GAP/testedBy:null` and zero-credit, with historical receipts not promoted. Branch ledger: **457 covered / 4 GAP / 25 public / 12 privileged of 498**, not independently approved.
+**Both `POST` mutations fail closed under multi-entity mode.** `/api/documents` returns a route-level private/no-store 503 after authentication and same-origin checks, before upload parsing or SQL. `/api/hcm/documents` is blocked earlier by the existing HCM proxy embargo with private/no-store 403 / `ENTITY_HCM_DEFERRED`; the route-level 503 remains defense in depth and cannot be treated as an executed HTTP proof. No multipart/JSON body or SQL mutation runs. All four changed GET/POST methods remain `GAP/testedBy:null` and zero-credit, with historical receipts not promoted. The changed documents dependency also invalidates the shared security receipt for biometrics POST and developer POST; both remain GAP. Main's 75 payroll-engine source holds remain intact. Counts are generated in the [live inventory](../engineering/tenant-isolation-coverage-inventory.md); this review does not independently certify them.
 
 ## Source-current disposable test
 
@@ -16,11 +16,13 @@
 
 - Exact-head PR checkout and source SHA pins
 - Empty, disposable PostgreSQL 16, localhost production-mode Next server, three independent synthetic employer sessions, higher-ID real victim document
-- Own source document lists populated; A-only grant omits B’s document and unattributed parent rows in same parent organization
-- Forged header, query, duplicate legal-employer selectors, parent-tenant cross-read and revoked-grant request refuse without changing protected DB rows
+- Own source document lists populated; A-only grant excludes a separately seeded legal employer's document and unattributed rows within A's parent organization
+- Both attacker sessions exercise real foreign-employer denials; forged header, query, duplicate legal-employer selectors, parent-tenant cross-read and revoked-grant request refuse without changing protected DB rows
 - HCM policy GET 403 / `ENTITY_HCM_DEFERRED` is enforced by the pre-route proxy, contains no private employee/document/policy data, and is no-store
 - Documents POST returns 503; HCM document-policy POST returns proxy-level 403; neither processes mutations or alters employer documents/audit records
 - No production database credentials, external providers, live money, or method-credit promotion
+
+The actual earlier-head job `134043549989` completed successfully on `d7be035c6`: three populated own reads, seven foreign/forged-selector denials, both attackers' upload/HCM write refusals, revoked-grant denial and unchanged SQL/audit snapshots. It reported zero provider calls, money movement and method credits. This is `SOLO_VERIFIED_DEV_RECOVERY` for that bounded scenario. It does not revalidate the historical whole-method upload/security receipt, prove the unreachable HCM route-level 503, certify transferred documents' issuance-time employer, or replace final-head execution.
 
 ## Remaining acceptance
 
