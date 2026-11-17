@@ -30,7 +30,7 @@ concurrency:
 jobs:
   journey:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.55.0 Chromium supports Ubuntu 24.04; runner ubuntu-latest moved to 26.04
     timeout-minutes: 30
     services:
       postgres:
