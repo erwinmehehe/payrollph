@@ -53,7 +53,7 @@ test('a projected historical hold cannot conceal an unrelated current-ledger dow
  row.testedBy=null;
  row.reason='unapproved source-independent downgrade';
  m.metrics.coveredAfter--;m.metrics.gap++;
- m.acceptanceStatus=m.acceptanceStatus.replace(/^NOT ACCEPTED: \\d+ API methods/,
+ m.acceptanceStatus=m.acceptanceStatus.replace(/^NOT ACCEPTED: [0-9]+ API methods/,
    'NOT ACCEPTED: '+m.metrics.gap+' API methods');
  assert.throws(()=>assertLiveTenantCounts(assert,m),/no proven method may be downgraded/,
    'A verified historical fixture cannot excuse an unrelated loss of security proof');
