@@ -1,4 +1,4 @@
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 385 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 76 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
 > **CURRENT / #2006 PAYROLL-ENGINE SOURCE SUPERSESSION — 75 ZERO-CREDIT HOLDS:** 498 methods = **386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP**. The sealed #2005 PG16 receipt is historical: it pins the previous payroll engine. All 75 methods are GAP / zero-credit until fresh exact-source PG16 verification. Independent security/payroll sign-off, live release and production approval remain PENDING.
 
@@ -261,7 +261,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 15 | 11 | 6 | 1 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 23 | 1 | 5 | 4 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **62 COVERED + 8 PUBLIC-BY-DESIGN + 22 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **61 COVERED + 8 PUBLIC-BY-DESIGN + 23 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
