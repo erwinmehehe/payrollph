@@ -57,6 +57,36 @@ export function splitFixedMonthlyBasic(monthlySalary: number): {
   };
 }
 
+/**
+ * A prior *released* payroll entry is not, by itself, proof of the first
+ * standard 1-15 cutoff. Only carry the odd cent into the 16-month-end run
+ * if exactly one earlier released entry identifies that same month, fixed
+ * monthly rate, and posted BASIC amount. This never authorizes release.
+ */
+export function verifiedFirstCutoffForFixedMonthlyCarry(input: {
+  monthlySalary: number;
+  finalPeriodStart: string;
+  priorEntries: number;
+  priorPeriodStart: string | null;
+  priorPeriodEnd: string | null;
+  priorPayBasis: string | null;
+  priorRateAmount: number | null;
+  priorBasicAmount: number | null;
+}): boolean {
+  if (
+    input.priorEntries !== 1
+    || !/^\\d{4}-\\d{2}-16$/.test(input.finalPeriodStart)
+    || input.priorPeriodStart !== input.finalPeriodStart.slice(0, 7) + "-01"
+    || input.priorPeriodEnd !== input.finalPeriodStart.slice(0, 7) + "-15"
+    || input.priorPayBasis !== "monthly"
+    || input.priorRateAmount === null || !Number.isFinite(input.priorRateAmount)
+    || input.priorBasicAmount === null || !Number.isFinite(input.priorBasicAmount)
+  ) return false;
+  const parts = splitFixedMonthlyBasic(input.monthlySalary);
+  return Math.round(input.priorRateAmount * 100) === Math.round(parts.monthly * 100)
+    && Math.round(input.priorBasicAmount * 100) === Math.round(parts.first * 100);
+}
+
 /** The prior-cutoff ledger may contain all zeroes and must still be used. */
 export function statutoryTrueUpDecision(input: {
   isFinalCutoffOfMonth: boolean;
