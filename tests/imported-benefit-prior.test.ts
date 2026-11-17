@@ -74,6 +74,20 @@ test("invalid 13th-month evidence or de minimis exceeding gross never clears rev
   assert.ok(result.unverifiable.has(2));
 });
 
+test("a prior-provider row cannot claim more combined de minimis and 13th-month than reported gross", () => {
+  const impossible = { ...row(4, "2026-06-30", { uniformClothing: 7000 }, "5000"), grossPay: "10000.00" };
+  // Both categories individually fit the 10,000 gross, but their 12,000
+  // combined total does not. Otherwise the engine could tax a fabricated pool.
+  const bad = importedBenefitPrior([impossible], "2026-07-15");
+  assert.ok(bad.unverifiable.has(4));
+  assert.equal(bad.known.has(4), false);
+
+  const boundary = { ...impossible, thirteenthMonth: "3000.00" };
+  const good = importedBenefitPrior([boundary], "2026-07-15");
+  assert.equal(good.unverifiable.size, 0);
+  assert.deepEqual(good.known.get(4), { deMinimisPaid: { uniformClothing: 7000 }, benefitPool90k: 3000 });
+});
+
 test("a verified category and 13th-month floor is not a certificate of all previous-provider 90k benefits", () => {
   // No imported field records all other bonuses/benefits. The engine must
   // retain the separate pool-evidence review hold even when this floor is known.
