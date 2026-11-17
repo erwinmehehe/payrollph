@@ -30,6 +30,13 @@ function requireDisposable(env=process.env) {
     APP_BASE_URL:URL_ROOT,
     TRUSTED_APP_ORIGINS:URL_ROOT,
     MULTI_ENTITY_ENABLED:"true", EMPLOYEE_DOCUMENT_VAULT_ENABLED:"true",
+    // Signed-URL proof uses only a synthetic HTTPS loopback origin. There is
+    // no object server, upload, external storage call or production credential.
+    DOCUMENT_OBJECT_STORAGE_ENDPOINT:"https://127.0.0.1:8444/",
+    DOCUMENT_OBJECT_STORAGE_BUCKET:"ci-documents-fixtures",
+    DOCUMENT_OBJECT_STORAGE_REGION:"ap-southeast-1",
+    DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID:"CI_ONLY_SIGNING_KEY_FAKE",
+    DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY:"CI_ONLY_NO_REMOTE_STORAGE",
     DEMO_MODE:"false",WORKER_ENABLED:"false",CENTRAL_SCHEDULER_ENABLED:"false",
     XENDIT_PAYOUTS_ENABLED:"false",XENDIT_BILLING_ENABLED:"false",
     PAYMONGO_DISBURSEMENTS_ENABLED:"false",
@@ -127,6 +134,20 @@ export async function proveDocumentLegalEmployer() {
       marker:"DOC_SAME_PARENT_OTHER_"+nonce});
     const unattributed=await makeDocument({org:a.org,worker:null,owner:a.owner,
       marker:"DOC_NO_ENTITY_"+nonce});
+    // No object is created in S3. The persisted identity key is synthetic;
+    // the actual handler signs its URL only after the ordinary database grant
+    // checks and records the read before disclosing that short-lived URL.
+    const ownPrivate=await makeDocument({org:victim.org,worker:victim.worker,
+      owner:victim.owner,marker:"DOC_PRIVATE_OWN_"+nonce});
+    const foreignPrivate=await makeDocument({org:a.org,worker:otherWorker,
+      owner:a.owner,marker:"DOC_PRIVATE_OTHER_"+nonce});
+    const privateKey=(orgId,workerId)=>"private-documents/"+orgId+"/"+workerId+"/"+randomUUID();
+    const ownPrivateKey=privateKey(victim.org.id,victim.worker.id);
+    const foreignPrivateKey=privateKey(a.org.id,otherWorker.id);
+    await db.update(s.documents).set({objectStorageKey:ownPrivateKey,content:""})
+      .where(eq(s.documents.id,ownPrivate.row.id));
+    await db.update(s.documents).set({objectStorageKey:foreignPrivateKey,content:""})
+      .where(eq(s.documents.id,foreignPrivate.row.id));
     assert.ok(ownC.row.id>ownA.row.id&&ownC.row.id>ownB.row.id&&ownC.row.id>6);
     assert.ok(foreign.row.id>ownA.row.id);
     const snapshot=async()=>({
@@ -151,10 +172,30 @@ export async function proveDocumentLegalEmployer() {
     await ownPositive(a,ownA);
     await ownPositive(b,ownB);
     await ownPositive(victim,ownC);
+    const signed=await getDocument({id:ownPrivate.row.id,cookie:victim.cookie});
+    assert.equal(signed.status,302,"Authorized private document must be signed after checking real legal-employer grant");
+    assert.equal(signed.bytes.length,0,"Signed document response cannot leak inline private content");
+    const signedLocation=signed.headers.get("location");
+    assert.ok(signedLocation,"Authorized private document requires actual signed Location");
+    const signedUrl=new URL(signedLocation);
+    assert.equal(signedUrl.origin,"https://127.0.0.1:8444",
+      "Never issue a URL to an external storage provider in this disposable proof");
+    assert.ok(signedUrl.pathname.endsWith("/"+ownPrivateKey),"Signed URL must bind exact document object key");
+    assert.equal(signedUrl.searchParams.get("X-Amz-Expires"),"60","Signed link must expire in one minute");
+    assert.match(signedUrl.searchParams.get("X-Amz-Signature")??"",/^[0-9a-f]{64}$/);
+    assert.match(signed.headers.get("cache-control")??"",/no-store/);
+    const privateAudits=await db.select().from(s.auditEvents).where(and(
+      eq(s.auditEvents.organizationId,victim.org.id),
+      eq(s.auditEvents.resource,String(ownPrivate.row.id)),
+    ));
+    assert.ok(privateAudits.some(x=>x.action==="Employee document viewed"),
+      "Signed URL must not leave the server without persisted view audit");
     const absent=await getDocument({id:2147483647,cookie:a.cookie});
     assert.equal(absent.status,404);
     const blocked=[
       ["same parent, other legal employer",{id:foreign.row.id,cookie:a.cookie},[foreign.marker]],
+      ["same parent, other legal employer signed URL",{id:foreignPrivate.row.id,cookie:a.cookie},[foreignPrivate.marker]],
+      ["forged signed URL legal employer selector",{id:foreignPrivate.row.id,cookie:a.cookie,headerEntityId:otherEntity.id},[foreignPrivate.marker]],
       ["forged employer query",{id:foreign.row.id,cookie:a.cookie,
         query:"legalEntityId="+otherEntity.id},[foreign.marker]],
       ["forged employer header",{id:foreign.row.id,cookie:a.cookie,
@@ -210,14 +251,18 @@ export async function proveDocumentLegalEmployer() {
       "Applied transfer denial must not modify protected documents or audit");
 
     const [deleted]=await db.delete(s.userLegalEntityGrants).where(and(
-      eq(s.userLegalEntityGrants.organizationId,a.org.id),
-      eq(s.userLegalEntityGrants.userId,a.owner.id),
-      eq(s.userLegalEntityGrants.legalEntityId,a.entity.id),
+      eq(s.userLegalEntityGrants.organizationId,victim.org.id),
+      eq(s.userLegalEntityGrants.userId,victim.owner.id),
+      eq(s.userLegalEntityGrants.legalEntityId,victim.entity.id),
     )).returning();
     assert.ok(deleted,"Must actually revoke source employer grant in PostgreSQL");
     const prior=await snapshot();
-    const deniedAfterRevoke=await getDocument({id:ownA.row.id,cookie:a.cookie});
-    opaque404(deniedAfterRevoke,absent,"revoked entity grant same session",[ownA.marker]);
+    // Victim has NO transfer or old assignment: revocation alone must deny.
+    // This cannot pass merely because an earlier historical hold was added.
+    const deniedAfterRevoke=await getDocument({id:ownC.row.id,cookie:victim.cookie});
+    opaque404(deniedAfterRevoke,absent,"revoked entity grant same session",[ownC.marker]);
+    const deniedPrivateAfterRevoke=await getDocument({id:ownPrivate.row.id,cookie:victim.cookie});
+    opaque404(deniedPrivateAfterRevoke,absent,"revoked entity signed URL",[ownPrivate.marker]);
     assert.deepEqual(await snapshot(),prior,"Revoked grant must not expose bytes or change SQL");
     const anonymous=await getDocument({id:ownA.row.id});
     assert.equal(anonymous.status,401,"Missing login must not bypass scoped document GET");
@@ -233,7 +278,9 @@ export async function proveDocumentLegalEmployer() {
       identicalAbsentAndForeign404:true,
       verifiedAuditBeforeOwnBytes:true,
       deniedDatabaseUnchanged:true,
-      signedObjectUrlFlow:"NOT_TESTED",
+      signedObjectUrlFlow:"SIGNED_60_SECONDS_SYNTHETIC_LOCALHOST",
+      signedUrlForeignAndRevokedDenied:true,
+      independentGrantRevocationWithoutTransfer:true,
       featureOffFlow:"NOT_TESTED",
       reviewer:"PENDING",
       methodCredits:0,productionAccepted:false,
