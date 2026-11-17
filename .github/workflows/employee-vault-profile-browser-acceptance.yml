@@ -30,7 +30,8 @@ permissions:
 
 jobs:
   synthetic-employee-vault:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 chromium-headless-shell is not supported on ubuntu-26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CI: "true"
