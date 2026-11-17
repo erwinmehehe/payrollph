@@ -5,6 +5,7 @@ import {spawnSync} from 'node:child_process';
 import test from 'node:test';
 import {verifiedWageCreditHolds,wageHeldPriorProof} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import {assertWageLedgerDelta,historicalWageCatalog} from './helpers/wage-source-holds.mjs';
+import {assertLiveTenantCounts} from './helpers/tenant-counts.mjs';
 const load=()=>readWageWithdrawalFixture();
 test('all 75 current holds are disjoint, zero-credit and retain immutable prior evidence',()=>{
  const m=load(),before=structuredClone(m),held=verifiedWageCreditHolds(m);
@@ -41,6 +42,21 @@ test('the current-ledger guard rejects unrelated edits, false counts and borrowe
   m=>{m.allApiRouteFiles['src/app/api/compliance/statutory-remittances/payment-evidence/route.ts'].methods[0].testedBy.ownPositiveLine=1;},
   m=>{m.scopedPages[0].status='GAP';},
  ]){const m=load();mutate(m);assert.throws(()=>assertWageLedgerDelta(assert,m));}
+});
+
+test('a projected historical hold cannot conceal an unrelated current-ledger downgrade',()=>{
+ const m=load();
+ const file=m.allApiRouteFiles['src/app/api/workforce/attendance-exceptions/route.ts'];
+ const row=file.methods.find(method=>method.name==='GET');
+ assert.equal(row?.status,'COVERED','The adversarial control must start from a proven method');
+ row.status='GAP';
+ row.testedBy=null;
+ row.reason='unapproved source-independent downgrade';
+ m.metrics.coveredAfter--;m.metrics.gap++;
+ m.acceptanceStatus=m.acceptanceStatus.replace(/^NOT ACCEPTED: [0-9]+ API methods/,
+   'NOT ACCEPTED: '+m.metrics.gap+' API methods');
+ assert.throws(()=>assertLiveTenantCounts(assert,m),/no proven method may disappear or be downgraded/,
+   'A verified historical fixture cannot excuse an unrelated loss of security proof');
 });
 
 test('historical wage bytes do not conceal a newly changed statutory watch',()=>{
