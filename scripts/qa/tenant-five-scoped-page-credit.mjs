@@ -198,40 +198,6 @@ export function historicWorker360ProofView(manifest) {
   return old;
 }
 
-/**
- * A separate private-document authorization fix may withdraw exactly one
- * previously covered GET credit. Five-page and historic OIDC proof generators
- * remain page-only: recognize the precise audited zero-credit source hold,
- * never treat the changed document handler as already security approved.
- */
-function reviewedDocumentGetGap(m, read = readFileSync) {
-  const path = "src/app/api/documents/[id]/route.ts";
-  const record = m.allApiRouteFiles[path];
-  const method = record?.methods?.find(item => item.name === "GET");
-  if (record?.gitBlobSha !== "7ec01fa9698db169e75569617aca825571842e7c" &&
-      method?.status === "COVERED") return 0;
-  const hold = method?.reviewedUncertified;
-  const previous = hold?.previousMethodProof;
-  assert.ok(record?.methods?.length === 1 && method?.status === "GAP" &&
-    method.testedBy === null &&
-    hold?.kind === "document-download-multi-entity-legal-employer-source-change-zero-credit" &&
-    hold.previousRouteBlobSha === "0acb38b1396b1e35adf02efd6e033cdd0416e0d0" &&
-    hold.routeBlobSha === "7ec01fa9698db169e75569617aca825571842e7c" &&
-    hold.coverageCredits === 0 && hold.exactHeadPg16Http === "PENDING" &&
-    hold.independentSecurityReview === "PENDING" && hold.productionCertified === false &&
-    previous?.file === "scripts/qa/tenant-second-pass-http.mjs" &&
-    previous?.ownPositiveLine === 840 && previous?.foreignDenialLine === 950 &&
-    record.sourceRevisionReview?.noNewMethodCredit === true &&
-    record.sourceRevisionReview?.newRouteBlobSha === hold.routeBlobSha,
-    "Five-page proof cannot absorb a forged, unrelated, or credited document GET downgrade");
-  assert.equal(gitBlobSha(read(path)),record.gitBlobSha,
-    "Document legal-employer runtime source drift requires independent reproof");
-  assert.equal(gitBlobSha(read("tests/tenant-private-document-id-boundary.test.mjs")),
-    "f4564a5e0a6a8afa7657c04789f464077ee46e50",
-    "Source-only document legal-employer guard changed without revalidation");
-  return 1;
-}
-
 export function expectedFivePageCreditManifest(original, read = readFileSync) {
   verifyFivePageProofInputs(read);
   const m = structuredClone(original);
@@ -279,16 +245,12 @@ export function expectedFivePageCreditManifest(original, read = readFileSync) {
   const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;
   if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,
     "The sole additional method must be independently source-pinned");
-  // The page proof itself grants zero API credit. Exactly one separately
-  // verified document GET source withdrawal may coexist with these pages.
-  const documentSourceHold = reviewedDocumentGetGap(m, read);
-  const reviewedApiGaps = expectedApiGaps + documentSourceHold;
-  assert.equal(historicOidcBatchView(m, read).metrics.gap, reviewedApiGaps,
+  assert.equal(historicOidcBatchView(m, read).metrics.gap, expectedApiGaps,
     "Five-page proof must not silently reclassify unrelated API methods");
   assert.equal(m.scopedPages.filter(p => p.status === "COVERED").length, 10);
   assert.equal(m.scopedPages.filter(p => p.status === "GAP").length, 11);
   const nextPrefix = "NOT ACCEPTED: " + m.metrics.gap + " API methods and 11 page/action GAPs";
-  const acceptancePrefix = new RegExp("^NOT ACCEPTED: " + reviewedApiGaps +
+  const acceptancePrefix = new RegExp("^NOT ACCEPTED: " + expectedApiGaps +
     " API methods and (16|11) page/action GAPs");
   assert.match(historicOidcBatchView(m, read).acceptanceStatus, acceptancePrefix);
   m.acceptanceStatus = m.acceptanceStatus.replace(
