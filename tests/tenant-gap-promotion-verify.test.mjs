@@ -1,10 +1,11 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {verifyPromotionCredits} from '../scripts/qa/tenant-gap-promotion-verify.mjs';
 import {historicWageRegistryProofView,verifyAllWageRegistrySourceHolds} from '../scripts/qa/wage-registry-source-hold.mjs';
 import {verifyAllTransitiveWageHolds} from '../scripts/qa/wage-registry-transitive-source-hold.mjs';
-const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+const live=readWageWithdrawalFixture();
 assert.equal(verifyAllWageRegistrySourceHolds(live).length,23);
 assert.equal(verifyAllTransitiveWageHolds(live).size,47);
 const original=historicWageRegistryProofView(live);

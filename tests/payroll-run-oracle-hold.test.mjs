@@ -1,9 +1,10 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { verifyOracleSourceHolds,verifiedOracleRenewalKeys, ORACLE_HELD_METHODS } from "../scripts/qa/payroll-run-oracle-hold.mjs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
-const live = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const live = () => readWageWithdrawalFixture();
 // Explicit historical-withdrawal fixture remains useful after genuine renewals.
 // Production metrics are changed only by the restricted writer, never here.
 const read = () => {

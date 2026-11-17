@@ -1,0 +1,250 @@
+{
+  "security": [
+    {
+      "jobKey": "security__change-scope",
+      "variant": {}
+    },
+    {
+      "jobKey": "security__security-http-acceptance",
+      "variant": {}
+    }
+  ],
+  "dl02": [
+    {
+      "jobKey": "dl02__dl02",
+      "variant": {}
+    }
+  ],
+  "table": [
+    {
+      "jobKey": "table__table",
+      "variant": {
+        "profile": "default"
+      }
+    },
+    {
+      "jobKey": "table__table",
+      "variant": {
+        "profile": "multi-entity"
+      }
+    },
+    {
+      "jobKey": "table__table",
+      "variant": {
+        "profile": "flagged-reads"
+      }
+    },
+    {
+      "jobKey": "table__table",
+      "variant": {
+        "profile": "allowlisted-reads"
+      }
+    }
+  ],
+  "statutory": [
+    {
+      "jobKey": "statutory__synthetic-contribution-case-post",
+      "variant": {}
+    }
+  ],
+  "yearend": [
+    {
+      "jobKey": "yearend__annualize-and-bind-isolated",
+      "variant": {}
+    }
+  ],
+  "approvals": [
+    {
+      "jobKey": "approvals__fictional-approval-http",
+      "variant": {}
+    },
+    {
+      "jobKey": "approvals__fictional-approval-sources-http",
+      "variant": {}
+    },
+    {
+      "jobKey": "approvals__fictional-approval-flows-http",
+      "variant": {}
+    },
+    {
+      "jobKey": "approvals__approval-types-http",
+      "variant": {}
+    },
+    {
+      "jobKey": "approvals__money-lifecycle-pg16",
+      "variant": {
+        "exact-links": "false"
+      }
+    },
+    {
+      "jobKey": "approvals__money-lifecycle-pg16",
+      "variant": {
+        "exact-links": "true"
+      }
+    }
+  ],
+  "enterprise": [
+    {
+      "jobKey": "enterprise__enterprise-admin-http",
+      "variant": {}
+    }
+  ],
+  "identity": [
+    {
+      "jobKey": "identity__identity-account",
+      "variant": {}
+    }
+  ],
+  "bir": [
+    {
+      "jobKey": "bir__synthetic",
+      "variant": {}
+    }
+  ],
+  "filing": [
+    {
+      "jobKey": "filing__filing-method-leg",
+      "variant": {
+        "case": "accepted"
+      }
+    },
+    {
+      "jobKey": "filing__filing-method-leg",
+      "variant": {
+        "case": "rejected"
+      }
+    },
+    {
+      "jobKey": "filing__filing-method-leg",
+      "variant": {
+        "case": "guards"
+      }
+    },
+    {
+      "jobKey": "filing__filing-method-all-legs",
+      "variant": {}
+    }
+  ],
+  "labor": [
+    {
+      "jobKey": "labor__labor-inspection-post-isolation",
+      "variant": {}
+    }
+  ],
+  "remittance": [
+    {
+      "jobKey": "remittance__remittance-action-pg16",
+      "variant": {
+        "multi_entity": "false"
+      }
+    },
+    {
+      "jobKey": "remittance__remittance-action-pg16",
+      "variant": {
+        "multi_entity": "true"
+      }
+    }
+  ],
+  "onboarding": [
+    {
+      "jobKey": "onboarding__journey",
+      "variant": {
+        "profile": "legacy"
+      }
+    },
+    {
+      "jobKey": "onboarding__journey",
+      "variant": {
+        "profile": "preview"
+      }
+    }
+  ],
+  "migrations": [
+    {
+      "jobKey": "migrations__migration-post",
+      "variant": {}
+    }
+  ],
+  "spend": [
+    {
+      "jobKey": "spend__spend-full-write-method",
+      "variant": {}
+    }
+  ],
+  "triage": [
+    {
+      "jobKey": "triage__tenant-studio-triage",
+      "variant": {}
+    }
+  ],
+  "draft": [
+    {
+      "jobKey": "draft__draft-writes",
+      "variant": {}
+    }
+  ],
+  "execution": [
+    {
+      "jobKey": "execution__studio-execution",
+      "variant": {}
+    }
+  ],
+  "language": [
+    {
+      "jobKey": "language__signed-language-drafts",
+      "variant": {}
+    }
+  ],
+  "lifecycle": [
+    {
+      "jobKey": "lifecycle__studio-lifecycle",
+      "variant": {}
+    }
+  ],
+  "scope": [
+    {
+      "jobKey": "scope__stored-recovery-scope",
+      "variant": {}
+    }
+  ],
+  "resolution": [
+    {
+      "jobKey": "resolution__resolve-reopen",
+      "variant": {}
+    }
+  ],
+  "sessions": [
+    {
+      "jobKey": "sessions__tenant-automation-session-ownership",
+      "variant": {}
+    }
+  ],
+  "oracle": [
+    {
+      "jobKey": "oracle__run-membership-oracle",
+      "variant": {}
+    }
+  ],
+  "payroll": [
+    {
+      "jobKey": "payroll__root-creation-renewal",
+      "variant": {}
+    },
+    {
+      "jobKey": "payroll__actions-renewal",
+      "variant": {}
+    }
+  ],
+  "exports": [
+    {
+      "jobKey": "exports__fictional-payroll-exports-post-http",
+      "variant": {}
+    }
+  ],
+  "paymongo": [
+    {
+      "jobKey": "paymongo__money-lifecycle-pg16",
+      "variant": {}
+    }
+  ]
+}

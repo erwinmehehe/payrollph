@@ -24,7 +24,7 @@ test("Spend write proof cannot borrow the historical GET credit or claim unrevie
   for (const [path, sha] of Object.entries(EXPECTED)) {
     assert.equal(gitBlob(path), sha, path + ": source drift requires new exact-head real-HTTP evidence");
   }
-  const manifest = JSON.parse(source(MANIFEST));
+  const manifest = readWageWithdrawalFixture();
   const entry = manifest.allApiRouteFiles[ROUTE];
   assert.equal(entry.gitBlobSha, EXPECTED[ROUTE]);
   assert.equal(verifyAllSealedWageHolds(manifest).size,5);
@@ -112,3 +112,4 @@ test("strict environment gate precedes database import; PG16 workflow has no pro
   assert.match(wf, /CENTRAL_SCHEDULER_ENABLED=false/);
   assert.doesNotMatch(wf, /vercel deploy|db:migrate:production|neon restore|npm run deploy/i);
 });
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';

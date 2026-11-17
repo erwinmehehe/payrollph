@@ -26,21 +26,12 @@ const gitBlob = path => {
 };
 
 test("source-pinned current year-end GET+POST proof receives only provisional #1804 credits", () => {
-  const manifest = JSON.parse(source(MANIFEST));
+  const manifest = readWageWithdrawalFixture();
   const entry = manifest.allApiRouteFiles[ROUTE];
   const held = isYearEndHeld(manifest)||isWageYearEndHeld(manifest);
   for (const [path, sha] of Object.entries(PINNED)) {
     // A withdrawn credit (annualization source moved) is verified by its exact hold instead of the old pin.
     if (held && path === "src/lib/year-end.ts") continue;
-    if (held && path === "src/lib/payroll-engine.ts" && gitBlob(path) !== sha) {
-      // #2003 changes a transitive financial dependency. The old #1804
-      // source receipt must now FAIL, while the separately verified wage
-      // hold keeps GET/POST at GAP/zero credits. Never update its old hash.
-      assert.throws(() => verifyYearEndCredits(manifest),
-        /(?:source\/proof changed|current-source proof required)/,
-        "An altered payroll engine must invalidate historical year-end proof");
-      continue;
-    }
     assert.equal(gitBlob(path), sha, path + ": changed dependency requires a fresh exact-head PG16 proof");
   }
   assert.equal(entry.gitBlobSha, PINNED[ROUTE]);
@@ -149,3 +140,4 @@ test("the proof runs only in disposable PostgreSQL 16 against localhost Next", (
   }
   assert.doesNotMatch(wf, /vercel deploy|db:migrate:production|npm run deploy/i);
 });
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';

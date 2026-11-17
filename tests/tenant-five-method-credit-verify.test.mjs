@@ -1,3 +1,5 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
+import {wageRenewalHoldView} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { isYearEndHeld, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -9,8 +11,7 @@ import { verifySixPageCredits, historicSixPageView, selectedTargets } from "../s
 import { verifyAllTransitiveWageHolds, TRANSITIVE_HOLD_KIND } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 
 const readManifest = () => {
-  const live = JSON.parse(readFileSync(
-    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const live = readWageWithdrawalFixture();
   assert.equal(verifySixPageCredits(live), selectedTargets().length,
     "Every newly credited page must have a source-exact receipt first");
   return historicSixPageView(live);
@@ -42,13 +43,8 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
       assert.equal(method.reviewedUncertified.coverageCredits, 0);
       assert.equal(method.reviewedUncertified.independentSecurityReview, "PENDING");
     }
-    // #2003 changes the transitive payroll engine source while the 47 methods
-    // remain GAP with zero credits. A stale #1804 receipt can now fail either
-    // at its source-blob pin (before method inspection) or at the held-method
-    // status check. Both failures mean NO credit; never update old proof SHAs.
-    assert.throws(() => verifyYearEndCredits(manifest),
-      /(?:current-source proof required|source\/proof changed; renew PG16 review)/,
-      "Old 1804 proof cannot certify changed payroll-engine or wage-dependent year-end calculations");
+    assert.throws(() => verifyYearEndCredits(manifest), /current-source proof required/,
+      "Old 1804 proof cannot certify current wage-dependent year-end calculations");
   } else if (isYearEndHeld(manifest)) {
     assert.equal(verifyYearEndHold(manifest), 0, "A withdrawn year-end credit is held at zero until a fresh exact-head PG16 proof renews it");
     for (const method of yearEnd.methods) { assert.equal(method.status, "GAP"); assert.equal(method.testedBy, null); }
@@ -98,6 +94,11 @@ test("changed proof citations, source SHA, or method totals are not a valid cred
 });
 
 test("a transfer credit is valid only from the dedicated #1853 proof; the old candidate, a forged run or a leftover hold fail closed", () => {
+  const mutation=change=>{
+    const m=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+    const verify=value=>verifyFiveMethodCredits(historicWorker360ProofView(historicSixPageView(wageRenewalHoldView(value))));
+    verify(m);change(m);assert.throws(()=>verify(m));
+  };
   const transfer = (m, name) => m.allApiRouteFiles["src/app/api/multi-entity/transfers/route.ts"].methods.find(x => x.name === name);
   for (const name of ["POST", "PATCH"]) {
     // The superseded Playwright candidate can never support a credit.

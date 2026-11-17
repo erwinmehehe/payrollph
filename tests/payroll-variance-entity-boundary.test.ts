@@ -97,7 +97,7 @@ test("disposable HTTPS proof is wired into the original multi-entity acceptance 
     }
   } else {
     assert.equal(proof?.status, "COVERED", "retain separately source-proven prior credit");
-    if(proof?.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'){
+    if(['payroll-run-source-renewal-real-http-pg16','wage-registry-current-source-pg16-http-renewal'].includes(proof?.testedBy?.kind)){
       assert.ok(isVerifiedOracleRenewal(manifest,route,'GET'),'complete source-matched renewed PG16 proof required');
     }else assert.equal(proof?.testedBy?.file, "scripts/qa/tenant-high-risk-01-http.mjs");
   }

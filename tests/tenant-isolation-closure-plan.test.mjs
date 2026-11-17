@@ -4,6 +4,7 @@
  * The earlier inventory guard continues to pin all route blobs/method exports.
  */
 import assert from "node:assert/strict";
+import {verifyWageRenewalMethod} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import test from "node:test";
@@ -128,7 +129,7 @@ test("closure plan schedules every original GAP exactly once in priority order",
     ...verifyAllSealedWageHolds(manifest),
   ]);
   assert.equal(wageHolds.size, 75, "Complete 75-method source withdrawal required");
-  const supplemental = new Set([...plan.matchAll(/^- HELD `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — fresh exact-source PG16 HTTP required$/gm)]
+  const supplemental = new Set([...plan.matchAll(/^- (?:HELD|RENEWED) `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — /gm)]
     .map(match => match[1] + " " + match[2]));
   for (const key of supplemental) {
     const [verb, route] = key.split(" "), path = "src/app/api/" + route + "/route.ts";
@@ -136,7 +137,7 @@ test("closure plan schedules every original GAP exactly once in priority order",
       "supplemental queue must have exact source-verified zero-credit withdrawal: " + key);
     assert.ok(!scheduled.has(key), "a frozen method must not be counted twice");
   }
-  assert.equal(supplemental.size, 22, "All 22 new out-of-queue wage method holds must be scheduled");
+  assert.equal(supplemental.size, 22, "All 22 distinct supplemental methods retain their history without duplicate credits");
   for (const [key, value] of current) {
     if (value.status === "GAP") assert.ok(scheduled.has(key) || supplemental.has(key), "Unsheduled new/remaining GAP: " + key);
   }
@@ -166,6 +167,7 @@ test("all preexisting COVERED references have real, checked-in own/victim and wr
   for (const [key, method] of allMethods()) {
     if (method.status !== "COVERED") continue;
     const at=key.indexOf(' ');
+    if(verifyWageRenewalMethod(manifest,'src/app/api/'+key.slice(at+1)+'/route.ts',key.slice(0,at)))continue;
     if(isVerifiedOracleRenewal(manifest,'src/app/api/'+key.slice(at+1)+'/route.ts',key.slice(0,at)))continue;
     const evidence = method.testedBy;
     assert.ok(evidence && typeof evidence.file === "string", key + ": no proof file");

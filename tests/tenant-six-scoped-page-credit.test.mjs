@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
@@ -107,6 +108,7 @@ test("fail closed when six-page source, proof, classification or totals are alte
 });
 
 test("SSO zero-credit replay may downgrade exactly 19 API methods, never page evidence", () => {
+  const live=readWageWithdrawalFixture();
   const fixture = zeroCreditSsoProofFixture(live);
   assert.deepEqual(fromManifest(live), {covered: 20, gap: 0});
   assert.equal(live.scopedPages.filter(p=>p.status==="PUBLIC-BY-DESIGN").length,1);

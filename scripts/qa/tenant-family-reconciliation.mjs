@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {verifyWageRenewalMethod} from './wage-registry-renewal-verify.mjs';
 import {verifyStudioPostCredit} from './tenant-studio-post-credit.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -68,6 +69,7 @@ export function verifyReconciledFamilyCredits(manifest, read) {
   for (const [key, selected] of methods) {
     const [verb, route] = key.split(" ");
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(method => method.name === verb);
+    if(verifyWageRenewalMethod(manifest,'src/app/api/'+route+'/route.ts',verb))continue;
     assert.equal(method.status, "COVERED", key); assert.equal(method.testedBy.reviewedHead, receipt.reviewedHead);
     assert.equal(method.testedBy.passedJob, receipt.run + "/job/" + receipt.profiles.default.job);
     assert.equal(method.testedBy.scope, selected.scope);
@@ -75,6 +77,7 @@ export function verifyReconciledFamilyCredits(manifest, read) {
   for (const { key } of receipt.held) {
     const [verb, route] = key.split(" ");
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(method => method.name === verb);
+    if(verifyWageRenewalMethod(manifest,'src/app/api/'+route+'/route.ts',verb))continue;
     if (method.status === 'COVERED' && SECURITY_TARGETS.some(t=>t.path==='src/app/api/'+route+'/route.ts'&&t.method===verb)) verifySecurityCredits(manifest);
     else if (method.status === "COVERED" && coreMethods.includes(key)) verifyCoreCredit(key, method);
     else if (method.status === "COVERED" && developmentMethods.includes(key)) verifyDevelopmentCredit(key, method, read);

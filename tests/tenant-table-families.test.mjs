@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {verifyWageRenewalMethod} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -99,6 +100,7 @@ test("credit refresh retains statuses and pins both the family row and actual sh
     for (const row of tenantFamilyCatalog(kind)) {
       const [verb, route] = row.key.split(" ");
       const record = Object.values(manifest.allApiRouteFiles).find((r) => r.route === route);
+      if(verifyWageRenewalMethod(manifest,'src/app/api/'+route+'/route.ts',verb))continue;
       const proof = record.methods.find((m) => m.name === verb).testedBy;
       if (proof?.file !== "scripts/qa/tenant-table-http.mjs" && proof?.file !== "scripts/qa/tenant-write-table-http.mjs") continue;
       if (proof.sourceRowFile !== undefined) {

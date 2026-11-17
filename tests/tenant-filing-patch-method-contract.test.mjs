@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import test from "node:test";
@@ -99,8 +100,7 @@ test("source and both existing HTTP runners are pinned; manifest remains GAP", (
     p === "src/app/api/compliance/filing-validations/[id]/route.ts"
       ? Buffer.from("unreviewed route") : readFileSync(p)),
   /source drift requires new independent review/);
-  const manifest = JSON.parse(readFileSync(
-    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const manifest = readWageWithdrawalFixture();
   const row = manifest.allApiRouteFiles[
     "src/app/api/compliance/filing-validations/[id]/route.ts"
   ]?.methods.find(x => x.name === "PATCH");

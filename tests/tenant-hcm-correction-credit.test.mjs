@@ -36,7 +36,7 @@ test("selected credit writes preserve every unrelated method's proof provenance"
     cpSync("docs/engineering", join(root, "docs/engineering"), { recursive: true });
     mkdirSync(join(root, "node_modules"), { recursive: true });
     cpSync("node_modules/typescript", join(root, "node_modules/typescript"), { recursive: true });
-    const copy = structuredClone(original);
+    const fixture=readWageWithdrawalFixture(),copy = structuredClone(fixture);
     for (const key of keys) {
       const route = key.slice(5); const method = copy.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods[0];
       method.status = "GAP"; method.testedBy = null;
@@ -46,7 +46,7 @@ test("selected credit writes preserve every unrelated method's proof provenance"
     writeFileSync(join(root, manifestPath), JSON.stringify(copy, null, 2) + "\n");
     execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", ...keys.flatMap(key => ["--only-key", key]), "--run-label", "synthetic writer regression, not HTTP evidence"], { cwd: root });
     const after = JSON.parse(readFileSync(join(root, manifestPath), "utf8"));
-    for (const [path, record] of Object.entries(original.allApiRouteFiles)) for (const method of record.methods) {
+    for (const [path, record] of Object.entries(fixture.allApiRouteFiles)) for (const method of record.methods) {
       if (!keys.includes(method.name + " " + record.route)) assert.deepEqual(after.allApiRouteFiles[path].methods.find(m => m.name === method.name), method);
     }
     assert.equal(after.metrics.routeFiles, Object.keys(after.allApiRouteFiles).length);
@@ -75,3 +75,4 @@ test("correction family does not eagerly import app DB and seeds valid, independ
     assert.match(source.split(String.fromCharCode(10))[line - 1], /key: "POST hcm\/effective-change-corrections\//);
   }
 });
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';

@@ -60,6 +60,7 @@ import { verifyMkt01Credit } from "../scripts/qa/tenant-mkt01-marketing-credit.m
  */
 import { readPendingSignupSourceRevalidation } from "./helpers/tenant-architectural-classification-delta.mjs";
 import assert from "node:assert/strict";
+import {wageRenewalHoldView} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
@@ -76,7 +77,9 @@ const BASE = "8c2a62135fd6e23db4603197822339cc1020ec27";
 const liveManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
 assert.equal(verifySixPageCredits(liveManifest), selectedTargets().length,
   "All six current-source receipts must pass before historical full-surface checks");
-const manifest = historicSixPageView(liveManifest);
+// Current renewals must pass their complete source/job/SQL proof verifier before
+// old receipt/catalogue tests inspect the immutable withdrawal fixture below.
+const manifest = wageRenewalHoldView(historicSixPageView(liveManifest));
 // Verify the exact 23+47+5 immutable, zero-credit wage-source holds.
 const archivedWageManifest = historicWageRegistryProofView(manifest);
 verifyMergedProofCredits(manifest);

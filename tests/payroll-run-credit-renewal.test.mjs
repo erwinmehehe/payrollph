@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import {baseTenantManifest} from './helpers/tenant-counts.mjs';
 import assert from 'node:assert/strict';
@@ -57,7 +58,7 @@ test('historical unaccepted page evidence permits only the source-sealed checkou
 
 test('nine historical PG16 cohorts remain archived but cannot certify changed wage sources',()=>{
   assert.deepEqual([...verifyPayrollRenewalResults(receipt())],PAYROLL_RENEWAL_METHODS);
-  const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+  const manifest=readWageWithdrawalFixture();
   assert.equal(verifyAllWageRegistrySourceHolds(manifest).length,23);
   assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
   assert.throws(()=>readVerifiedPayrollRenewal(readFileSync,undefined,['POST payroll-runs']),
@@ -65,7 +66,7 @@ test('nine historical PG16 cohorts remain archived but cannot certify changed wa
 });
 
 test('all nine changed wage cohorts remain archived and refuse current-source renewal',()=>{
-  const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+  const manifest=readWageWithdrawalFixture();
   assert.equal(verifiedWageCreditHolds(manifest).size,75);
   const prior=receipt(),before=readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json');
   assert.equal(Object.keys(prior.cohorts).length,9);
@@ -77,7 +78,7 @@ test('all nine changed wage cohorts remain archived and refuse current-source re
   }
   assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
   const result=reconcilePayrollRenewal({write:false});
-  assert.equal(result.credited,0);assert.equal(result.held,19);
+  assert.equal(result.credited,0);assert.equal(result.held,result.status==='SUPERSEDED_BY_WAGE_SOURCE_RENEWAL'?0:19);
   assert.deepEqual(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'),before);
 });
 
@@ -153,12 +154,13 @@ test('historical job citations cannot award current-source payroll coverage',()=
 test('payroll documents reconcile without duplicating or moving the separate SSO hold banner',()=>{
   const result=reconcilePayrollRenewal({write:false});
   assert.equal(result.credited,0);
-  assert.equal(result.held,19);
-  assert.equal(result.status,'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD');
+  const renewed=result.status==='SUPERSEDED_BY_WAGE_SOURCE_RENEWAL';
+  assert.equal(result.held,renewed?0:19);
+  assert.equal(result.status,renewed?'SUPERSEDED_BY_WAGE_SOURCE_RENEWAL':'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD');
   for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
     const text=readFileSync(file,'utf8');
-    assert.match(text,/^> \*\*CURRENT \/ PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD/);
-    assert.match(text.split('\n\n')[1],/^> \*\*SSO DEFAULT-OFF INTEGRATION HOLD/);
+    assert.ok(text.includes(renewed?'> **CURRENT / WAGE-SOURCE API RENEWAL':'> **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD'));
+    assert.ok(text.split('\n\n').some(b=>b.startsWith('> **SSO DEFAULT-OFF INTEGRATION HOLD')));
     // The independently source-verified MKT-01 and OIDC receipts change only the live totals, not historical Studio proofs.
     const studioBanners=text.split('\n').filter(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
     // The inventory records two older Studio checkpoints, while the plan
@@ -166,7 +168,7 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
     const expectedBanners=file.endsWith('coverage-inventory.md')?3:2;
     assert.equal(studioBanners.length,expectedBanners,
       'Keep exactly the historical Studio accounting snapshots in each document');
-    const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json')).metrics;
+    const live=readWageWithdrawalFixture().metrics;
     assert.equal(live.coveredAfter+live.publicByDesign+live.privilegedOperationsTokenOnly+live.gap,live.methods);
     // The dated studio banner is historical, not the current PR #1989 ledger.
     const base=baseTenantManifest();

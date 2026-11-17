@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import {historicalWageCatalog,assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
@@ -20,8 +21,7 @@ import { verifyCareersPatchCredit } from "../scripts/qa/tenant-careers-patch-cre
 
 // Reconciliation-only source pins: the executable PG16/HTTP runs live in their
 // respective proof workflows. These source tests are NOT runtime evidence.
-const manifest = JSON.parse(readFileSync(
-  "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const manifest = readWageWithdrawalFixture();
 const reservations = JSON.parse(readFileSync(
   "scripts/qa/tenant-gap-reservations.json", "utf8"));
 const base = "a7dc1f5184f59f3c5ac348e37b4ca88810f10651";
@@ -340,6 +340,7 @@ test("already credited and partial-action methods are not double-counted", () =>
 });
 
 test("closure plan reconciles all twelve frozen batches, without claiming acceptance", () => {
+  const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
   const doc = readFileSync("docs/engineering/tenant-isolation-closure-plan.md", "utf8");
   assert.match(doc, /tenant-isolation acceptance/i);
   assert.match(doc, /NOT ACCEPTED/);

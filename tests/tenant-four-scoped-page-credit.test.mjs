@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import test from "node:test";
 import {readFileSync} from "node:fs";
 import {
@@ -112,6 +113,7 @@ test("fail closed on false/foreign page credits and mutation of receipt/provenan
   }
 });
 test("SSO second-pass fixture preserves nineteen existing wage holds and never changes page proof credits", () => {
+  const live=readWageWithdrawalFixture();
   const fixture = zeroCreditSsoProofFixture(live);
   assert.deepEqual(counts(fixture), counts(live));
   assert.equal(fixture.metrics.gap, live.metrics.gap);

@@ -1,10 +1,11 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFileSync} from "node:fs";
 import {APPROVALS_PATH,verifyApprovalsCredit,approvalEvidence} from "../scripts/qa/tenant-approvals-credit.mjs";
 import {verifyAllTransitiveWageHolds,TRANSITIVE_HOLD_KIND} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 
-const load=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const load=()=>readWageWithdrawalFixture();
 const method=m=>m.allApiRouteFiles[APPROVALS_PATH].methods.find(x=>x.name==="PATCH");
 
 test("seven historical approvals jobs cannot recredit wage-dependent PATCH without new evidence",()=>{

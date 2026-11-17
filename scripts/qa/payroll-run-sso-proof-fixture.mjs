@@ -5,6 +5,8 @@ import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from './payroll-run-oracle-hold.mjs';
 import {verifyWageRegistrySourceHold} from './wage-registry-source-hold.mjs';
+import {verifyWageRenewalMethod,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
+import {readWageRenewalInventory} from './wage-registry-renewal-plan.mjs';
 const FILE='scripts/qa/tenant-isolation-coverage-manifest.json';
 const blob=bytes=>createHash('sha1').update('blob '+Buffer.byteLength(bytes)+'\0').update(bytes).digest('hex');
 export function zeroCreditSsoProofFixture(input){
@@ -13,6 +15,9 @@ export function zeroCreditSsoProofFixture(input){
   for(const key of ORACLE_HELD_METHODS){
     const at=key.indexOf(' '),verb=key.slice(0,at),file='src/app/api/'+key.slice(at+1)+'/route.ts';
     const row=m.allApiRouteFiles[file].methods.find(r=>r.name===verb);
+    if(row.status==='GAP'&&row.reviewedUncertified?.kind==='payroll-run-membership-oracle-source-withdrawal'){
+      assert.ok(verifyOracleSourceHolds(m).has(verb+' '+file));alreadyHeld++;continue;
+    }
     if(row.status==='GAP' &&
        row.reviewedUncertified?.kind==='wage-registry-dependency-source-withdrawal'){
       // #1989 withdrew these same 19 current-source renewals already. Do not
@@ -26,12 +31,21 @@ export function zeroCreditSsoProofFixture(input){
       continue;
     }
     assert.equal(row.status,'COVERED','Only the exact nineteen existing renewals may be removed from this disposable fixture');
-    assert.equal(row.testedBy?.kind,'payroll-run-source-renewal-real-http-pg16');
-    assert.equal(row.testedBy.method,key);
+    if(row.testedBy?.kind===WAGE_RENEWAL_KIND){
+      assert.equal(verifyWageRenewalMethod(m,file,verb),1);
+      const captured=readWageRenewalInventory().methods.find(entry=>entry.path===file&&entry.verb===verb);
+      assert.ok(captured,'Disposable fixture requires the exact captured withdrawal');
+      m.allApiRouteFiles[file].methods[m.allApiRouteFiles[file].methods.indexOf(row)]=structuredClone(captured.held);
+      held++;continue;
+    }else{
+      assert.equal(row.testedBy?.kind,'payroll-run-source-renewal-real-http-pg16');
+      assert.equal(row.testedBy.method,key);
+    }
     assert.equal(row.historicalOracleSourceWithdrawal?.kind,'payroll-run-membership-oracle-source-withdrawal');
     row.status='GAP';row.testedBy=null;
     row.reviewedUncertified=structuredClone(row.historicalOracleSourceWithdrawal);
     delete row.historicalOracleSourceWithdrawal;
+    delete row.historicalWageSourceWithdrawal;
     row.reason='Fictional CI-only bootstrap: current caller receipt pending; zero credits. Not a committed ledger change.';
     held++;
   }

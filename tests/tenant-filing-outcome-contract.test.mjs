@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { createHash } from "node:crypto";
@@ -111,7 +112,7 @@ test("production filing route stays SHA-pinned, guarded and earns zero new credi
     "assertOrganizationUnitAccess(", "recordFilingOutcome(", "db.transaction(",
     "tx.insert(auditEvents)",
   ]) assert.ok(route.includes(marker), "Missing filing source guard: " + marker);
-  const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const manifest = readWageWithdrawalFixture();
   const method = manifest.allApiRouteFiles[path].methods.find(row => row.name === "PATCH");
   if(method.status==='COVERED')assert.equal(verifyFilingPatchCredit(manifest),1);
   else {assert.equal(method.status,'GAP');assert.equal(method.testedBy,null);}

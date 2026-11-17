@@ -1,0 +1,3330 @@
+# Generated from existing proof recipes; never edit by hand.
+name: Wage-held 75-method source renewal (fictional PG16 HTTP)
+'on':
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - .github/workflows/wage-registry-renewal.yml
+      - scripts/qa/wage-registry-renewal-*
+      - tests/wage-registry-renewal*
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: wage-source-renewal-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  security__change-scope:
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.detect.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Classify exact PR changes (fail closed)
+        id: detect
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci/change-scope.mjs
+    name: Wage renewal / security / change-scope
+  security__security-http-acceptance:
+    needs:
+      - security__change-scope
+    if: ${{ needs.security__change-scope.outputs.docs_only != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PAYROLL_PRE_RUN_READINESS_ENABLED: 'true'
+      LOCAL_LOGIN_AUDIT_ENABLED: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Verify exact proposed HTTP-proof source
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+      - name: Fetch main ledger for strict source-withdrawal assertions
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+          git cat-file -e origin/main:scripts/qa/tenant-isolation-coverage-manifest.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Reject committed webhook secrets and unreviewed tenant routes
+        run: node --test tests/tenant-second-pass-inventory.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs tests/tenant-pii01-identifiers-source.test.mjs
+      - name: Pin first high-risk 16-method HTTP proof contract
+        run: |
+          node --check scripts/qa/tenant-high-risk-01-http.mjs
+          node --test tests/tenant-high-risk-batch-01.test.mjs
+      - name: Guard provisional DL-01 employee-vault PG16 real-HTTP proof
+        run: |
+          node --check scripts/qa/tenant-dl01-vault-http.mjs
+          node --test tests/tenant-dl01-vault-source.test.mjs
+      - name: Trace 34 client-ID routes; guard all 489 methods; pin 20 pages
+        run: |
+          node --check scripts/qa/tenant-delegated-trace.mjs
+          node --check scripts/qa/tenant-manifest-driven-http.mjs
+          node --check scripts/qa/tenant-scoped-page-probes.mjs
+          node --test tests/tenant-structural-access-guard.test.mjs tests/tenant-manifest-driven-http.test.mjs tests/tenant-scoped-pages.test.mjs
+      - name: Guard uncredited HCM employment-decision POST tenant candidate
+        run: |
+          node --check scripts/qa/tenant-hcm-employment-decision-contract.mjs
+          node --check scripts/qa/tenant-hcm-employment-decision-post.mjs
+          node --check scripts/qa/tenant-hcm-employment-decision-runner.mjs
+          node --test tests/tenant-hcm-employment-decision-post.test.mjs
+      - name: Provision dedicated ephemeral PII key (disposable HTTP QA only)
+        run: |
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$pii_key"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Validate production security configuration contract
+        env:
+          APP_BASE_URL: https://payroll.example.test
+          MALWARE_SCAN_URL: https://scanner.example.test/scan
+        run: npm run security:preflight
+      - name: Validate scanner service syntax
+        run: node --check services/malware-scanner/server.mjs
+      - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start production server
+        env:
+          PUBLIC_API_V1_EXTENDED_ENABLED: 'true'
+          API_V1_EXTENDED_READS_ENABLED: 'true'
+          EMPLOYEE_HR_CASES_ENABLED: 'true'
+          EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'true'
+          OWNER_PRACTICE_PAYROLL_ENABLED: 'true'
+          PAYROLL_CALCULATION_HISTORY_ENABLED: 'true'
+          HCM_GOVERNANCE_READINESS_ENABLED: 'true'
+          BIR_1604C_DAT_CANDIDATE_ENABLED: 'true'
+          PAYMONGO_WEBHOOK_SECRET: ci-fake-paymongo-webhook-signing-secret
+          XENDIT_PAYOUT_CALLBACK_TOKEN: ci-fake-xendit-payout-callback
+          XENDIT_CALLBACK_TOKEN: ci-fake-xendit-subscription-callback
+          XENDIT_BUSINESS_ID: ci-fictional-merchant
+          XENDIT_BILLING_ENABLED: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only the disposable PG16 QA server may accept synthetic fixture uploads.
+          # This is NOT malware-scanner acceptance and never changes deployed settings.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/tenant-ci-scanner.key -out /tmp/tenant-ci-scanner.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          export TENANT_SYNTHETIC_SCAN_MODE=isolated-pg16-only
+          export MALWARE_SCAN_URL=https://127.0.0.1:8443/scan
+          export MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only
+          export NODE_EXTRA_CA_CERTS=/tmp/tenant-ci-scanner.crt
+          nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs > /tmp/tenant-ci-scanner.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health
+          # Generate a fresh signing key only for this localhost CI server.
+          # A real-looking whsec value must never be committed as source text.
+          resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$resend_webhook_secret"
+          export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"
+          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-security.log 2>&1 &
+          echo $! > /tmp/payrollph-security.pid
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/payrollph-security.log
+          exit 1
+      - name: Run adversarial HTTP and two-employer Workforce/BI acceptance
+        env:
+          CI: 'true'
+          WORKFORCE_BI_HTTP_ACCEPTANCE_MODE: isolated-ci-only
+        run: npx tsx scripts/security-http-smoke.ts
+      - name: Real-HTTP second-pass tenant isolation (victim + two attacker organizations)
+        env:
+          CI: 'true'
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+          PAYROLL_CALCULATION_HISTORY_ENABLED: 'true'
+          TENANT_DL01_VAULT_PROOF: isolated-ci-only
+          EMPLOYEE_DOCUMENT_VAULT_ENABLED: 'true'
+        run: npx tsx scripts/qa/tenant-second-pass-http.mjs
+      - name: HCM decision POST own and cross-tenant real HTTP (fictional PG16, zero credit)
+        env:
+          CI: 'true'
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+          NODE_ENV: production
+          DEMO_MODE: 'false'
+          WORKER_ENABLED: 'false'
+          CENTRAL_SCHEDULER_ENABLED: 'false'
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+          XENDIT_PAYOUTS_ENABLED: 'false'
+          XENDIT_BILLING_ENABLED: 'false'
+        run: npx tsx scripts/qa/tenant-hcm-employment-decision-runner.mjs
+      - name: Guard PII identifier approval PG16 source-only contract
+        run: |
+          node --check scripts/qa/tenant-pii01-approval-contract.mjs
+          node --check scripts/qa/tenant-pii01-approval-http.mjs
+          node --test tests/tenant-pii01-approval-http.test.mjs
+      - name: PII identifier approval PG16 HTTP (fictional records, zero credit)
+        env:
+          CI: 'true'
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+          NODE_ENV: production
+          DEMO_MODE: 'false'
+          WORKER_ENABLED: 'false'
+          CENTRAL_SCHEDULER_ENABLED: 'false'
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+          XENDIT_PAYOUTS_ENABLED: 'false'
+          XENDIT_BILLING_ENABLED: 'false'
+        run: npx tsx scripts/qa/tenant-pii01-approval-http.mjs
+      - name: Managed client approval and reapproval HTTP (fictional PG16, zero credit)
+        env:
+          CI: 'true'
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+          NODE_ENV: production
+          DEMO_MODE: 'false'
+          WORKER_ENABLED: 'false'
+          CENTRAL_SCHEDULER_ENABLED: 'false'
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+          XENDIT_PAYOUTS_ENABLED: 'false'
+          XENDIT_BILLING_ENABLED: 'false'
+        run: npx tsx scripts/qa/tenant-managed-client-approval-http.mjs
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/payrollph-security.log || true
+    name: Wage renewal / security / security-http-acceptance
+  dl02__dl02:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PAYROLL_PRE_RUN_READINESS_ENABLED: 'true'
+      CI: 'true'
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      MULTI_ENTITY_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      LOCAL_LOGIN_AUDIT_ENABLED: 'true'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Guard isolated DL-02 synthetic scanner prerequisite
+        run: node --test tests/tenant-dl02-scanner-workflow.test.mjs
+      - name: Ephemeral encryption key for disposable CI only
+        shell: bash
+        run: |
+          key=$(openssl rand -hex 32)
+          echo "::add-mask::$key"
+          echo "PII_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start isolated production-mode localhost server
+        shell: bash
+        env:
+          REPORT_BUILDER_UI_ENABLED: 'true'
+          TENANT_REPORT_BUILDER_ENABLED: 'true'
+          PUBLIC_API_V1_EXTENDED_ENABLED: 'true'
+          API_V1_EXTENDED_READS_ENABLED: 'true'
+          EMPLOYEE_HR_CASES_ENABLED: 'true'
+          OWNER_PRACTICE_PAYROLL_ENABLED: 'true'
+          HCM_GOVERNANCE_READINESS_ENABLED: 'true'
+          BIR_1604C_DAT_CANDIDATE_ENABLED: 'true'
+          PAYMONGO_WEBHOOK_SECRET: ci-fake-paymongo-webhook-signing-secret
+          XENDIT_PAYOUT_CALLBACK_TOKEN: ci-fake-xendit-payout-callback
+          XENDIT_CALLBACK_TOKEN: ci-fake-xendit-subscription-callback
+          XENDIT_BUSINESS_ID: ci-fictional-merchant
+          XENDIT_BILLING_ENABLED: 'true'
+        run: |
+          set -euo pipefail
+          # The shared second-pass suite exercises synthetic statutory payment-proof
+          # uploads. Its positive control requires a CI-only localhost TLS scanner.
+          # No production malware-scanner logic, tokens or deploy flags are changed.
+          node --check scripts/qa/tenant-ci-synthetic-proof-scanner.mjs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout /tmp/tenant-ci-scanner.key -out /tmp/tenant-ci-scanner.crt \
+            -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+          export TENANT_SYNTHETIC_SCAN_MODE=isolated-pg16-only
+          export MALWARE_SCAN_URL=https://127.0.0.1:8443/scan
+          export MALWARE_SCAN_TOKEN=ci-tenant-proof-scanner-only
+          export NODE_EXTRA_CA_CERTS=/tmp/tenant-ci-scanner.crt
+          nohup node scripts/qa/tenant-ci-synthetic-proof-scanner.mjs > /tmp/tenant-dl02-ci-scanner.log 2>&1 &
+          for attempt in {1..15}; do
+            if curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail --cacert /tmp/tenant-ci-scanner.crt https://127.0.0.1:8443/health
+          resend_webhook_secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$resend_webhook_secret"
+          export RESEND_WEBHOOK_SECRET="$resend_webhook_secret"
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-dl02-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-dl02-server.log
+          exit 1
+      - name: Own-employer success, victim-employer denial and unchanged victim rows over HTTP
+        env:
+          TENANT_SECOND_PASS_MODE: isolated-ci-only
+          TENANT_DL02_PROOF: isolated-ci-only
+        run: npx tsx scripts/qa/tenant-second-pass-http.mjs
+      - name: Show isolated server and scanner logs on failure
+        if: failure()
+        run: |
+          cat /tmp/tenant-dl02-server.log || true
+          cat /tmp/tenant-dl02-ci-scanner.log || true
+    name: Wage renewal / dl02 / dl02
+  table__table:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - default
+          - multi-entity
+          - flagged-reads
+          - allowlisted-reads
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Validate offline-claim response contracts and negative controls
+        if: matrix.profile == 'flagged-reads'
+        run: |
+          node --check scripts/qa/tenant-offline-claims-contract.mjs
+          node --check scripts/qa/tenant-offline-claims-http.mjs
+          node --check scripts/qa/tenant-offline-claims-standalone.mjs
+          node --test tests/tenant-offline-claims-contract.test.mjs
+      - name: Export the disposable profile environment (single source shared with the local runner)
+        run: node scripts/qa/tenant-table-env.mjs "${{ matrix.profile }}" >> "$GITHUB_ENV"
+      - name: Ephemeral encryption keys for disposable CI only
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement)
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare existing SQL-only HCM work-item events in the empty disposable database
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Preseed two attackers, the higher-ID victim and an excluded employer before server startup
+        if: matrix.profile == 'allowlisted-reads'
+        run: npx tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Validate allowlist source contracts without database or service requests
+        if: matrix.profile == 'allowlisted-reads'
+        run: node --test tests/tenant-allowlist-reads.test.mjs
+      - run: npm run build
+      - name: Start isolated production-mode localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-table-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-table-server.log
+          exit 1
+      - name: Prove a real signed-in non-allowlisted fourth employer receives only 404
+        if: matrix.profile == 'allowlisted-reads'
+        run: npx tsx scripts/qa/tenant-table-allowlist-negative.mjs
+      - name: Every table row, two attacker employers, own data proven and victim denied
+        run: npx tsx scripts/qa/tenant-table-http.mjs
+      - name: Every write row, two attacker employers, own write read back and victim denied
+        env:
+          TENANT_WRITE_TABLE_ALLOW_EMPTY_PROFILE: '1'
+        run: npx tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Prove independent employee and owner offline-claim POST/PATCH tenant isolation
+        if: matrix.profile == 'flagged-reads'
+        run: npx tsx scripts/qa/tenant-offline-claims-standalone.mjs
+      - name: Correction rollback, source binding and concurrent approval regressions
+        if: matrix.profile == 'default'
+        env:
+          HCM_CORRECTION_PG: '1'
+        run: npx tsx --test tests/hcm-effective-corrections-pg.test.mjs
+      - name: Complete performance core actions with two attackers and immutable victim evidence
+        if: matrix.profile == 'default'
+        env:
+          TENANT_PERFORMANCE_CORE_MODE: fictional-disposable-only
+          WORKER_ENABLED: 'false'
+          CENTRAL_SCHEDULER_ENABLED: 'false'
+        run: env -u NODE_ENV npx tsx scripts/qa/tenant-performance-core-http.mjs
+      - uses: actions/upload-artifact@v7
+        if: always() && matrix.profile == 'default'
+        with:
+          name: tenant-performance-core-pg16
+          path: outputs/performance-core-run.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Show isolated server log on failure
+        if: failure()
+        run: cat /tmp/tenant-table-server.log || true
+    name: Wage renewal / table / table
+  statutory__synthetic-contribution-case-post:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      HCM_OVERPAYMENT_PREVIEW_ENABLED: 'false'
+      PAYROLL_OVERPAYMENT_REVIEW_ENABLED: 'false'
+      WFM_LOYVERSE_POS_ENABLED: 'false'
+      WFM_SQUARE_SANDBOX_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export isolated disposable profile before any SQL import
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          {
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "WFM_LOYVERSE_POS_ENABLED=false"
+            echo "WFM_SQUARE_SANDBOX_ENABLED=false"
+            echo "NEXT_CSP_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "WFM_LOYVERSE_ACCESS_TOKEN="
+            echo "WFM_SQUARE_SANDBOX_ACCESS_TOKEN="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Reject incomplete and malformed test contracts
+        run: |
+          node --check scripts/qa/tenant-table-rows/write/compliance-contribution-post.mjs
+          node --check scripts/qa/tenant-table-rows/write/compliance-payroll-month-close-post.mjs
+          node --check scripts/qa/tenant-table-rows/write/compliance-statutory-remittances-post.mjs
+          node --check scripts/qa/tenant-write-table-http.mjs
+          node --test tests/tenant-table-families.test.mjs
+          node --import tsx --test tests/statutory-contribution-case-timeline.test.ts
+          node --import tsx --test tests/payroll-month-close-payment-evidence-contract.test.ts
+      - name: One-time fictional encryption and signing material
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          key="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$key"
+          echo "RESEND_WEBHOOK_SECRET=$key" >> "$GITHUB_ENV"
+      - name: Fresh disposable PostgreSQL 16 schema only
+        run: npm run db:push
+      - name: Reviewed isolated baseline only, not production migrations
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: SQL-only fictional HCM baseline needed by shared write runner
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode Next over localhost app_db
+        run: npm run build
+      - name: Start localhost-only production-mode HTTP server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-contribution-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then tail -n 100 /tmp/tenant-contribution-next.log; exit 1; fi
+            sleep 2
+          done
+          echo "::error::Next localhost server did not become ready"
+          tail -n 100 /tmp/tenant-contribution-next.log
+          exit 1
+      - name: Prove own case plus all four real remittance actions, both victim denials, unchanged SQL and forged selectors
+        run: node --import tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Local server diagnostics on failure
+        if: failure()
+        run: tail -n 120 /tmp/tenant-contribution-next.log || true
+    name: Wage renewal / statutory / synthetic-contribution-case-post
+  yearend__annualize-and-bind-isolated:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      WFM_LOYVERSE_POS_ENABLED: 'false'
+      WFM_SQUARE_SANDBOX_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      MULTI_ENTITY_ENABLED: 'false'
+      YEAR_END_PRIOR_EVIDENCE_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact locked repository dependencies
+        run: npm ci
+      - name: Export disposable non-money isolated profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs allowlisted-reads >> "$GITHUB_ENV"
+          {
+            echo "TENANT_TABLE_FAMILY=year-end-annualization-post"
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "HCM_OVERPAYMENT_PREVIEW_ENABLED=false"
+            echo "PAYROLL_OVERPAYMENT_REVIEW_ENABLED=false"
+            echo "WFM_LOYVERSE_POS_ENABLED=false"
+            echo "WFM_SQUARE_SANDBOX_ENABLED=false"
+            echo "NEXT_CSP_ENABLED=false"
+            echo "YEAR_END_PRIOR_EVIDENCE_ENABLED=false"
+            echo "MULTI_ENTITY_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "WFM_LOYVERSE_ACCESS_TOKEN="
+            echo "WFM_SQUARE_SANDBOX_ACCESS_TOKEN="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Compile and validate the real table-driven source contract before database access
+        run: |
+          node --check scripts/qa/tenant-table-rows/write/year-end-annualization-post.mjs
+          node --test tests/tenant-table-families.test.mjs
+          node --test tests/tenant-year-end-full-method-candidate.test.mjs
+      - name: One-time synthetic encryption and signing material only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          key="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$key"
+          echo "RESEND_WEBHOOK_SECRET=$key" >> "$GITHUB_ENV"
+      - name: Build empty disposable PG16 schema
+        run: npm run db:push
+      - name: Apply isolated and reviewed supplemental baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare fictional HCM SQL-only fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Bootstrap fictional allowlist employers before server initialization
+        run: node --import tsx scripts/qa/tenant-table-allowlist-bootstrap.mjs
+      - name: Build production-mode Next using only localhost SQL
+        run: npm run build
+      - name: Start isolated localhost-only HTTP server, never deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-year-end-post-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 100 /tmp/tenant-year-end-post-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Next localhost server never became ready"
+          tail -n 100 /tmp/tenant-year-end-post-next.log
+          exit 1
+      - name: Assert real own annualization and Dec31 binding, real victim 403, forged worker/run IDs and immutable victim DB
+        run: node --import tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Print only disposable Next logs on failure
+        if: failure()
+        run: tail -n 120 /tmp/tenant-year-end-post-next.log || true
+    name: Wage renewal / yearend / annualize-and-bind-isolated
+  approvals__fictional-approval-http:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TENANT_APPROVAL_TASK_MODE: fictional-pg16-http
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export disposable localhost targets and disable all providers and workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Fail closed on incorrect proof contracts and synthetic targets
+        run: |
+          node --check scripts/qa/tenant-approval-task-contract.mjs
+          node --check scripts/qa/tenant-approval-task-http.mjs
+          node --check tests/tenant-approval-task-contract.test.mjs
+          node --test tests/tenant-approval-task-contract.test.mjs tests/tenant-approval-task-tx-org-scope.test.mjs
+      - name: Generate throwaway encryption keys and webhook secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply only reviewed fictional baseline objects
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Prepare SQL-only HCM baseline fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build production-mode app against the disposable database
+        run: npm run build
+      - name: Start production-mode Next on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-approval-task-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-approval-task-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-approval-task-next.log
+          exit 1
+      - name: Verify own PATCH, foreign higher-ID denial, cross-role, CSRF, replay and immutable victim SQL
+        run: node --import tsx scripts/qa/tenant-approval-task-http.mjs
+      - name: Show localhost-only diagnostic log on failure
+        if: failure()
+        run: cat /tmp/tenant-approval-task-next.log || true
+    name: Wage renewal / approvals / fictional-approval-http
+  approvals__fictional-approval-sources-http:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TENANT_APPROVAL_TASK_MODE: fictional-pg16-http
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export disposable localhost targets and disable all providers and workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Fail closed on incorrect proof contracts and synthetic targets
+        run: |
+          node --check scripts/qa/tenant-approval-sources-contract.mjs
+          node --check scripts/qa/tenant-approval-sources-http.mjs
+          node --test tests/tenant-approval-sources-contract.test.mjs
+      - name: Generate throwaway encryption keys and webhook secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply only reviewed fictional baseline objects
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode app against the disposable database
+        run: npm run build
+      - name: Start production-mode Next on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-approval-sources-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-approval-sources-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-approval-sources-next.log
+          exit 1
+      - name: Verify own leave and approval-chain decisions, forged pointers, higher-ID victim denial and immutable victim SQL
+        run: node --import tsx scripts/qa/tenant-approval-sources-http.mjs
+      - name: Show localhost-only diagnostic log on failure
+        if: failure()
+        run: cat /tmp/tenant-approval-sources-next.log || true
+    name: Wage renewal / approvals / fictional-approval-sources-http
+  approvals__fictional-approval-flows-http:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TENANT_APPROVAL_TASK_MODE: fictional-pg16-http
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export disposable localhost targets and disable all providers and workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Fail closed on incorrect proof contracts and synthetic targets
+        run: |
+          node --check scripts/qa/tenant-approval-flows-contract.mjs
+          node --check scripts/qa/tenant-approval-flows-http.mjs
+          node --test tests/tenant-approval-flows-contract.test.mjs
+      - name: Generate throwaway encryption keys and webhook secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply only reviewed fictional baseline objects
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode app against the disposable database
+        run: npm run build
+      - name: Start production-mode Next on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-approval-flows-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-approval-flows-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-approval-flows-next.log
+          exit 1
+      - name: Verify own HCM process, staffing scenario, roster handoff and automation gate decisions, forged pointers, higher-ID victim denial and immutable victim SQL
+        run: node --import tsx scripts/qa/tenant-approval-flows-http.mjs
+      - name: Show localhost-only diagnostic log on failure
+        if: failure()
+        run: cat /tmp/tenant-approval-flows-next.log || true
+    name: Wage renewal / approvals / fictional-approval-flows-http
+  approvals__approval-types-http:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Disposable targets and all money/provider/worker flags OFF
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          echo 'TENANT_APPROVAL_TYPES_MODE=fictional-disposable-pg16' >> "$GITHUB_ENV"
+          for flag in FINAL_PAY_SIGNED_REVIEW_ENABLED EXACT_THIRTEENTH_CENTAVOS_ENABLED PAYROLL_CALCULATION_HISTORY_ENABLED NEXT_CSP_ENABLED PAYMONGO_DISBURSEMENTS_ENABLED XENDIT_PAYOUTS_ENABLED XENDIT_BILLING_ENABLED WORKER_ENABLED CENTRAL_SCHEDULER_ENABLED; do
+            echo "$flag=false" >> "$GITHUB_ENV"
+          done
+          for key in PAYMONGO_SECRET_KEY XENDIT_SECRET_KEY XENDIT_PAYOUT_SECRET_KEY RESEND_API_KEY POSTMARK_SERVER_TOKEN SMTP_URL STRIPE_SECRET_KEY; do
+            echo "$key=" >> "$GITHUB_ENV"
+          done
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Target and negative-oracle contracts
+        run: node --import tsx --test tests/tenant-approval-types-contract.test.mjs tests/approval-source-tenant-boundary.test.ts tests/tenant-approval-delegated-proof.test.mjs tests/tenant-approval-payroll-decline-proof.test.mjs
+      - name: Fresh disposable schema
+        run: npm run db:push
+      - name: Reviewed isolated test baseline after schema creation
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: npm run build
+      - name: Start production Next on loopback only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/approval-types-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then cat /tmp/approval-types-next.log; exit 1; fi
+            sleep 2
+          done
+          cat /tmp/approval-types-next.log
+          exit 1
+      - name: Own source writes, two attackers, victim denial, forged links and audit rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/qa/tenant-approval-types-http.mjs | tee /tmp/approval-types-result.jsonl
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: approval-types-pg16-${{ github.event.pull_request.head.sha }}
+          path: /tmp/approval-types-result.jsonl
+          if-no-files-found: ignore
+      - name: Localhost diagnostics on failure
+        if: failure()
+        run: cat /tmp/approval-types-next.log || true
+    env:
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    name: Wage renewal / approvals / approval-types-http
+  approvals__money-lifecycle-pg16:
+    strategy:
+      fail-fast: false
+      matrix:
+        exact-links:
+          - 'false'
+          - 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3011
+      MONEY_PROOF_URL: http://127.0.0.1:3011
+      MONEY_PROOF_MODE: disposable-only
+      MONEY_PROOF_TRANSPORT: http
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EXACT_PAYROLL_APPROVAL_LINKS_ENABLED: ${{ matrix.exact-links }}
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --test tests/money-proof-target.test.mjs
+      - run: npm run db:push
+      - name: Apply reviewed 0109 audit chain and supplement to disposable app_db before clone
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Clone empty disposable schema into dedicated money-proof database
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+          await c.connect();
+          await c.query('CREATE DATABASE payroll_mny01_test TEMPLATE app_db');
+          await c.end();
+          NODE
+          echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_mny01_test' >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Run real HTTP and PostgreSQL money-path proof
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 -p 3011 > /tmp/money-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3011 >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/tenant-money-lifecycle-http.mjs
+          npx tsx scripts/qa/final-pay-lifecycle-http.mjs
+      - name: Server diagnostics
+        if: failure()
+        run: cat /tmp/money-server.log || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: money-lifecycle-${{ matrix.exact-links }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            qa-artifacts/tenant-money-lifecycle.json
+            qa-artifacts/final-pay-lifecycle.json
+          if-no-files-found: warn
+    name: Wage renewal / approvals / money-lifecycle-pg16
+  enterprise__enterprise-admin-http:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Source and fictional-target contracts
+        run: node --test tests/tenant-enterprise-admin-audit.test.mjs
+      - name: Empty disposable schema and reviewed baseline
+        run: node scripts/qa/tenant-enterprise-admin-local.mjs db
+      - name: Production application build with money/provider flags OFF
+        run: node scripts/qa/tenant-enterprise-admin-local.mjs build
+      - name: Real HTTP ownership, audit veto and forged-reference proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-enterprise-admin-local.mjs start > /tmp/enterprise-fixture-server.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in $(seq 1 90); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then ready=true; break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then echo 'Fictional localhost server unavailable'; exit 1; fi
+          node scripts/qa/tenant-enterprise-admin-local.mjs proof
+      - name: Sanitized proof receipt only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: enterprise-admin-proof-receipt
+          path: outputs/tenant-enterprise-admin-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+    name: Wage renewal / enterprise / enterprise-admin-http
+  identity__identity-account:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Export local-only Next and PostgreSQL configuration
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Reject unsafe fixture and provider targets before PostgreSQL
+        run: node --test tests/tenant-identity-account-contract.test.mjs
+      - name: Generate throwaway cryptography and localhost webhook keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build real Next production-mode source
+        run: npm run build
+      - name: Two independent owners versus real victim and same-employer peer
+        run: node --import tsx scripts/qa/tenant-identity-account-http.mjs
+    name: Wage renewal / identity / identity-account
+  bir__synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CI: 'true'
+      TZ: Asia/Manila
+      BIR_SYNTHETIC_BROWSER_QA: 'true'
+      BIR_2316_POSTGRES_QA: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: https://127.0.0.1:3443
+      TRUSTED_APP_ORIGINS: https://127.0.0.1:3443,https://127.0.0.1:3444,https://127.0.0.1:3445
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral encryption keys (synthetic only)
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$totp_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Seed synthetic employer, employee, MFA and annual BIR records
+        run: npx tsx scripts/bir-1604c-synthetic-browser-fixture.ts
+      - name: Execute read-only 2316 ledger isolation and final-pay PostgreSQL acceptance
+        run: npx tsx --test tests/bir-2316-withholding-postgres.test.ts tests/year-end-prior-evidence-postgres.test.ts
+      - name: Generate and behavior-test the unsigned prescribed-template PDF
+        env:
+          BIR_2316_PDF_QA: 'true'
+        run: npx tsx --test tests/bir-2316-certificate.test.ts
+      - name: Typecheck the filing implementation
+        run: npm run typecheck
+      - name: Build scoped candidate and UI
+        run: npm run build
+      - name: Verify the prescribed template is traced into the deployable route
+        run: node -e 'const t = require("./.next/server/app/api/year-end/2316-certificate/route.js.nft.json"); if (!t.files.some(f => f.endsWith("assets/bir/2316-september-2021-encs.pdf"))) throw new Error("2316 template missing from route deployment trace");'
+      - name: Install synthetic-only Chromium
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Generate ephemeral loopback TLS certificate
+        run: |
+          openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 1 \
+            -keyout /tmp/bir-synthetic-https.key \
+            -out /tmp/bir-synthetic-https.crt \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1
+      - name: Start flag-on and flag-off servers
+        run: |
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED=true BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=true BIR_2316_RECONCILIATION_ENABLED=true BIR_1604C_DAT_CANDIDATE_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/bir-1604c-on.log 2>&1 &
+          BIR_2316_CERTIFICATE_DRAFT_ENABLED=false BIR_2316_WITHHOLDING_EVIDENCE_ENABLED=false BIR_2316_RECONCILIATION_ENABLED=false BIR_1604C_DAT_CANDIDATE_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/bir-1604c-off.log 2>&1 &
+          YEAR_END_PRIOR_EVIDENCE_ENABLED=true FINAL_PAY_SIGNED_REVIEW_ENABLED=true EXACT_THIRTEENTH_CENTAVOS_ENABLED=true npm run start -- --hostname 127.0.0.1 --port 3002 > /tmp/prior-on.log 2>&1 &
+          for port in 3000 3001 3002; do
+            ready=false
+            for attempt in $(seq 1 60); do
+              if curl --silent --fail "http://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
+              sleep 1
+            done
+            test "$ready" = true
+          done
+      - name: Start ephemeral HTTPS reverse proxies for Secure MFA session cookies
+        run: |
+          node scripts/bir-1604c-synthetic-https-proxy.mjs > /tmp/bir-1604c-tls.log 2>&1 &
+          for port in 3443 3444 3445; do
+            ready=false
+            for attempt in $(seq 1 30); do
+              if curl --cacert /tmp/bir-synthetic-https.crt --silent --fail "https://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
+              sleep 1
+            done
+            test "$ready" = true
+          done
+      - name: Test role restrictions, DAT bytes, flag-off and desktop/390px UI
+        run: node --import tsx scripts/bir-1604c-synthetic-browser.mjs
+      - name: Verify two authenticated foreign employers against a real higher-ID BIR candidate victim
+        run: |
+          node --check scripts/qa/tenant-bir1604c-candidate-post-http.mjs
+          node --test tests/tenant-bir1604c-candidate-post-contract.test.mjs
+          node --import tsx scripts/qa/tenant-bir1604c-candidate-post-http.mjs
+      - name: Include official-module manual validation instructions
+        if: always()
+        run: |
+          mkdir -p qa-artifacts/bir-1604c
+          cp docs/payroll-certification/bir-1604c-windows-validation-handoff.md qa-artifacts/bir-1604c/VALIDATE-ON-WINDOWS.md
+          cp scripts/bir-1604c-check-exact-test-dat.ps1 qa-artifacts/bir-1604c/VERIFY-DAT-SHA256.ps1
+      - name: Upload only synthetic browser artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bir-1604c-synthetic-browser
+          path: qa-artifacts/bir-1604c
+          if-no-files-found: warn
+          retention-days: 14
+    name: Wage renewal / bir / synthetic
+  filing__filing-method-leg:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        case:
+          - accepted
+          - rejected
+          - guards
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Assert exact candidate head and never consume merge-ref source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exactly locked dependencies
+        run: npm ci
+      - name: Set fictional compliance profile; leave workers, money and real providers off
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs compliance-posts >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_FILING_OUTCOME_MODE=fictional-pg16-filing-outcome'
+            echo 'TENANT_COMPLIANCE_ACCEPTED_BATCH=fictional-only'
+            echo 'TENANT_FILING_PATCH_RECOVERY=fictional-only'
+            echo 'MULTI_ENTITY_ENABLED=false'
+            echo 'DEMO_MODE=false'
+            echo 'REQUIRE_PRIVILEGED_MFA=true'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'PAYMONGO_WEBHOOK_SECRET='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'XENDIT_PAYOUT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+            echo 'POSTMARK_SERVER_TOKEN='
+            echo 'SMTP_URL='
+            echo 'STRIPE_SECRET_KEY='
+            echo 'OPENAI_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Reject fake receipts, unsafe targets, missing source pins and premature credits
+        run: |
+          node --check scripts/qa/tenant-filing-patch-method-contract.mjs
+          node --check scripts/qa/tenant-filing-patch-method-http.mjs
+          node --test tests/tenant-filing-patch-method-contract.test.mjs tests/tenant-filing-outcome-contract.test.mjs tests/tenant-compliance-accepted-contract.test.mjs
+      - name: Generate disposable encryption keys (never secrets from real employers)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Create one fresh isolated PG16 schema for this proof leg
+        run: npm run db:push
+      - name: Apply reviewed fictional-only database baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build exact-head Next production-mode app against localhost DB
+        run: npm run build
+      - name: Start private loopback HTTP app; never contact provider or agency
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/filing-patch-recovery.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 90 /tmp/filing-patch-recovery.log
+          exit 1
+      - name: Execute actual authenticated PATCH, real victim, SQL and audit proof
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-filing-patch-method-http.mjs "${{ matrix.case }}"
+      - name: Print bounded localhost-only logs on failure
+        if: failure()
+        run: tail -n 90 /tmp/filing-patch-recovery.log || true
+    name: Wage renewal / filing / filing-method-leg
+  filing__filing-method-all-legs:
+    needs:
+      - filing__filing-method-leg
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Fail unless ALL three independent current-head PostgreSQL legs passed
+        env:
+          MATRIX_RESULT: ${{ needs.filing__filing-method-leg.result }}
+        shell: bash
+        run: |
+          test "$MATRIX_RESULT" = "success"
+          echo "All three fictional own/victim/forged/role/MFA legs passed. ZERO credits; independent human review still required."
+    name: Wage renewal / filing / filing-method-all-legs
+  labor__labor-inspection-post-isolation:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TENANT_LABOR_INSPECTION_MODE: fictional-pg16-only
+      TZ: Asia/Manila
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      MULTI_ENTITY_ENABLED: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      OPENAI_API_KEY: ''
+      NEON_DATABASE_URL: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Verify exact PR head and never a stale SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export existing synthetic-only offline app profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import {TENANT_TABLE_BASE_ENV} from "./scripts/qa/tenant-table-env.mjs"; for (const [key,value] of Object.entries(TENANT_TABLE_BASE_ENV)) process.stdout.write(key+"="+value+"\n")' >> "$GITHUB_ENV"
+          {
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "MULTI_ENTITY_ENABLED=false"
+            echo "REQUIRE_PRIVILEGED_MFA=true"
+            echo "TENANT_LABOR_INSPECTION_MODE=fictional-pg16-only"
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "DATABASE_URL_DIRECT="
+            echo "NEON_API_KEY="
+            echo "PAYMONGO_WALLET_ID="
+            echo "VERCEL_ENV="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "POSTMARK_SERVER_TOKEN="
+            echo "SMTP_URL="
+            echo "STRIPE_SECRET_KEY="
+            echo "OPENAI_API_KEY="
+            echo "NEON_DATABASE_URL="
+          } >> "$GITHUB_ENV"
+      - name: Refuse unsafe targets and false source/coverage receipts before database access
+        run: |
+          node --check scripts/qa/tenant-labor-inspection-post-contract.mjs
+          node --check scripts/qa/tenant-labor-inspection-post-http.mjs
+          node --check tests/tenant-labor-inspection-post.test.mjs
+          node --test tests/tenant-labor-inspection-post.test.mjs
+      - name: Create fresh throwaway encryption inputs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL 16 only
+        run: npm run db:push
+      - name: Apply existing offline migrations only to local app_db
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Install required fictional HCM test-only schema
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Build Next production-mode against local PG16
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-labor-inspection-post-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              tail -n 100 /tmp/tenant-labor-inspection-post-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Local-only Next server failed to start"
+          tail -n 100 /tmp/tenant-labor-inspection-post-next.log
+          exit 1
+      - name: Verify genuine own assign acknowledge close, cross-bound denial and audit rollback without money
+        run: node --import tsx scripts/qa/tenant-labor-inspection-post-http.mjs
+      - name: Display only bounded localhost log after failure
+        if: failure()
+        run: tail -n 100 /tmp/tenant-labor-inspection-post-next.log || true
+    name: Wage renewal / labor / labor-inspection-post-isolation
+  remittance__remittance-action-pg16:
+    name: Wage renewal / remittance / statutory-action-pg16-${{ matrix.multi_entity }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        multi_entity:
+          - 'false'
+          - 'true'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3019
+      REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019
+      REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only
+      MULTI_ENTITY_ENABLED: ${{ matrix.multi_entity }}
+      MULTI_ENTITY_REGISTRATIONS_ENABLED: 'false'
+      MULTI_ENTITY_TRANSFERS_ENABLED: 'false'
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_URL: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check exact method guards, source-key policy and proof script
+        run: |
+          node --check scripts/qa/remittance-action-entity-http.mjs
+          npx tsx --test tests/statutory-remittance-task-scope.test.ts
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated audit chain and supplement
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual Next.js production-mode app
+        run: npm run build
+      - name: Execute signed-in GET/POST, cross-tenant, grants and no-email evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm start -- -H 127.0.0.1 -p 3019 > /tmp/remittance-action-entity.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3019/login >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/remittance-action-entity-http.mjs
+      - name: Synthetic server diagnostics on failure
+        if: failure()
+        run: tail -n 180 /tmp/remittance-action-entity.log || true
+  onboarding__journey:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - legacy
+          - preview
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/qa/tenant-onboarding-env.mjs "${{ matrix.profile }}" >> "$GITHUB_ENV"
+      - name: Ephemeral encryption keys (no provider secrets)
+        shell: bash
+        run: |
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Onboarding source contracts before live proof (no historical receipt acceptance)
+        run: node --import tsx --test --test-name-pattern='^(onboarding refuses|calendar date regression|legacy import assigns|owned verifier requires|both profiles execute real intake)' tests/tenant-onboarding-contract.test.mjs
+      - run: npm run db:push
+      - run: node scripts/qa/apply-isolated-baseline.mjs
+      - run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - run: npm run build
+      - name: Start the disposable local server
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/onboarding-server.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --silent --fail "$SECURITY_SMOKE_URL" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/onboarding-server.log
+          exit 1
+      - name: Two attackers, independent hire checker, real victim, database invariants
+        run: env -u NODE_ENV node --import tsx scripts/qa/tenant-onboarding-http.mjs
+      - name: Verify source-bound receipt after real PG16 HTTP (fail closed)
+        run: node --import tsx --test tests/tenant-onboarding-contract.test.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: onboarding-${{ matrix.profile }}-receipt
+          path: outputs/onboarding-${{ matrix.profile }}.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/onboarding-server.log || true
+    name: Wage renewal / onboarding / journey
+  migrations__migration-post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Configure disposable localhost fixture
+        run: node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+      - name: Validate real CSV parser and proof discrimination contracts
+        run: node --import tsx --test tests/tenant-requested-migrations-contract.test.mjs tests/tenant-migration-hcm-missing-proof.test.mjs
+      - name: Generate disposable encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PG16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build exact-head production-mode localhost app
+        run: npm run build
+      - name: Execute eight own commits, real foreign/forged denials and immutable victim SQL
+        run: node --import tsx scripts/qa/tenant-requested-migrations-http.mjs
+    name: Wage renewal / migrations / migration-post
+  spend__spend-full-write-method:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      MULTI_ENTITY_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      WFM_LOYVERSE_POS_ENABLED: 'false'
+      WFM_SQUARE_SANDBOX_ENABLED: 'false'
+      SPEND_PAYROLL_REIMBURSEMENTS_ENABLED: 'true'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Export disposable CI-only fixture, never production or providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo "WORKER_ENABLED=false"
+            echo "CENTRAL_SCHEDULER_ENABLED=false"
+            echo "MULTI_ENTITY_ENABLED=false"
+            echo "SPEND_PAYROLL_REIMBURSEMENTS_ENABLED=true"
+            echo "XENDIT_BILLING_ENABLED=false"
+            echo "XENDIT_PAYOUTS_ENABLED=false"
+            echo "PAYMONGO_DISBURSEMENTS_ENABLED=false"
+            echo "WFM_LOYVERSE_POS_ENABLED=false"
+            echo "WFM_SQUARE_SANDBOX_ENABLED=false"
+            echo "NEXT_CSP_ENABLED=false"
+            echo "TRUSTED_APP_ORIGINS=http://127.0.0.1:3000"
+            echo "PAYMONGO_SECRET_KEY="
+            echo "XENDIT_SECRET_KEY="
+            echo "XENDIT_PAYOUT_SECRET_KEY="
+            echo "RESEND_API_KEY="
+            echo "STRIPE_SECRET_KEY="
+            echo "DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID="
+            echo "DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY="
+          } >> "$GITHUB_ENV"
+      - name: Fail-closed exact-source and action contract
+        run: |
+          node --check scripts/qa/tenant-spend-write-actions-http.mjs
+          node --test tests/tenant-spend-full-method-candidate.test.mjs
+          node --test tests/tenant-spend-review-family.test.mjs
+      - name: Ephemeral fictional encryption and webhook material only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Build empty synthetic PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply isolated-only reviewed SQL baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production Next only against disposable PostgreSQL
+        run: npm run build
+      - name: Start localhost Next; never deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-spend-write-actions.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 50 /tmp/tenant-spend-write-actions.log || true
+          exit 1
+      - name: Prepare SQL-only fictional HCM snapshot fixture
+        run: node scripts/qa/prepare-hcm-work-item-fixture.mjs
+      - name: Two independent owned and foreign POST/PATCH positive/negative action matrices
+        run: node --import tsx scripts/qa/tenant-spend-write-actions-http.mjs
+      - name: Managed approval with the same OFF-profile server
+        run: node --import tsx scripts/qa/tenant-managed-client-approval-http.mjs
+      - name: Print bounded synthetic-only logs on failure
+        if: failure()
+        run: |
+          if test -f /tmp/tenant-spend-write-actions.log; then
+            grep -Ei 'Error:|cause:|failed|code:' /tmp/tenant-spend-write-actions.log | tail -n 30 | cut -c 1-160 || true
+          fi
+    name: Wage renewal / spend / spend-full-write-method
+  triage__tenant-studio-triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: 'true'
+      TZ: Asia/Manila
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_TRIAGE_PROOF: fictional-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      OPENAI_API_KEY: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Verify exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Reject unsafe proof environments and fake own/foreign evidence
+        run: |
+          node --check scripts/qa/tenant-studio-triage-contract.mjs
+          node --check scripts/qa/tenant-studio-triage-http.mjs
+          node --test tests/tenant-studio-triage-contract.test.mjs
+      - name: Generate ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create isolated PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed disposable baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build feature-default local Next app
+        run: npm run build
+      - name: Start localhost-only app
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-studio-triage.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 /tmp/tenant-studio-triage.log
+          exit 1
+      - name: Prove own case acknowledgement, foreign denials and unchanged protected SQL
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-studio-triage-http.mjs
+      - name: Show bounded local app log on failure
+        if: failure()
+        run: tail -n 80 /tmp/tenant-studio-triage.log || true
+    name: Wage renewal / triage / tenant-studio-triage
+  draft__draft-writes:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      GITHUB_ACTIONS: 'true'
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_TRIAGE_PROOF: fictional-only
+      TENANT_STUDIO_DRAFT_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      PAYMONGO_WEBHOOK_SECRET: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      XENDIT_CALLBACK_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_PASSWORD: ''
+      SMTP_URL: ''
+      OPENAI_API_KEY: ''
+      CRON_SECRET: ''
+      WORKER_TOKEN: ''
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Confirm exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci --include=dev
+      - name: Refuse unsafe target and test all draft proof negative controls
+        run: |
+          node --check scripts/qa/tenant-studio-draft-contract.mjs
+          node --check scripts/qa/tenant-studio-draft-http.mjs
+          node --test tests/tenant-studio-draft-contract.test.mjs
+      - name: Generate synthetic temporary encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Initialize disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply isolated baseline without production migration
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Compile Next in production mode with all providers and workers off
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/studio-draft-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/studio-draft-next.log
+          exit 1
+      - name: Prove own saved/template drafts, foreign 403/404, immutable SQL and no published rule
+        run: node --import tsx scripts/qa/tenant-studio-draft-http.mjs
+      - name: Display bounded localhost diagnostics on failure
+        if: failure()
+        run: tail -n 120 /tmp/studio-draft-next.log || true
+    name: Wage renewal / draft / draft-writes
+  execution__studio-execution:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      GITHUB_ACTIONS: 'true'
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_TRIAGE_PROOF: fictional-only
+      TENANT_STUDIO_DRAFT_PROOF: fictional-pg16-only
+      TENANT_STUDIO_EXECUTION_PROOF: fictional-pg16-only
+      AUTOMATION_LANGUAGE_STUDIO_ENABLED: 'false'
+      OPENAI_AUTOMATION_DRAFT_ENABLED: 'false'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      PAYMONGO_WEBHOOK_SECRET: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      XENDIT_CALLBACK_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_PASSWORD: ''
+      SMTP_URL: ''
+      OPENAI_API_KEY: ''
+      CRON_SECRET: ''
+      WORKER_TOKEN: ''
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Confirm exact pull request head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned application and test dependencies
+        run: npm ci --include=dev
+      - name: Reject unsafe targets and run denial/positive contracts
+        run: |
+          node --check scripts/qa/tenant-studio-execution-contract.mjs
+          node --check scripts/qa/tenant-studio-execution-http.mjs
+          node --test tests/tenant-studio-execution-contract.test.mjs
+      - name: Generate ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create fresh disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed fictional test baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode localhost Next application
+        run: npm run build
+      - name: Start isolated localhost server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/studio-execution-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/studio-execution-next.log
+          exit 1
+      - name: Prove quarantine, review transitions, safe retry/replay and immutable foreign tenants
+        run: node --import tsx scripts/qa/tenant-studio-execution-http.mjs
+      - name: Display bounded localhost diagnostics on failure
+        if: failure()
+        run: tail -n 100 /tmp/studio-execution-next.log || true
+    name: Wage renewal / execution / studio-execution
+  language__signed-language-drafts:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      GITHUB_ACTIONS: 'true'
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_TRIAGE_PROOF: fictional-only
+      TENANT_STUDIO_DRAFT_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      PAYMONGO_WEBHOOK_SECRET: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      XENDIT_CALLBACK_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_PASSWORD: ''
+      SMTP_URL: ''
+      OPENAI_API_KEY: ''
+      CRON_SECRET: ''
+      WORKER_TOKEN: ''
+      NEXT_CSP_ENABLED: 'false'
+      TENANT_STUDIO_LANGUAGE_PROOF: fictional-disposable-only
+      AUTOMATION_LANGUAGE_STUDIO_ENABLED: 'true'
+      OPENAI_AUTOMATION_DRAFT_ENABLED: 'false'
+      OPENAI_AUTOMATION_DPA_CONFIRMED: 'false'
+      OPENAI_AUTOMATION_ZERO_RETENTION_CONFIRMED: 'false'
+      OPENAI_AUTOMATION_NOTICE_CONFIRMED: 'false'
+      OPENAI_AUTOMATION_APPROVED_ORG_IDS: ''
+      MULTI_ENTITY_ENABLED: 'false'
+      MALWARE_SCAN_URL: ''
+      MALWARE_SCAN_TOKEN: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Confirm exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci --include=dev
+      - name: Fail-closed language proof preflight and negative controls
+        run: |-
+          node scripts/qa/tenant-studio-language-http.mjs --preflight
+          node --test tests/tenant-studio-language-contract.test.mjs
+          node --import tsx --test tests/tenant-studio-draft-conflict.test.ts
+      - name: Generate synthetic temporary encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Initialize disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply isolated baseline without production migration
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Compile Next in production mode with all providers and workers off
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/studio-draft-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/studio-draft-next.log
+          exit 1
+      - name: Prove actual keyless proposals, signed saves, cross-tenant and cross-session denials
+        run: node --import tsx scripts/qa/tenant-studio-language-http.mjs
+      - name: Display bounded localhost diagnostics on failure
+        if: failure()
+        run: tail -n 120 /tmp/studio-draft-next.log || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tenant-studio-language-receipt
+          path: qa-artifacts/tenant-studio-language.json
+          if-no-files-found: error
+          retention-days: 7
+    name: Wage renewal / language / signed-language-drafts
+  lifecycle__studio-lifecycle:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      GITHUB_ACTIONS: 'true'
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_TRIAGE_PROOF: fictional-only
+      TENANT_STUDIO_DRAFT_PROOF: fictional-pg16-only
+      TENANT_STUDIO_LIFECYCLE_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      PAYMONGO_WEBHOOK_SECRET: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      XENDIT_CALLBACK_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_PASSWORD: ''
+      SMTP_URL: ''
+      OPENAI_API_KEY: ''
+      CRON_SECRET: ''
+      WORKER_TOKEN: ''
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Confirm exact final head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci --include=dev
+      - name: Reject unsafe fixture and execute lifecycle negative-oracle contracts
+        run: |
+          node --check scripts/qa/tenant-studio-lifecycle-contract.mjs
+          node --check scripts/qa/tenant-studio-lifecycle-http.mjs
+          node --test tests/tenant-studio-lifecycle-contract.test.mjs
+      - name: Issue test-only local encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Load reviewed isolated database baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Compile synthetic production-mode Next app
+        run: npm run build
+      - name: Start isolated localhost Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/studio-lifecycle-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/studio-lifecycle-next.log
+          exit 1
+      - name: Prove signed publication, versioned activation/rollback and foreign isolation
+        run: node --import tsx scripts/qa/tenant-studio-lifecycle-http.mjs
+      - name: Display limited local diagnostics on failure
+        if: failure()
+        run: tail -n 100 /tmp/studio-lifecycle-next.log || true
+    name: Wage renewal / lifecycle / studio-lifecycle
+  scope__stored-recovery-scope:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      GITHUB_ACTIONS: 'true'
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_TRIAGE_PROOF: fictional-only
+      TENANT_STUDIO_DRAFT_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      PAYMONGO_WEBHOOK_SECRET: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      XENDIT_CALLBACK_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_PASSWORD: ''
+      SMTP_URL: ''
+      OPENAI_API_KEY: ''
+      CRON_SECRET: ''
+      WORKER_TOKEN: ''
+      NEXT_CSP_ENABLED: 'false'
+      TENANT_STUDIO_LANGUAGE_PROOF: fictional-disposable-only
+      TENANT_STUDIO_RECOVERY_SCOPE_PROOF: fictional-pg16-only
+      AUTOMATION_LANGUAGE_STUDIO_ENABLED: 'false'
+      OPENAI_AUTOMATION_DRAFT_ENABLED: 'false'
+      OPENAI_AUTOMATION_DPA_CONFIRMED: 'false'
+      OPENAI_AUTOMATION_ZERO_RETENTION_CONFIRMED: 'false'
+      OPENAI_AUTOMATION_NOTICE_CONFIRMED: 'false'
+      OPENAI_AUTOMATION_APPROVED_ORG_IDS: ''
+      MULTI_ENTITY_ENABLED: 'false'
+      MALWARE_SCAN_URL: ''
+      MALWARE_SCAN_TOKEN: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Confirm exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci --include=dev
+      - name: Fail-closed language proof preflight and negative controls
+        run: |-
+          node scripts/qa/tenant-studio-recovery-scope-http.mjs --preflight
+          node --test tests/tenant-studio-recovery-scope-contract.test.mjs
+      - name: Generate synthetic temporary encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Initialize disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply isolated baseline without production migration
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Compile Next in production mode with all providers and workers off
+        run: npm run build
+      - name: Start localhost-only Next server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/studio-draft-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/studio-draft-next.log
+          exit 1
+      - name: Prove all four safe actions, real linked sessions and foreign stored-reference refusals
+        run: node --import tsx scripts/qa/tenant-studio-recovery-scope-http.mjs
+      - name: Display bounded localhost diagnostics on failure
+        if: failure()
+        run: tail -n 120 /tmp/studio-draft-next.log || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: tenant-studio-recovery-scope-receipt
+          path: qa-artifacts/tenant-studio-recovery-scope.json
+          if-no-files-found: error
+          retention-days: 7
+    name: Wage renewal / scope / stored-recovery-scope
+  resolution__resolve-reopen:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      TZ: Asia/Manila
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_STUDIO_RESOLUTION_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      DEMO_MODE: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+      NEON_DATABASE_URL: ''
+      PAYMONGO_SECRET_KEY: ''
+      PAYMONGO_WEBHOOK_SECRET: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      XENDIT_CALLBACK_TOKEN: ''
+      STRIPE_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      POSTMARK_SERVER_TOKEN: ''
+      SMTP_URL: ''
+      SMTP_PASSWORD: ''
+      OPENAI_API_KEY: ''
+      CRON_SECRET: ''
+      WORKER_TOKEN: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Confirm exact source revision
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Refuse unsafe environment and source drift before any DB setup
+        run: node scripts/qa/tenant-studio-resolution-contract.mjs --check-env --check-sources
+      - run: npm ci --include=dev
+      - name: Syntax and adversarial proof-oracle tests
+        run: |
+          node --check scripts/qa/tenant-studio-resolution-http.mjs
+          node --check scripts/qa/tenant-studio-resolution-contract.mjs
+          node --test tests/tenant-studio-resolution-contract.test.mjs
+      - name: Generate disposable encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Initialize disposable PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed isolated audit baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Compile production-mode localhost application
+        run: npm run build
+      - name: Start localhost-only application
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/studio-resolution.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prove own transitions, foreign denials and reached audit rollback
+        run: node --import tsx scripts/qa/tenant-studio-resolution-http.mjs
+      - name: Retain sanitized source-bound receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: tenant-studio-resolution-receipt
+          path: qa-artifacts/tenant-studio-resolution-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Bounded localhost failure diagnostics
+        if: failure()
+        run: |
+          if test -f /tmp/studio-resolution.log; then
+            grep -E 'Error:|FICTIONAL_STUDIO_RESOLUTION_AUDIT_VETO|code:' /tmp/studio-resolution.log | tail -n 20 | cut -c 1-200 || true
+          fi
+    name: Wage renewal / resolution / resolve-reopen
+  sessions__tenant-automation-session-ownership:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      GITHUB_ACTIONS: 'true'
+      NODE_ENV: production
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: '1'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      TENANT_SESSION_OWNERSHIP_PROOF: fictional-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      AUTOMATION_LANGUAGE_STUDIO_ENABLED: 'false'
+      OPENAI_AUTOMATION_DRAFT_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      XENDIT_PAYOUT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+      OPENAI_API_KEY: ''
+      SMTP_URL: ''
+      SMTP_PASSWORD: ''
+      NEON_DATABASE_URL: ''
+      STRIPE_SECRET_KEY: ''
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: 'false'
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: 'false'
+      PAYROLL_CALCULATION_HISTORY_ENABLED: 'false'
+      NEXT_CSP_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Verify exact submitted source head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --include=dev
+      - name: Run static fail-closed and fixture contract checks
+        run: |
+          node --check scripts/qa/tenant-automation-session-ownership-http.mjs
+          node --test tests/tenant-automation-session-ownership-contract.test.mjs
+      - name: Provision only ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Create isolated PostgreSQL schema
+        run: npm run db:push
+      - name: Apply reviewed disposable baseline after schema push
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode localhost Next server
+        run: npm run build
+      - name: Start localhost test server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/tenant-session-proof.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            if ! kill -0 "$server" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          tail -n 100 /tmp/tenant-session-proof.log
+          exit 1
+      - name: Verify actual employer-bound retry, replay and offboarding sessions
+        run: node --import tsx scripts/qa/tenant-automation-session-ownership-http.mjs
+      - name: Show bounded diagnostics on failure
+        if: failure()
+        run: tail -n 100 /tmp/tenant-session-proof.log || true
+    name: Wage renewal / sessions / tenant-automation-session-ownership
+  oracle__run-membership-oracle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Require exact reviewed source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Set isolated targets and keep payroll/provider release gates OFF
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          for flag in XENDIT_BILLING_ENABLED XENDIT_PAYOUTS_ENABLED PAYMONGO_DISBURSEMENTS_ENABLED WORKER_ENABLED CENTRAL_SCHEDULER_ENABLED FINAL_PAY_SIGNED_REVIEW_ENABLED EXACT_THIRTEENTH_CENTAVOS_ENABLED PAYROLL_CALCULATION_HISTORY_ENABLED NEXT_CSP_ENABLED; do echo "$flag=false" >> "$GITHUB_ENV"; done
+          echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http' >> "$GITHUB_ENV"
+          echo 'PAYROLL_CONNECTED_IMPACT_ENABLED=true' >> "$GITHUB_ENV"
+          echo 'PAYMONGO_SECRET_KEY=' >> "$GITHUB_ENV"
+          echo 'XENDIT_SECRET_KEY=' >> "$GITHUB_ENV"
+          echo 'RESEND_API_KEY=' >> "$GITHUB_ENV"
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do value=$(openssl rand -hex 32); echo "::add-mask::$value"; echo "$key=$value" >> "$GITHUB_ENV"; done
+      - name: Verify source and refusal contracts
+        run: node --test tests/payroll-run-membership.test.mjs tests/payroll-run-oracle-contract.test.mjs
+      - name: Create isolated schema
+        run: npm run db:push
+      - name: Apply reviewed disposable baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual application
+        run: npm run build
+      - name: Start localhost application
+        run: |
+          npm start -- -H 127.0.0.1 > /tmp/payroll-run-oracle-next.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Compare foreign and missing runs, wrong roles, forgery, revocation and victim SQL
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/payroll-run-oracle-http.mjs
+      - name: Bounded synthetic diagnostics
+        if: failure()
+        run: tail -n 50 /tmp/payroll-run-oracle-next.log || true
+    name: Wage renewal / oracle / run-membership-oracle
+  payroll__root-creation-renewal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Require exact source
+        run: test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Export disposable targets; keep providers, workers and protected flags OFF
+        run: |
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          for flag in XENDIT_BILLING_ENABLED XENDIT_PAYOUTS_ENABLED PAYMONGO_DISBURSEMENTS_ENABLED WORKER_ENABLED CENTRAL_SCHEDULER_ENABLED FINAL_PAY_SIGNED_REVIEW_ENABLED EXACT_THIRTEENTH_CENTAVOS_ENABLED PAYROLL_CALCULATION_HISTORY_ENABLED NEXT_CSP_ENABLED FINAL_PAY_MANUAL_RELEASE_ENABLED PAYROLL_PRE_RUN_READINESS_ENABLED; do echo "$flag=false" >> "$GITHUB_ENV"; done
+          echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http' >> "$GITHUB_ENV"
+          echo 'PAYROLL_RUN_RENEWAL_MODE=fictional-pg16-real-http' >> "$GITHUB_ENV"
+          for key in PAYMONGO_SECRET_KEY PAYMONGO_WALLET_ID XENDIT_SECRET_KEY XENDIT_PAYOUT_SECRET_KEY RESEND_API_KEY; do echo "$key=" >> "$GITHUB_ENV"; done
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do value=$(openssl rand -hex 32); echo "::add-mask::$value"; echo "$key=$value" >> "$GITHUB_ENV"; done
+      - name: Reject partial or foreign success-shaped results
+        run: node --test tests/payroll-run-creation-renewal-contract.test.mjs
+      - name: Initialize only the fresh disposable schema
+        run: npm run db:push
+      - name: Apply existing reviewed disposable baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build actual production-mode application
+        run: npm run build
+      - name: Start localhost server
+        run: |
+          npm start -- -H 127.0.0.1 > /tmp/payroll-root-renewal.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prove both creation modes with two attackers, a higher-ID victim and persisted SQL
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/payroll-run-creation-renewal-http.mjs
+      - uses: actions/upload-artifact@v6
+        with:
+          name: payroll-root-renewal-${{ github.event.pull_request.head.sha }}
+          path: qa-artifacts/payroll-run-creation-renewal.json
+          if-no-files-found: error
+      - name: Bounded disposable diagnostics
+        if: failure()
+        run: tail -n 40 /tmp/payroll-root-renewal.log || true
+    name: Wage renewal / payroll / root-creation-renewal
+  payroll__actions-renewal:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TENANT_APPROVAL_TASK_MODE: fictional-pg16-http
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      XENDIT_BILLING_ENABLED: 'false'
+      WORKER_ENABLED: 'false'
+      CENTRAL_SCHEDULER_ENABLED: 'false'
+      PAYMONGO_SECRET_KEY: ''
+      XENDIT_SECRET_KEY: ''
+      RESEND_API_KEY: ''
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Verify exact proposed actions proof source
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export disposable localhost targets and disable all providers and workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/tenant-table-env.mjs default >> "$GITHUB_ENV"
+          {
+            echo 'TENANT_APPROVAL_TASK_MODE=fictional-pg16-http'
+            echo 'XENDIT_BILLING_ENABLED=false'
+            echo 'PAYMONGO_DISBURSEMENTS_ENABLED=false'
+            echo 'XENDIT_PAYOUTS_ENABLED=false'
+            echo 'WORKER_ENABLED=false'
+            echo 'CENTRAL_SCHEDULER_ENABLED=false'
+            echo 'PAYMONGO_SECRET_KEY='
+            echo 'XENDIT_SECRET_KEY='
+            echo 'RESEND_API_KEY='
+          } >> "$GITHUB_ENV"
+      - name: Fail closed on incorrect proof contracts and synthetic targets
+        run: |
+          node --check scripts/qa/tenant-payroll-run-actions-contract.mjs
+          node --check scripts/qa/tenant-payroll-run-actions-http.mjs
+          node --test tests/tenant-payroll-run-actions-contract.test.mjs
+      - name: Generate throwaway encryption keys and webhook secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY; do
+            key=$(openssl rand -hex 32)
+            echo "::add-mask::$key"
+            echo "$name=$key" >> "$GITHUB_ENV"
+          done
+          secret="whsec_$(openssl rand -base64 32 | tr -d '\n')"
+          echo "::add-mask::$secret"
+          echo "RESEND_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Initialize disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply only reviewed fictional baseline objects
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build production-mode app against the disposable database
+        run: npm run build
+      - name: Start production-mode Next on localhost only
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/tenant-payroll-run-actions-next.log 2>&1 &
+          server=$!
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$SECURITY_SMOKE_URL/login" > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              cat /tmp/tenant-payroll-run-actions-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tenant-payroll-run-actions-next.log
+          exit 1
+      - name: Verify own pilot sign-off, xendit ledger read, manual completion, refusals on every victim action and an untouched victim
+        run: node --import tsx scripts/qa/tenant-payroll-run-actions-http.mjs
+      - name: Show localhost-only diagnostic log on failure
+        if: failure()
+        run: cat /tmp/tenant-payroll-run-actions-next.log || true
+    name: Wage renewal / payroll / actions-renewal
+  exports__fictional-payroll-exports-post-http:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3011
+      MONEY_PROOF_URL: http://127.0.0.1:3011
+      MONEY_PROOF_MODE: disposable-only
+      MONEY_PROOF_TRANSPORT: http
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'true'
+      PAYMONGO_HTTP_PROOF: loopback-only
+      PAYMONGO_SECRET_KEY: sk_test_synthetic_no_network
+      PAYMONGO_WALLET_ID: wallet_synthetic
+      PAYMONGO_WEBHOOK_SECRET: whsk_synthetic_no_network
+      PAYROLL_PAYOUT_PROVIDER: paymongo
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - name: Verify exact reviewed head
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Fail closed on incorrect proof contracts and synthetic targets
+        run: |
+          node --check scripts/qa/tenant-payroll-exports-post-contract.mjs
+          node --check scripts/qa/tenant-payroll-exports-post-http.mjs
+          node --test tests/tenant-payroll-exports-post-contract.test.mjs
+      - run: npm run db:push
+      - name: Apply reviewed baseline to disposable app_db before clone (payouts disabled for this step)
+        env:
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Clone empty disposable schema into the dedicated money-proof database
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+          await c.connect();
+          await c.query('CREATE DATABASE payroll_mny01_test TEMPLATE app_db');
+          await c.end();
+          NODE
+          echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_mny01_test' >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Verify own preflight, disbursement and manual completion, higher-ID victim denial and immutable victim SQL against the loopback synthetic provider
+        run: |
+          set -euo pipefail
+          NODE_OPTIONS="--import=$(pwd)/scripts/qa/paymongo-http-proof-preload.mjs" npm start -- -H 127.0.0.1 -p 3011 > /tmp/exports-post-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3011/login >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/tenant-payroll-exports-post-http.mjs
+      - name: Server diagnostics
+        if: failure()
+        run: cat /tmp/exports-post-server.log || true
+    name: Wage renewal / exports / fictional-payroll-exports-post-http
+  paymongo__money-lifecycle-pg16:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - '5432:5432'
+        options: '--health-cmd "pg_isready -U postgres -d app_db" --health-interval 5s --health-timeout 5s --health-retries 10'
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3011
+      MONEY_PROOF_URL: http://127.0.0.1:3011
+      MONEY_PROOF_MODE: disposable-only
+      MONEY_PROOF_TRANSPORT: http
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      TOTP_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      PII_ENCRYPTION_KEY: '2222222222222222222222222222222222222222222222222222222222222222'
+      BANK_DATA_ENCRYPTION_KEY: '3333333333333333333333333333333333333333333333333333333333333333'
+      PAYMONGO_DISBURSEMENTS_ENABLED: 'true'
+      PAYMONGO_HTTP_PROOF: loopback-only
+      PAYMONGO_SECRET_KEY: sk_test_synthetic_no_network
+      PAYMONGO_WALLET_ID: wallet_synthetic
+      PAYROLL_PAYOUT_PROVIDER: paymongo
+      XENDIT_PAYOUTS_ENABLED: 'false'
+      PAYROLL_UNDERPAYMENT_POSTING_ENABLED: 'false'
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact proposed renewal source
+        env:
+          WAGE_RENEWAL_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$WAGE_RENEWAL_EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --test tests/paymongo-http-proof-target.test.mjs
+      - run: npm run db:push
+      - name: Apply reviewed 0109 audit chain and supplement to disposable app_db before clone
+        env:
+          PAYMONGO_DISBURSEMENTS_ENABLED: 'false'
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Clone empty disposable schema into dedicated money-proof database
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const c = new pg.Client({connectionString: process.env.DATABASE_URL});
+          await c.connect();
+          await c.query('CREATE DATABASE payroll_mny01_test TEMPLATE app_db');
+          await c.end();
+          NODE
+          echo 'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/payroll_mny01_test' >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Run real HTTP and PostgreSQL money-path proof
+        run: |
+          set -euo pipefail
+          NODE_OPTIONS="--import=$(pwd)/scripts/qa/paymongo-http-proof-preload.mjs" npm start -- -H 127.0.0.1 -p 3011 > /tmp/money-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..40}; do
+            if curl --silent --fail http://127.0.0.1:3011 >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          npx tsx scripts/qa/paymongo-export-isolation-local.mjs
+      - name: Server diagnostics
+        if: failure()
+        run: cat /tmp/money-server.log || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: paymongo-export-http-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            outputs/paymongo-export-local.json
+          if-no-files-found: warn
+    name: Wage renewal / paymongo / money-lifecycle-pg16

@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFileSync} from "node:fs";
@@ -8,7 +9,7 @@ import {
 } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import {historicWageRegistryProofView} from "../scripts/qa/wage-registry-source-hold.mjs";
 import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
-const read=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const read=()=>readWageWithdrawalFixture();
 test("47 transitive source-dependent credits are withdrawn, source-sealed and unaccepted",()=>{
   const m=read(),a=readTransitiveWageHoldArchive();
   assert.equal(a.methods.length,47);

@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import { verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,8 +8,7 @@ import {
   verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState,
 } from "../scripts/qa/tenant-year-end-credit.mjs";
 
-const getManifest = () => JSON.parse(
-  readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const getManifest = () => readWageWithdrawalFixture();
 const row = (m, verb) => m.allApiRouteFiles[
   "src/app/api/year-end/route.ts"].methods.find(v => v.name === verb);
 
@@ -54,12 +54,7 @@ test("forged receipt, altered financial source, and fake approval fail closed", 
       const fake=structuredClone(m);change(fake);
       assert.throws(()=>verifyWageYearEndHold(fake),"Tampered wage-source hold cannot restore credit");
     }
-    // An edited payroll engine is rejected at the historical source-blob pin
-    // before the verifier reaches the older held-method check. Both outcomes
-    // fail closed; neither grants coverage to the 47 zero-credit wage holds.
-    assert.throws(() => verifyYearEndCredits(m),
-      /(?:current-source proof required|source\/proof changed; renew PG16 review)/,
-      "Stale #1804 source receipt must not restore year-end GET/POST coverage");
+    assert.throws(()=>verifyYearEndCredits(m),/current-source proof required/);
     return;
   }
   if (isYearEndHeld(m)) {

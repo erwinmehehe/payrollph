@@ -22,7 +22,7 @@ import { createHash } from "node:crypto";
 import { METHODS as developmentMethods } from "./tenant-performance-development-actions.mjs";
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
-import { verifiedWageCreditHolds } from "./wage-registry-credit-holds.mjs";
+import { protectedWageCreditKeys } from "./wage-registry-credit-holds.mjs";
 
 if (process.argv.includes("--root-planning")) {
   const {creditRoot}=await import("./tenant-root-planning-credit.mjs");
@@ -158,7 +158,7 @@ const SOURCES = [
 ];
 
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-const wageHolds = verifiedWageCreditHolds(manifest);
+const wageHolds = protectedWageCreditKeys(manifest);
 const wageHeldSelection = onlyKeys.find(key => {
   const hit = Object.entries(manifest.allApiRouteFiles).find(([, route]) =>
     key.endsWith(" " + route.route));

@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
@@ -9,7 +10,7 @@ import {RENEWAL_FILE,readStudioDependencyRenewal,verifyRenewalResults} from "../
 import {assertLiveTenantCounts} from "./helpers/tenant-counts.mjs";
 import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 
-const manifest=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const manifest=()=>readWageWithdrawalFixture();
 const clone=x=>structuredClone(x);
 const historicReceipt=()=>{
   const m=manifest();

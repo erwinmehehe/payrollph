@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyInvitationAcceptCredits, RECEIPTS, ROUTE } from "../scripts/qa/tenant-invitation-accept-credit.mjs";
-const load=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const load=()=>readWageWithdrawalFixture();
 const method=(m,verb)=>m.allApiRouteFiles[ROUTE].methods.find(x=>x.name===verb);
 test("two source-current distinct PG16 invitation acceptance methods gain provisional receipts",()=>{
  const m=load();assert.equal(verifyInvitationAcceptCredits(m),2);

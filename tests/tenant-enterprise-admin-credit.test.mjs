@@ -1,8 +1,9 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
 import {verifyEnterprisePostCredit,ENTERPRISE_POST_PATH} from '../scripts/qa/tenant-enterprise-admin-credit.mjs';
 import {assertEnterpriseMutation} from '../scripts/qa/tenant-enterprise-admin-state.mjs';
 import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from '../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs';
-const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+const manifest=readWageWithdrawalFixture();
 test('the actual HTTP-loop discriminator fails if its write oracle is replaced by a no-op',()=>{
  const before={organization_security_policies:[]};
  const payload={organizationId:401,action:'save-security-policy',sessionIdleMinutes:90,sessionMaxHours:24,maxActiveSessions:10,requireMfa:true,ssoMode:'optional'};
