@@ -1,6 +1,6 @@
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
 import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from '../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs';
-import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
+import {verifyHistoricalSecurityCredits} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -118,7 +118,7 @@ test("five distinct platform targets preserve security-write and full enterprise
   for (const key of keys) {
     const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const row = record.methods.find(r => r.name === method);
-    if (key === "POST developer") assert.equal(verifySecurityCredits(manifest), 3);
+    if (key === "POST developer") assert.equal(verifyHistoricalSecurityCredits(manifest), 3);
     else if (key === "POST enterprise" || key === "POST automation-studio") {
       assert.equal(verifyAllSealedWageHolds(manifest).size,5,
         "Previously source-sealed Enterprise/Studio evidence is invalidated in full");

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
-import {reviewedDocumentSourceHoldCount,reviewedDocumentSourceWithdrawals} from '../scripts/qa/document-source-accounting.mjs';
+import {reviewedDocumentSourceHoldCount,reviewedDocumentSourceWithdrawals,protectedDocumentCreditKeys} from '../scripts/qa/document-source-accounting.mjs';
 import {isExactHistoricalLoaderChange} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import {baseTenantManifest,assertLiveTenantCounts} from './helpers/tenant-counts.mjs';
 const paths=['src/app/api/documents/route.ts','src/app/api/hcm/documents/route.ts'];
@@ -10,7 +10,13 @@ const load=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-man
 test('only the exact metadata methods and two dependent security writes may lose source-current credits',()=>{
  const m=load(),before=structuredClone(m);
  assert.equal(reviewedDocumentSourceHoldCount(m),paths.length*2+2);
- assert.equal(reviewedDocumentSourceWithdrawals(baseTenantManifest().manifest,m).size,paths.length*2+2);
+ const base=baseTenantManifest().manifest;
+ const newlyWithdrawn=[...protectedDocumentCreditKeys(m)].filter(key=>{
+   const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+   return base.allApiRouteFiles[path].methods.find(row=>row.name===verb).status==='COVERED';
+ });
+ assert.deepEqual([...reviewedDocumentSourceWithdrawals(base,m)].sort(),newlyWithdrawn.sort());
+ assert.equal(reviewedDocumentSourceWithdrawals(m,m).size,0,'Inherited holds are never counted twice');
  assertLiveTenantCounts(assert,m);
  assert.deepEqual(m,before);
  for(const path of paths)for(const row of m.allApiRouteFiles[path].methods) {

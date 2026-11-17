@@ -1,4 +1,4 @@
-import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
+import {verifyHistoricalSecurityCredits} from "./helpers/document-security-fixture.mjs";
 import {isVerifiedOracleRenewal} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -33,7 +33,7 @@ test("DL-01 frozen exact five method keys are represented once in batch families
     assert.ok(record, "frozen method is missing: " + method + " " + route);
     assert.ok(["GAP", "COVERED"].includes(record.status));
     if(verifyWageRenewalMethod(manifest,'src/app/api/'+route+'/route.ts',method))continue;
-    if(route==='documents'&&method==='POST'){assert.equal(verifySecurityCredits(manifest),3);continue;}
+    if(route==='documents'&&method==='POST'){assert.equal(verifyHistoricalSecurityCredits(manifest),3);continue;}
     if (record.status === "COVERED"&&!isVerifiedOracleRenewal(manifest,'src/app/api/'+route+'/route.ts',method)) {
       assert.ok(record.testedBy?.ownPositiveLine &&
         record.testedBy?.foreignDenialLine &&

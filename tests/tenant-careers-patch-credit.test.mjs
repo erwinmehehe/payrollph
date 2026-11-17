@@ -1,5 +1,5 @@
 import {assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
-import {verifySecurityCredits} from '../scripts/qa/tenant-security-write-credit.mjs';
+import {verifyHistoricalSecurityCredits} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import { readFileSync } from "node:fs";
@@ -39,6 +39,6 @@ test("neighboring unproved careers mutations do not receive an implicit credit",
   // bir/annual-employer/candidate POST was credited later by its own dedicated proof (#1891) and is guarded there.
   for(const [p,v] of [["src/app/api/documents/route.ts","POST"],
     ["src/app/api/approvals/[id]/route.ts","PATCH"]])
-      if(p==='src/app/api/documents/route.ts')assert.equal(verifySecurityCredits(manifest),3);
+      if(p==='src/app/api/documents/route.ts')assert.equal(verifyHistoricalSecurityCredits(manifest),3);
       else assertCreditOrWageHold(assert,manifest,p,v,verifyApprovalsCredit);
 });
