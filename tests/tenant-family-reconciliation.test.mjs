@@ -1,3 +1,4 @@
+import {copyDocumentHoldInputs} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, cpSync, rmSync } from "node:fs";
@@ -62,6 +63,7 @@ test("selection is idempotent, writes nothing in check mode and preserves curate
   try {
     // Exercise the actual writer, preserving unrelated legitimate branch credits.
     cpSync("scripts/qa", join(sandbox, "scripts/qa"), { recursive: true });
+    copyDocumentHoldInputs(sandbox);
     for(const source of ["src/lib/wage-orders.ts","src/lib/statutory-rule-watch.ts"]){
       mkdirSync(sandbox + "/src/lib",{recursive:true});cpSync(source,join(sandbox,source));
     }

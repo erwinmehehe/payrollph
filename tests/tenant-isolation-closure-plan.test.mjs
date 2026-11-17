@@ -4,6 +4,7 @@
  * The earlier inventory guard continues to pin all route blobs/method exports.
  */
 import assert from "node:assert/strict";
+import {reviewedDocumentSourceHoldCount,DOCUMENT_ACCOUNTING_ARCHIVE} from '../scripts/qa/document-source-accounting.mjs';
 import {verifyWageRenewalMethod} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -138,8 +139,22 @@ test("closure plan schedules every original GAP exactly once in priority order",
     assert.ok(!scheduled.has(key), "a frozen method must not be counted twice");
   }
   assert.equal(supplemental.size, 22, "All 22 distinct supplemental methods retain their history without duplicate credits");
+  const documentHolds = new Set();
+  if (reviewedDocumentSourceHoldCount(manifest)) {
+    const archive=JSON.parse(readFileSync(DOCUMENT_ACCOUNTING_ARCHIVE));
+    for(const variant of archive.variants)for(const [path,record]of Object.entries(variant.records)) {
+      if(manifest.allApiRouteFiles[path]?.gitBlobSha!==record.gitBlobSha)continue;
+      for(const row of record.methods) {
+        if(row.status!=='GAP')continue;
+        const key=row.name+' '+record.route;
+        assert.ok(plan.includes('`'+key+'`'), 'New document withdrawal must be explicitly scheduled: '+key);
+        documentHolds.add(key);
+      }
+    }
+    assert.equal(documentHolds.size,reviewedDocumentSourceHoldCount(manifest));
+  }
   for (const [key, value] of current) {
-    if (value.status === "GAP") assert.ok(scheduled.has(key) || supplemental.has(key), "Unsheduled new/remaining GAP: " + key);
+    if (value.status === "GAP") assert.ok(scheduled.has(key) || supplemental.has(key) || documentHolds.has(key), "Unsheduled new/remaining GAP: " + key);
   }
   for (const key of scheduled.keys()) assert.ok(current.has(key),
     "Removed/renamed method still in plan; reconcile this batch and manifest: " + key);

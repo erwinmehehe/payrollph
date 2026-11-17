@@ -23,6 +23,7 @@ import { METHODS as developmentMethods } from "./tenant-performance-development-
 import { tenantFamilyCatalog } from "./tenant-table-catalog.mjs";
 import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
 import { protectedWageCreditKeys } from "./wage-registry-credit-holds.mjs";
+import {protectedDocumentCreditKeys} from './document-source-accounting.mjs';
 
 if (process.argv.includes("--root-planning")) {
   const {creditRoot}=await import("./tenant-root-planning-credit.mjs");
@@ -158,7 +159,7 @@ const SOURCES = [
 ];
 
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-const wageHolds = protectedWageCreditKeys(manifest);
+const wageHolds = new Set([...protectedWageCreditKeys(manifest),...protectedDocumentCreditKeys(manifest)]);
 const wageHeldSelection = onlyKeys.find(key => {
   const hit = Object.entries(manifest.allApiRouteFiles).find(([, route]) =>
     key.endsWith(" " + route.route));

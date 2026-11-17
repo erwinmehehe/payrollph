@@ -1,3 +1,4 @@
+import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 /**
  * Live tenant-isolation count invariants, shared by every proof-batch test.
  *
@@ -276,6 +277,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...reviewedTransitiveWageWithdrawals(oldProofView, manifest),
     ...reviewedSealedWageWithdrawals(oldProofView, manifest),
     ...invalidatedRenewals,
+    ...reviewedDocumentSourceWithdrawals(base.manifest, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
@@ -294,4 +296,8 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
   assert.ok(live.gap - explicitlySuperseded.size <= before.gap,
     "GAP never rises except exact reviewed source supersessions (base " + base.ref + ")");
   return { live, base: before };
+}
+
+export function reviewedPrivateDocumentSourceHold(before, after, read = readFileSync) {
+  try { return reviewedDocumentSourceWithdrawals(before, after, read); } catch { return new Set(); }
 }
