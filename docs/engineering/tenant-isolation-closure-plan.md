@@ -248,20 +248,20 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 24 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 33 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 1 | **DL-01** | 26 | 14 | 2 | 0 | 10 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 24 | 0 | 0 | 2 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 21 | 0 | 0 | 12 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 28 | 1 | 0 | 4 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 9 | 0 | 0 | 18 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 4 | **PII-02** | 38 | 34 | 2 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 16 | 11 | 6 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 6 | **EDG-01** | 33 | 15 | 11 | 6 | 1 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 23 | 1 | 5 | 4 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **377 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED + 8 PUBLIC-BY-DESIGN**. 0 batches remain INCOMPLETE; DL-01, DL-02, MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-01, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **62 COVERED + 8 PUBLIC-BY-DESIGN + 22 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
