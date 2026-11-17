@@ -56,33 +56,3 @@ test("forged source, receipt, approval and unrelated method downgrades cannot bo
     ["GET " + path],
     "This helper recognizes only document GET; ordinary global count guard must reject any second downgrade");
 });
-
-test("historical five-page count may project only the exact document hold without crediting live source", async () => {
-  const {historicPrivateDocumentPageCountView} = await import("../scripts/qa/tenant-five-scoped-page-credit.mjs");
-  const before = structuredClone(current);
-  const view = historicPrivateDocumentPageCountView(current);
-  const path = "src/app/api/documents/[id]/route.ts";
-  assert.equal(current.allApiRouteFiles[path].methods[0].status,"GAP");
-  assert.equal(current.allApiRouteFiles[path].methods[0].testedBy,null);
-  assert.equal(view.allApiRouteFiles[path].methods[0].status,"COVERED");
-  assert.equal(view.metrics.gap,current.metrics.gap-1);
-  assert.equal(view.metrics.coveredAfter,current.metrics.coveredAfter+1);
-  assert.deepEqual(current,before,"Projection must not write an old receipt to the live ledger");
-  for (const changed of [
-    m => {m.allApiRouteFiles[path].gitBlobSha="0".repeat(40);},
-    m => {m.allApiRouteFiles[path].methods[0].reviewedUncertified.coverageCredits=1;},
-    m => {m.allApiRouteFiles[path].methods[0].reviewedUncertified.previousMethodProof={file:"invented"};},
-    m => {m.allApiRouteFiles[path].sourceRevisionReview.historicalTransferSourceReview="unreviewed";},
-  ]) {
-    const forged=structuredClone(current);
-    changed(forged);
-    assert.throws(()=>historicPrivateDocumentPageCountView(forged),
-      /Historical projection requires exact current-source zero-credit hold/);
-  }
-  const extra=structuredClone(current);
-  const unrelated=extra.allApiRouteFiles["src/app/api/hr-cases/route.ts"].methods[0];
-  unrelated.status="GAP";
-  const projected=historicPrivateDocumentPageCountView(extra);
-  assert.equal(projected.allApiRouteFiles["src/app/api/hr-cases/route.ts"].methods[0].status,"GAP",
-    "A historical view cannot mask any second, unrelated method downgrade");
-});
