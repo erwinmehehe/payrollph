@@ -120,3 +120,24 @@ test("multi-entity documents with no employee attribution must fail closed until
   // Do not equate source-only guards to executed PostgreSQL/HTTP approval.
   assert.doesNotMatch(source, /SECURITY_ACCEPTED|PRODUCTION_CERTIFIED/);
 });
+
+
+test("legal-entity transfer history blocks pre-attribution private document release", () => {
+  const source = read(downloadPath);
+  const currentGrant = source.indexOf("assertEntityResource(entityScope.context, employee.legalEntityId)");
+  const historyQuery = source.indexOf("const [appliedTransfer, otherAssignment] = await Promise.all([");
+  const historyDenial = source.indexOf("if (appliedTransfer.length > 0 || otherAssignment.length > 0)");
+  const unitGuard = source.indexOf("assertScope(access, employee.orgUnitId)");
+  const privateUrl = source.indexOf("signedDocumentObjectUrl(document.objectStorageKey");
+  const legacyBytes = source.indexOf('Buffer.from(document.content, "base64")');
+  assert.ok(currentGrant >= 0 && historyQuery > currentGrant &&
+    historyDenial > historyQuery && unitGuard > historyDenial &&
+    privateUrl > unitGuard && legacyBytes > privateUrl,
+    "A grant to the current employer must not release an unproven historical legal employer document");
+  for (const guard of [
+    'eq(entityTransferRequests.status, "applied")',
+    "ne(employeeEntityAssignments.legalEntityId, employee.legalEntityId)",
+    'if (appliedTransfer.length > 0 || otherAssignment.length > 0) {',
+    'return Response.json({ error: "Document not found." }, { status: 404 });',
+  ]) assert.ok(source.includes(guard), "Historical employer source guard missing: " + guard);
+});
