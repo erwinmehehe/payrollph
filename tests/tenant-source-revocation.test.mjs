@@ -4,7 +4,7 @@ import test from "node:test";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { isYearEndHeld, isWageYearEndHeld, verifyWageYearEndHold, verifyYearEndCredits, verifyYearEndHold } from "../scripts/qa/tenant-year-end-credit.mjs";
 
-const live = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const live = readWageWithdrawalFixture();
 const yearEndRoute = "src/app/api/year-end/route.ts";
 
 test("old #1730 year-end proof stays source-revoked; #1804 adds two new provisional source-pinned receipts", () => {
@@ -77,3 +77,4 @@ test("the year-end re-credit cannot conceal revocation of independent payout evi
     { ref: "current main plus year-end", manifest: live }),
     "a separate payout credit cannot be silently downgraded");
 });
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';

@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {TRANSITIVE_HOLD_KIND, verifyAllTransitiveWageHolds} from "./wage-registry-transitive-source-hold.mjs";
+import {verifyWageRenewalMethod} from './wage-registry-renewal-verify.mjs';
 
 // Renewed 2026-11-13: proof run on the push-to-main merge commit of #1957 (one de minimis ceiling shared by imported and
 // calculated pay in the year-end settlement). Supersedes run 43178709246 (#1945) and the original #1804 run 42254117862.
@@ -204,6 +205,8 @@ export function verifyWageYearEndHold(manifest,read=readFileSync) {
 }
 /** Return 2 only for valid current receipts; return 0 for fully verified source holds. */
 export function verifyYearEndPairState(manifest, read = readFileSync) {
+  const renewed=['GET','POST'].map(verb=>verifyWageRenewalMethod(manifest,'src/app/api/year-end/route.ts',verb,read)).reduce((n,x)=>n+x,0);
+  if(renewed){assert.equal(renewed,2,'Year-end renewal must retain the complete GET/POST proof pair');return renewed;}
   if(isWageYearEndHeld(manifest))return verifyWageYearEndHold(manifest,read);
   return isYearEndHeld(manifest) ? verifyYearEndHold(manifest, read) : verifyYearEndCredits(manifest, read);
 }

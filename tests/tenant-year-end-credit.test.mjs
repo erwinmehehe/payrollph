@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import { verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,8 +8,7 @@ import {
   verifyYearEndCredits, verifyYearEndHold, verifyYearEndPairState,
 } from "../scripts/qa/tenant-year-end-credit.mjs";
 
-const getManifest = () => JSON.parse(
-  readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const getManifest = () => readWageWithdrawalFixture();
 const row = (m, verb) => m.allApiRouteFiles[
   "src/app/api/year-end/route.ts"].methods.find(v => v.name === verb);
 

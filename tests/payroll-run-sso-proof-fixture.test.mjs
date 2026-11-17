@@ -1,9 +1,10 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {zeroCreditSsoProofFixture} from '../scripts/qa/payroll-run-sso-proof-fixture.mjs';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
-const read=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+const read=()=>readWageWithdrawalFixture();
 test('disposable bootstrap removes exactly nineteen stale credits without weakening or editing their guards',()=>{
   const m=read(),copy=structuredClone(m),f=zeroCreditSsoProofFixture(m);
   assert.deepEqual(m,copy);

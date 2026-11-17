@@ -1,10 +1,11 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import test from 'node:test';
 import {verifiedWageCreditHolds,wageHeldPriorProof} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import {assertWageLedgerDelta,historicalWageCatalog} from './helpers/wage-source-holds.mjs';
-const load=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+const load=()=>readWageWithdrawalFixture();
 test('all 75 current holds are disjoint, zero-credit and retain immutable prior evidence',()=>{
  const m=load(),before=structuredClone(m),held=verifiedWageCreditHolds(m);
  assert.equal(held.size,75);

@@ -35,7 +35,7 @@ export function captureWageRenewalInventory(){
  assert.equal(methods.length,75);
  const inventory={schema:'payrollph-wage-source-renewal-inventory-v1',baseMainCommit,
   label:'SOLO_VERIFIED_DEV_RECOVERY',methods};
- writeFileSync(INVENTORY,JSON.stringify(inventory,null,2)+'\n');
+ writeFileSync(INVENTORY,JSON.stringify(inventory,null,2)+'\n',{flag:'wx'});
  return {methods:methods.length,baseMainCommit,credits:0};
 }
-if(process.argv.includes('--capture'))console.log(JSON.stringify(captureWageRenewalInventory()));
+if(process.argv[1]?.replaceAll('\\','/').endsWith('/wage-registry-renewal-plan.mjs')&&process.argv.includes('--capture'))console.log(JSON.stringify(captureWageRenewalInventory()));

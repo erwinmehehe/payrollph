@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFileSync} from "node:fs";
@@ -7,7 +8,7 @@ import {
 } from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 import {historicWageRegistryProofView} from "../scripts/qa/wage-registry-source-hold.mjs";
 import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
-const manifest=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const manifest=()=>readWageWithdrawalFixture();
 test("five broad exact-source receipts remain zero-credit and held",()=>{
  const m=manifest(),a=readSealedWageHoldArchive();
  assert.equal(verifyAllSealedWageHolds(m).size,5);

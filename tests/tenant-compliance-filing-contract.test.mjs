@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { readFileSync } from "node:fs";
@@ -287,8 +288,7 @@ test("filing outcome and audit share one PostgreSQL commit, including audit-veto
 });
 
 test("manifest is still GAP; fictional accepted status is NOT an external agency acknowledgement", () => {
-  const manifest = JSON.parse(readFileSync(
-    "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const manifest = readWageWithdrawalFixture();
   const record = Object.values(manifest.allApiRouteFiles)
     .find(row => row.route === "compliance/filing-validations/[id]");
   if(record?.methods?.find(method=>method.name==='PATCH')?.status==='COVERED')assert.equal(verifyFilingPatchCredit(manifest),1);

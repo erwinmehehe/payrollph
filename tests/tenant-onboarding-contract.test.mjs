@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -55,7 +56,7 @@ test('both profiles execute real intake, independent approvals, forged reference
 });
 test('onboarding historical receipts remain sealed; two wage-dependent methods are zero-credit held',()=>{
  const receipt=verifyReceipt();for(const mutate of[r=>r.runs[0].actions.pop(),r=>r.runs[1].own++,r=>r.sources[0].sha256='0'.repeat(64),r=>r.mutation.rejected=false,r=>r.runs[0].victimUnchanged=false]){const copy=structuredClone(receipt);mutate(copy);assert.throws(()=>verifyReceipt(copy));}
- const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+ const manifest=readWageWithdrawalFixture();
  for(const verb of ['POST','PATCH']){
    const path='src/app/api/employees/route.ts',method=manifest.allApiRouteFiles[path].methods.find(m=>m.name===verb);
    assert.equal(method.status,'GAP');assert.equal(method.testedBy,null);

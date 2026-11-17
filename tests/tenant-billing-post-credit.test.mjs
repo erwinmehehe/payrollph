@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
 import { verifyAllTransitiveWageHolds } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
@@ -23,8 +24,7 @@ import {
 } from "../scripts/qa/tenant-billing-post-credit.mjs";
 import { tallyTenantManifest, assertLiveTenantCounts, baseTenantManifest } from "./helpers/tenant-counts.mjs";
 
-const manifest = () => JSON.parse(readFileSync(
-  "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const manifest = () => readWageWithdrawalFixture();
 
 test("one sealed, actual two-owner PG16 checkout receipt supports only billing POST", () => {
   const m = manifest(), evidence = readBillingPostReceipt();

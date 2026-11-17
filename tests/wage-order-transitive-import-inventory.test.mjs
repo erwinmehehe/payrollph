@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 /**
  * Source-only importer inventory: follow transitive runtime imports from all
  * API routes to the modified wage and statutory watch modules.
@@ -78,7 +79,7 @@ function pathTo(start,goal) {
   return null;
 }
 test("only historical zero-credit holds can stand for changed transitive wage runtime sources",()=>{
-  const m=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+  const m=readWageWithdrawalFixture();
   assert.equal(verifyAllWageRegistrySourceHolds(m).length,23);
   assert.equal(verifyAllTransitiveWageHolds(m).size,47);
   const impacted=[];

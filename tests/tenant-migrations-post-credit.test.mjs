@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import test from "node:test";
@@ -5,7 +6,7 @@ import {verifyMigrationPostCredit} from "../scripts/qa/tenant-migrations-post-cr
 import {verifySecurityCredits} from "../scripts/qa/tenant-security-write-credit.mjs";
 import {verifyAllTransitiveWageHolds,TRANSITIVE_HOLD_KIND} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 
-const get=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const get=()=>readWageWithdrawalFixture();
 const path="src/app/api/migrations/route.ts";
 const methods=m=>m.allApiRouteFiles[path].methods;
 

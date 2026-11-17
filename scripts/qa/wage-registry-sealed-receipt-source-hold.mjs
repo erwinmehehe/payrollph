@@ -1,5 +1,6 @@
 /** Immutable 5-method historical source-seal withdrawal; never a current tenant credit. */
 import assert from "node:assert/strict";
+import {wageRenewalHoldView} from './wage-registry-renewal-verify.mjs';
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 export const SEALED_WAGE_HOLD_KIND="wage-registry-global-source-seal-withdrawal";
@@ -43,6 +44,7 @@ export function sealedWageHoldReason(e){
    "proof and independent review required; not accepted for production.";
 }
 export function verifyAllSealedWageHolds(m,read=readFileSync){
+ m=wageRenewalHoldView(m,read);
  const a=readSealedWageHoldArchive(read);
  assert.equal(blob(read(WAGE)),NEW,"Wage source changed again");
  assert.equal(blob(read(WATCH)),WATCH_NEW,"Statutory source changed again");
@@ -63,6 +65,7 @@ export function verifyAllSealedWageHolds(m,read=readFileSync){
  return new Set(expected);
 }
 export function reviewedSealedWageWithdrawals(before,after,read=readFileSync){
+ before=wageRenewalHoldView(before,read);after=wageRenewalHoldView(after,read);
  const count=Object.values(after.allApiRouteFiles).flatMap(f=>f.methods)
    .filter(x=>x.reviewedUncertified?.kind===SEALED_WAGE_HOLD_KIND).length;
  if(count===0)return new Set();
@@ -84,6 +87,7 @@ export function reviewedSealedWageWithdrawals(before,after,read=readFileSync){
  return held;
 }
 export function historicSealedWageProofView(m,read=readFileSync){
+ m=wageRenewalHoldView(m,read);
  const count=Object.values(m.allApiRouteFiles).flatMap(f=>f.methods)
    .filter(x=>x.reviewedUncertified?.kind===SEALED_WAGE_HOLD_KIND).length;
  if(count===0)return m;

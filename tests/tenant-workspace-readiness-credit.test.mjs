@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {assertWageLedgerDelta,assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
 import {assertMkt01Receipt} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs';
 import {xenditPostCreditDelta} from '../scripts/qa/tenant-xendit-post-credit.mjs';
@@ -20,7 +21,7 @@ import {
   verifyWorkspaceReadinessReceipt, verifyWorkspaceReadinessCredit,
 } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 
-const manifest = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const manifest = () => readWageWithdrawalFixture();
 const clone = x => structuredClone(x);
 
 test("one readiness GET recovery uses exact merged, executed PG16 HTTP evidence", () => {

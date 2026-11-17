@@ -1,8 +1,9 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {readFileSync} from 'node:fs';
 import {verifyDocumentCallerReproof} from '../scripts/qa/tenant-document-caller-reproof-verify.mjs';
 test('executed caller renewal rejects input, receipt and provenance mutations',()=>{
- const m=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
+ const m=readWageWithdrawalFixture();
  const ref=m.scopedPages.find(x=>x.path==='src/app/hcm/work-items/page.tsx').callerReproof;
  assert.equal(verifiedWageCreditHolds(m).size,75);
  assert.throws(()=>verifyDocumentCallerReproof(ref),/Executed caller input changed: src\/lib\/wage-orders\.ts/);

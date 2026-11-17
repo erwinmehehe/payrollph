@@ -1,5 +1,6 @@
 /** Current-source zero-credit checks. Never project an archived receipt as live proof. */
 import assert from 'node:assert/strict';
+import {wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {WAGE_PROOF_SOURCE,WATCH_PROOF_SOURCE,PRIOR_WAGE_BLOB_SHA,PRIOR_WATCH_BLOB_SHA,NEW_WAGE_BLOB_SHA,verifyAllWageRegistrySourceHolds} from './wage-registry-source-hold.mjs';
@@ -9,6 +10,7 @@ import {verifyAllSealedWageHolds} from './wage-registry-sealed-receipt-source-ho
 const KINDS=new Set(['wage-registry-dependency-source-withdrawal',
   'wage-registry-transitive-dependency-source-withdrawal','wage-registry-global-source-seal-withdrawal']);
 export function verifiedWageCreditHolds(manifest,read=readFileSync){
+  const live=manifest;manifest=wageRenewalHoldView(manifest,read);
   const raw=Buffer.from(read(WAGE_PROOF_SOURCE));
   const source=createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex');
   if(source===PRIOR_WAGE_BLOB_SHA){
@@ -26,7 +28,15 @@ export function verifiedWageCreditHolds(manifest,read=readFileSync){
     ...verifyAllTransitiveWageHolds(manifest,read),...verifyAllSealedWageHolds(manifest,read),
   ]);
   assert.equal(held.size,75,'All three disjoint wage withdrawal cohorts must remain complete');
-  return held;
+  return new Set([...held].filter(key=>{const at=key.indexOf(' ');return live.allApiRouteFiles[key.slice(at+1)].methods.find(row=>row.name===key.slice(0,at)).status==='GAP';}));
+}
+
+/** Generic table reconciliation must preserve newly source-sealed owners too. */
+export function protectedWageCreditKeys(manifest,read=readFileSync){
+ const held=verifiedWageCreditHolds(manifest,read);
+ for(const [path,file]of Object.entries(manifest.allApiRouteFiles))for(const row of file.methods)
+  if(row.testedBy?.kind===WAGE_RENEWAL_KIND)held.add(row.name+' '+path);
+ return held;
 }
 
 /** Inspect historical citations only after the entire live withdrawal verifies. */

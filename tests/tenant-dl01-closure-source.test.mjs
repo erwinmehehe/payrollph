@@ -32,6 +32,7 @@ test("DL-01 frozen exact five method keys are represented once in batch families
     const record = entry?.methods.find(x => x.name === method);
     assert.ok(record, "frozen method is missing: " + method + " " + route);
     assert.ok(["GAP", "COVERED"].includes(record.status));
+    if(verifyWageRenewalMethod(manifest,'src/app/api/'+route+'/route.ts',method))continue;
     if(route==='documents'&&method==='POST'){assert.equal(verifySecurityCredits(manifest),3);continue;}
     if (record.status === "COVERED"&&!isVerifiedOracleRenewal(manifest,'src/app/api/'+route+'/route.ts',method)) {
       assert.ok(record.testedBy?.ownPositiveLine &&
@@ -230,3 +231,4 @@ test("DL-01 full regression uses a real comparison base and proof-scoped release
   assert.match(guard, /env\.SCHEDULER_REHEARSAL_MODE !== "isolated-ci-only"/);
   assert.match(guard, /url\.pathname !== "\/app_db"/);
 });
+import {verifyWageRenewalMethod} from '../scripts/qa/wage-registry-renewal-verify.mjs';

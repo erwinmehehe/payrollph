@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { payrollRenewalProofBuilder } from './payroll-run-credit-renewal-verify.mjs';
 import { verifyWageRegistrySourceHold } from "./wage-registry-source-hold.mjs";
+import {wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
 
 export const ORACLE_BASE = "e2999240e5ee2d820841de5e10193ce9cbc39e6a";
 export const ORACLE_HELD_METHODS = Object.freeze([
@@ -26,6 +27,10 @@ const sourceAtBase = path => execFileSync("git", ["show", ORACLE_BASE + ":" + pa
  * Historical receipts are compared against trusted Git, not caller-provided
  * metadata. All fifteen route sources and the shared boundary stay sealed. */
 export function verifyOracleSourceHolds(manifest, before = null, read = readFileSync) {
+  // This separate current-source renewal must verify before it can supersede
+  // the historical oracle receipt; never feed changed wages to the old builder.
+  const hasWageRenewals=Object.values(manifest.allApiRouteFiles??{}).some(file=>file.methods?.some(row=>row.testedBy?.kind===WAGE_RENEWAL_KIND));
+  if(hasWageRenewals)wageRenewalHoldView(manifest,read);
   const candidate = manifest.allApiRouteFiles?.["src/app/api/payroll-runs/[id]/assurance/route.ts"]?.gitBlobSha === "033efd5f84319b510ce7551305dcbdc319eb98ea" || Object.values(manifest.allApiRouteFiles ?? {}).some(file =>
     file.methods?.some(row => row.reviewedUncertified?.kind === "payroll-run-membership-oracle-source-withdrawal"));
   if (!candidate) return new Set();
@@ -65,6 +70,11 @@ export function verifyOracleSourceHolds(manifest, before = null, read = readFile
       allowed.add(old.name + " " + path);
       continue;
     }
+    if(row.status==='COVERED'&&row.testedBy?.kind===WAGE_RENEWAL_KIND){
+      assert.equal(row.reviewedUncertified,undefined);
+      assert.deepEqual(row.historicalOracleSourceWithdrawal,exactWithdrawal);
+      renewed++;continue;
+    }
     if(row.status==='COVERED'){
       // A truthy receipt or removed hold never suffices. All actual job results,
       // executed application/assertion inputs and the original withdrawal must
@@ -97,7 +107,7 @@ export function isVerifiedOracleHold(manifest, path, verb) {
 }
 export function isVerifiedOracleRenewal(manifest,path,verb){
   const row=manifest.allApiRouteFiles[path]?.methods.find(method=>method.name===verb);
-  if(row?.status!=='COVERED'||row.testedBy?.kind!=='payroll-run-source-renewal-real-http-pg16')return false;
+  if(row?.status!=='COVERED'||!['payroll-run-source-renewal-real-http-pg16',WAGE_RENEWAL_KIND].includes(row.testedBy?.kind))return false;
   assert.ok(ORACLE_HELD_METHODS.includes(verb+' '+manifest.allApiRouteFiles[path].route));
   verifyOracleSourceHolds(manifest);return true;
 }
@@ -112,14 +122,14 @@ export function verifiedOracleRenewalKeys(manifest){
   return new Set(ORACLE_HELD_METHODS.flatMap(key=>{
     const at=key.indexOf(' '),verb=key.slice(0,at),path='src/app/api/'+key.slice(at+1)+'/route.ts';
     const row=manifest.allApiRouteFiles[path].methods.find(m=>m.name===verb);
-    return row.status==='COVERED'&&row.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'?[verb+' '+path]:[];
+    return row.status==='COVERED'&&['payroll-run-source-renewal-real-http-pg16',WAGE_RENEWAL_KIND].includes(row.testedBy?.kind)?[verb+' '+path]:[];
   }));
 }
 
 export function withdrawRunOracleCredits({ write = false } = {}) {
   const currentManifest=JSON.parse(readFileSync(MANIFEST,'utf8'));
   if(Object.values(currentManifest.allApiRouteFiles).some(file=>file.methods.some(row=>
-    row.status==='COVERED'&&row.testedBy?.kind==='payroll-run-source-renewal-real-http-pg16'))){
+    row.status==='COVERED'&&['payroll-run-source-renewal-real-http-pg16',WAGE_RENEWAL_KIND].includes(row.testedBy?.kind)))){
     const remaining=verifyOracleSourceHolds(currentManifest);
     assert.equal(write,false,'The original withdrawal writer cannot overwrite verified renewals');
     return {write,sourceBase:ORACLE_BASE,held:remaining.size,covered:currentManifest.metrics.coveredAfter,

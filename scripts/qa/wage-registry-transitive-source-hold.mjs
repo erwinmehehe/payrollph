@@ -1,5 +1,6 @@
 /** Zero-credit transitive wage-source withdrawal; historical proof is not current approval. */
 import assert from "node:assert/strict";
+import {wageRenewalHoldView} from './wage-registry-renewal-verify.mjs';
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 
@@ -57,6 +58,7 @@ export function transitiveWageHoldReason(e){
     "; the archived provisional tenant proof is historical only. Current-source real-HTTP PG16 method evidence and independent security review are pending; not accepted for production.";
 }
 export function verifyAllTransitiveWageHolds(m,read=readFileSync){
+  m=wageRenewalHoldView(m,read);
   const a=readTransitiveWageHoldArchive(read);
   assert.equal(blob(read(WAGE_FILE)),WAGE_BLOB,"Unreviewed wage source changed again");
   assert.equal(blob(read(WATCH_FILE)),WATCH_BLOB,"Unreviewed statutory watch changed again");
@@ -77,6 +79,7 @@ export function verifyAllTransitiveWageHolds(m,read=readFileSync){
   return new Set(expected);
 }
 export function reviewedTransitiveWageWithdrawals(before,after,read=readFileSync){
+  before=wageRenewalHoldView(before,read);after=wageRenewalHoldView(after,read);
   const present=Object.values(after.allApiRouteFiles).flatMap(file=>file.methods)
     .filter(row=>row.reviewedUncertified?.kind===TRANSITIVE_HOLD_KIND).length;
   if(present===0)return new Set(); // Historical archive validation only, no new withdrawal.
@@ -98,6 +101,7 @@ export function reviewedTransitiveWageWithdrawals(before,after,read=readFileSync
   return held;
 }
 export function historicTransitiveWageProofView(m,read=readFileSync){
+  m=wageRenewalHoldView(m,read);
   const holds=Object.values(m.allApiRouteFiles).flatMap(file=>file.methods)
     .filter(x=>x.reviewedUncertified?.kind===TRANSITIVE_HOLD_KIND).length;
   if(holds===0)return m;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, cpSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -76,7 +77,7 @@ test("selection is idempotent, writes nothing in check mode and preserves curate
     for (const file of Object.keys(enterpriseReceipt.pins)) {
       mkdirSync(dirname(join(sandbox, file)), { recursive: true }); cpSync(file, join(sandbox, file));
     }
-    const input = structuredClone(manifest);
+    const input = readWageWithdrawalFixture();
     for (const entry of Object.values(input.allApiRouteFiles)) for (const method of entry.methods) {
       if (selected.has(method.name + " " + entry.route)) {
         method.status = "GAP"; method.testedBy = null; method.reason = "Fictional uncredited reconciliation fixture";

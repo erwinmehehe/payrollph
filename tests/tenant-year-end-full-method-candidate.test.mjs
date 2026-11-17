@@ -26,7 +26,7 @@ const gitBlob = path => {
 };
 
 test("source-pinned current year-end GET+POST proof receives only provisional #1804 credits", () => {
-  const manifest = JSON.parse(source(MANIFEST));
+  const manifest = readWageWithdrawalFixture();
   const entry = manifest.allApiRouteFiles[ROUTE];
   const held = isYearEndHeld(manifest)||isWageYearEndHeld(manifest);
   for (const [path, sha] of Object.entries(PINNED)) {
@@ -140,3 +140,4 @@ test("the proof runs only in disposable PostgreSQL 16 against localhost Next", (
   }
   assert.doesNotMatch(wf, /vercel deploy|db:migrate:production|npm run deploy/i);
 });
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';

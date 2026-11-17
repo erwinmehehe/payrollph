@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import test from "node:test";
@@ -5,7 +6,7 @@ import {withFilingStatusBanner,verifyFilingPatchCredit,FILING_PATH,RECEIPT_FILE}
 import {verifyAllTransitiveWageHolds,TRANSITIVE_HOLD_KIND} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import {verifyAllSealedWageHolds,SEALED_WAGE_HOLD_KIND} from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 
-const get=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const get=()=>readWageWithdrawalFixture();
 const row=(m,path=FILING_PATH,verb="PATCH")=>m.allApiRouteFiles[path].methods.find(x=>x.name===verb);
 
 test("historic filing banner remains idempotent and keeps earlier evidence text",()=>{

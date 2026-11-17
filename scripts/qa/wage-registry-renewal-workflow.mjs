@@ -63,5 +63,6 @@ export function renewalWorkflow(read=readFileSync){
   permissions:{contents:'read',actions:'read'},concurrency:{group:'wage-source-renewal-${{ github.event.pull_request.number }}','cancel-in-progress':true},jobs};
 }
 export function generatedWorkflow(){return '# Generated from existing proof recipes; never edit by hand.\n'+yaml.dump(renewalWorkflow(),{lineWidth:-1,noRefs:true,quotingType:"'"});}
-if(process.argv.includes('--write')){writeFileSync(OUTPUT,generatedWorkflow());console.log('Generated '+Object.keys(renewalWorkflow().jobs).length+' original proof jobs; zero credits');}
-if(process.argv.includes('--check')){assert.equal(readFileSync(OUTPUT,'utf8'),generatedWorkflow(),'Renewal jobs must exactly match the reviewed original recipes');console.log('Renewal recipe parity PASS');}
+const cli=process.argv[1]?.replaceAll('\\','/').endsWith('/wage-registry-renewal-workflow.mjs');
+if(cli&&process.argv.includes('--write')){writeFileSync(OUTPUT,generatedWorkflow());console.log('Generated '+Object.keys(renewalWorkflow().jobs).length+' original proof jobs; zero credits');}
+if(cli&&process.argv.includes('--check')){assert.equal(readFileSync(OUTPUT,'utf8'),generatedWorkflow(),'Renewal jobs must exactly match the reviewed original recipes');console.log('Renewal recipe parity PASS');}
