@@ -33,5 +33,9 @@ test("requires nonempty own bytes plus real higher-ID foreign legal employer den
     'opaque404(deniedAfterRevoke,absent',
     'assert.deepEqual(await snapshot(),before',
     'status:"GAP"', 'methodCredits:0',
+    'historical different legal-employer assignment',
+    'applied employee legal-entity transfer',
+    'ambiguousHistoricalAssignmentDenied:true',
+    'appliedLegalEmployerTransferDenied:true',
   ]) assert.ok(script.includes(s),"Missing real-HTTP positive/denial anchor: "+s);
 });
