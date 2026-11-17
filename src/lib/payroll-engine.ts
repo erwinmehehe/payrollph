@@ -79,6 +79,7 @@ import {
   type DeMinimisType,
 } from "@/lib/ph-compliance";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { importedBenefitPrior as importedBenefitPriorFromRows } from "@/lib/imported-benefit-prior";
 import { formatPayrollPeriodLabel } from "@/lib/payroll-period-ui";
 import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
 import { resolveMweClassification, type MweClassificationRecord } from "@/lib/mwe-classification";
@@ -1176,19 +1177,28 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     : [];
 
   const taxYearStart = `${String(run.payDate).slice(0, 4)}-01-01`;
-  const priorImportedPayrollEmployees = new Set<number>(
-    chunkIds.length
-      ? (await reader.select({ employeeId: historicalPayrollEntries.employeeId })
-          .from(historicalPayrollEntries)
-          .where(and(
-            eq(historicalPayrollEntries.organizationId, input.organizationId),
-            inArray(historicalPayrollEntries.employeeId, chunkIds),
-            gte(historicalPayrollEntries.payDate, taxYearStart),
-            lt(historicalPayrollEntries.payDate, run.payDate),
-          )))
-          .map((row) => row.employeeId)
-      : [],
+  const importedBenefitRows = chunkIds.length
+    ? await reader.select({
+        employeeId: historicalPayrollEntries.employeeId,
+        payDate: historicalPayrollEntries.payDate,
+        thirteenthMonth: historicalPayrollEntries.thirteenthMonth,
+        deMinimisBreakdown: historicalPayrollEntries.deMinimisBreakdown,
+      })
+        .from(historicalPayrollEntries)
+        .where(and(
+          eq(historicalPayrollEntries.organizationId, input.organizationId),
+          inArray(historicalPayrollEntries.employeeId, chunkIds),
+          gte(historicalPayrollEntries.payDate, taxYearStart),
+          lt(historicalPayrollEntries.payDate, run.payDate),
+        ))
+    : [];
+  // A worker whose imported rows all report their de minimis by category has a known consumption of the ceilings
+  // and of the 90,000 pool; anyone else keeps the review hold because the earlier consumption cannot be proven.
+  const importedBenefitPrior = importedBenefitPriorFromRows(
+    importedBenefitRows.map((row) => ({ ...row, payDate: String(row.payDate) })),
+    String(run.payDate),
   );
+  const priorImportedPayrollEmployees = importedBenefitPrior.unverifiable;
 
   const priorDeMinimisEntries = chunkIds.length
     ? await reader.select({
@@ -1275,6 +1285,20 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
           roundToCents((priorBenefitPool90kByEmployee.get(prior.employeeId) ?? 0) + amount),
         );
       }
+    }
+  }
+
+  for (const [employeeId, imported] of importedBenefitPrior.known) {
+    const bucket = priorDeMinimisByEmployee.get(employeeId) ?? {};
+    for (const [type, amount] of Object.entries(imported.deMinimisPaid) as Array<[DeMinimisType, number]>) {
+      bucket[type] = roundToCents(Number(bucket[type] ?? 0) + amount);
+    }
+    priorDeMinimisByEmployee.set(employeeId, bucket);
+    if (imported.benefitPool90k > 0) {
+      priorBenefitPool90kByEmployee.set(
+        employeeId,
+        roundToCents((priorBenefitPool90kByEmployee.get(employeeId) ?? 0) + imported.benefitPool90k),
+      );
     }
   }
 

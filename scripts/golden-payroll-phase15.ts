@@ -23,9 +23,8 @@ type ImportedRow = {
 type Spec = {
   description: string; imported: ImportedRow;
   grant: { benefitType: string; amount: number; frequency: string; effectiveOn: string } | null;
-  cutoffs: { withholdingEachCutoff: number; status: string; noBreakdownFlagFrom: number | null; poolFlagFrom: number | null };
+  cutoffs: { withholdingEachCutoff: number; withholdingOverrides?: Record<string, number>; status: string; noBreakdownFlagFrom: number | null; poolFlagFrom: number | null };
   yearEnd: Money;
-  knownFinding?: { text: string; currentEngineWithholding: Record<string, number>; handDerivedWithholding: Record<string, number> };
 };
 type Catalog = { version: string; toleranceCentavos: number; sources: Record<string, string>; assumptions: string[]; employees: Record<string, Spec>; limitations: string[] };
 type CaseResult = { id: string; part: string; status: "passed" | "failed"; expected: unknown; actual?: unknown; failures: string[] };
@@ -122,11 +121,10 @@ async function runCutoff(orgId: number, cutoff: number, employeeIds: Map<number,
 
 function checkCutoffs(id: string, spec: Spec, byCutoff: Map<number, CutoffObservation>) {
   const failures: string[] = [];
-  const finding = spec.knownFinding;
   for (let cutoff = 13; cutoff <= 24; cutoff++) {
     const seen = byCutoff.get(cutoff);
     if (!seen) { failures.push(`${id} cutoff ${cutoff}: not observed`); continue; }
-    const expectedWht = finding?.currentEngineWithholding[String(cutoff)] ?? spec.cutoffs.withholdingEachCutoff;
+    const expectedWht = spec.cutoffs.withholdingOverrides?.[String(cutoff)] ?? spec.cutoffs.withholdingEachCutoff;
     if (cents(seen.withholding, id) !== cents(expectedWht, id)) failures.push(`${id} cutoff ${cutoff} withholding: expected ₱${expectedWht.toFixed(2)}, got ₱${seen.withholding.toFixed(2)}`);
     if (seen.status !== spec.cutoffs.status) failures.push(`${id} cutoff ${cutoff} status: expected ${spec.cutoffs.status}, got ${seen.status}`);
     const wantBreakdown = spec.cutoffs.noBreakdownFlagFrom !== null && cutoff >= spec.cutoffs.noBreakdownFlagFrom;
