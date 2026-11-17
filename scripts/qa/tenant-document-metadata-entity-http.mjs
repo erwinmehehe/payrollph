@@ -7,8 +7,8 @@ import {randomUUID,createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const ORIGIN="http://127.0.0.1:3000";
 const PINS={
-  "src/app/api/documents/route.ts":"a6f3ff740d5d20d46e44f7a61669061cc63d359e",
-  "src/app/api/hcm/documents/route.ts":"e2cefcefdd546a25827cb7b7cbdd20591fcce076",
+  "src/app/api/documents/route.ts":"fb0d1748dd25c6dd985894b9042f7eab427ce898",
+  "src/app/api/hcm/documents/route.ts":"47910bb8ecfaad37e031c708a5ea949692a3f8c3",
   "src/lib/multi-entity-server.ts":"f38a8bb77a5026d581d4a92b22533fc879ea7e00",
 };
 function sha(data){const b=Buffer.isBuffer(data)?data:Buffer.from(data);
@@ -46,6 +46,15 @@ async function get(path,cookie,opts={}){
   redirect:"manual",cache:"no-store",signal:AbortSignal.timeout(30000)});
  const text=await res.text();
  let json=null;try{json=JSON.parse(text)}catch{}
+ return{status:res.status,text,json,headers:res.headers};
+}
+async function post(url,cookie){
+ const res=await fetch(new URL(url,ORIGIN),{
+  method:"POST",headers:{cookie,origin:ORIGIN,"sec-fetch-site":"same-origin",
+    "content-type":"application/json"},
+  body:JSON.stringify({organizationId:1,action:"unattributed-fabricated-proof"}),
+  redirect:"manual",cache:"no-store",signal:AbortSignal.timeout(30000)});
+ const text=await res.text();let json=null;try{json=JSON.parse(text)}catch{}
  return{status:res.status,text,json,headers:res.headers};
 }
 export async function proveDocumentMetadata(){
@@ -147,6 +156,20 @@ export async function proveDocumentMetadata(){
   assert.ok(!policy.text.includes("DML_FOREIGN_IN_A_")&&!policy.text.includes("DML_A_"+nonce));
   assert.match(policy.headers.get("cache-control")??"",/no-store/i);
   assert.deepEqual(await snapshot(),before,"HCM refusal must not touch protected SQL");
+  // No legal-employer-at-issuance attribution exists for these upload/policy
+  // mutations. Refuse all multi-entity writes BEFORE parsing or touching SQL.
+  for (const [endpoint,expectedCode] of [
+    ["/api/documents","DOCUMENT_UPLOAD_ENTITY_SCOPE_PENDING"],
+    ["/api/hcm/documents","HCM_DOCUMENT_MUTATION_ENTITY_SCOPE_PENDING"],
+  ]) {
+    const beforePost=await snapshot();
+    const rejectedPost=await post(endpoint,a.cookie);
+    assert.equal(rejectedPost.status,503,"Multi-entity document mutation must fail closed");
+    assert.equal(rejectedPost.json?.code,expectedCode);
+    assert.ok(!rejectedPost.text.includes("DML_FOREIGN_IN_A_"));
+    assert.match(rejectedPost.headers.get("cache-control")??"",/no-store/i);
+    assert.deepEqual(await snapshot(),beforePost,"Rejected policy/upload POST must not change protected SQL");
+  }
   const revoked=await db.delete(s.userLegalEntityGrants).where(and(
    eq(s.userLegalEntityGrants.organizationId,a.org.id),
    eq(s.userLegalEntityGrants.userId,a.owner.id),
@@ -164,7 +187,8 @@ export async function proveDocumentMetadata(){
     pgMajor:16,localhost:true,principals:3,higherIdVictim:true,
     ownPopulatedListGets:3,realForeignSelectorDenials:blocked,
     unassignedDocumentExcluded:true,
-    hcmUnattributedPolicy503:true,revokedGrantDenied:true,
+    hcmUnattributedPolicy503:true,
+    uploadMutation503:true,hcmPolicyMutation503:true,revokedGrantDenied:true,
     deniedSqlUnchanged:true,
     privacyReview:"PENDING",methodCredits:0,productionAccepted:false,
     externalProviders:0,moneyMoved:false,
