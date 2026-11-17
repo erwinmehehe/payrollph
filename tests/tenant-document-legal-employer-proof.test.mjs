@@ -36,6 +36,12 @@ test("requires nonempty own bytes plus real higher-ID foreign legal employer den
     'historical different legal-employer assignment',
     'applied employee legal-entity transfer',
     'ambiguousHistoricalAssignmentDenied:true',
+    'signedObjectUrlFlow:"SIGNED_60_SECONDS_SYNTHETIC_LOCALHOST"',
+    'signedUrlForeignAndRevokedDenied:true',
+    'independentGrantRevocationWithoutTransfer:true',
+    'assert.equal(signed.status,302',
+    'assert.equal(signedUrl.searchParams.get("X-Amz-Expires"),"60"',
+    'opaque404(deniedPrivateAfterRevoke,absent',
     'appliedLegalEmployerTransferDenied:true',
   ]) assert.ok(script.includes(s),"Missing real-HTTP positive/denial anchor: "+s);
 });
