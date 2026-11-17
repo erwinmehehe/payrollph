@@ -19,6 +19,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { canStaffOpenEmployeeVault, isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { verifyEmployeeVaultDocument } from "@/lib/employee-document-vault-verification";
 import { canMutateLegacyHcmDocument, legacyVisibleDocumentWhere } from "@/lib/document-schema-compat";
 import { VAULT_PENDING_SOURCE_PREFIX } from "@/lib/employee-vault-object-reconciliation";
@@ -77,6 +78,23 @@ export async function GET(request: Request) {
   if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
   if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
     return Response.json({ error: "Private HR document controls are outside your role." }, { status: 403 });
+  }
+
+  // Policy and requirement records are parent-org scoped, not separately
+  // attributed to a legal employer. Some include content, target conditions,
+  // employee/document references, and compliance state. Filtering employee
+  // names alone would leave cross-entity metadata in the remaining arrays.
+  // Deny this entire read when multi-entity is enabled until a reviewed
+  // issuer/policy-attribution model and full synthetic HTTP proof exist.
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    const entityScope = await resolveMultiEntityContext({
+      userId: user.id, organizationId, request,
+    });
+    if (!entityScope.ok) return entityScope.response;
+    return Response.json({
+      error: "HCM document policy and legal-employer attribution require reconciliation.",
+      code: "HCM_DOCUMENT_LEGAL_EMPLOYER_SCOPE_PENDING",
+    }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const [policies, assignments, requirements, compliance, staff, units, profiles, documentRows] = await Promise.all([
