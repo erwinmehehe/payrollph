@@ -116,7 +116,7 @@ export async function proveDocumentMetadata(){
    const own=e===a?ownA:e===b?ownB:ownVictim;
    assert.ok(res.json.documents.some(d=>d.id===own.id),
      "Owned same-entity document row must be listed");
-   assert.ok(!res.text.includes("DML_FOREIGN_IN_A_")||e!==a?true:!res.text.includes("DML_FOREIGN_IN_A_"),
+   assert.ok(!res.text.includes("DML_FOREIGN_IN_A_"),
      "Same-parent foreign legal employer metadata leaked");
    assert.ok(!res.text.includes("DML_UNATTRIBUTED_"),
      "Unattributed parent document must not be listed in scoped legal-employer response");
