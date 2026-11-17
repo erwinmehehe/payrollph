@@ -32,6 +32,22 @@ test("HCM GET refuses all un-attributed policies and documents before loading pa
  assert.ok(get.includes("status: 503"));
  assert.ok(get.includes('"Cache-Control": "private, no-store"'));
 });
+test("document and HCM POST refuse un-attributed legal-employer mutations before parsing or writing",()=>{
+ const raw=staff.slice(staff.indexOf("export async function POST("));
+ const admin=hcm.slice(hcm.indexOf("export async function POST("));
+ const uploadGuard=raw.indexOf('if (criticalReleaseFlagEnabled("multiEntity"))');
+ const uploadDenial=raw.indexOf('code: "DOCUMENT_UPLOAD_ENTITY_SCOPE_PENDING"');
+ const formParsing=raw.indexOf("await request.formData()");
+ assert.ok(uploadGuard>=0&&uploadDenial>uploadGuard&&formParsing>uploadDenial,
+   "Un-attributed document uploads must be refused before multipart read and storage/SQL");
+ const hcmGuard=admin.indexOf('if (criticalReleaseFlagEnabled("multiEntity"))');
+ const hcmDenial=admin.indexOf('code: "HCM_DOCUMENT_MUTATION_ENTITY_SCOPE_PENDING"');
+ const jsonParsing=admin.indexOf("await request.json()");
+ assert.ok(hcmGuard>=0&&hcmDenial>hcmGuard&&jsonParsing>hcmDenial,
+   "Un-attributed HCM policy mutation must be denied before actor-selected body/data/SQL reads");
+ assert.ok(raw.includes('"Cache-Control": "private, no-store"'));
+ assert.ok(admin.includes('"Cache-Control": "private, no-store"'));
+});
 test("all four changed route methods have zero current security proof credit",()=>{
  assert.equal(manifest.metrics.coveredAfter,457);
  assert.equal(manifest.metrics.gap,4);
@@ -51,6 +67,7 @@ test("exact-head proof requires real own documents and same-parent/forged/revoke
    "const sameParentForeign=await save(", "const unassigned=await save(",
    "realForeignSelectorDenials:blocked","hcmUnattributedPolicy503:true",
    "revokedGrantDenied:true","deniedSqlUnchanged:true",
+   "uploadMutation503:true","hcmPolicyMutation503:true",
    "methodCredits:0","productionAccepted:false",
  ]) assert.ok(runner.includes(required),"missing synthetic proof boundary: "+required);
  assert.ok(workflow.includes("image: postgres:16"));
