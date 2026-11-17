@@ -1,0 +1,58 @@
+{
+  "version": "phase15-provider-switch-cutoff-withholding-2026-11-17",
+  "toleranceCentavos": 0,
+  "description": "Phase 14 certified the year-end settlement of a provider-switch year. Phase 15 certifies what the engine does in the CALCULATED cutoffs of such a year: the withholding on each payslip, whether the run is held for review, and that the settlement then closes the year exactly (tax due minus everything withheld).",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (taxable compensation to 10,417 exempt; to 16,667 at 15% over 10,417; to 33,333 at 937.50 + 20% over 16,667) and the annual table (to 400,000 at 15% over 250,000).",
+    "deMinimis": "BIR RR 29-2025 de minimis ceilings (repository DE_MINIMIS_2026 table): uniform and clothing allowance 8,000 a year.",
+    "thirteenthMonthAndBenefits": "NIRC Sec. 32(B)(7)(e): 13th-month pay and other benefits share one exemption of 90,000.",
+    "sss": "SSS 2025 schedule: employee share 5% of the monthly salary credit, credit capped at 35,000 (1,750 a month, 875 a cutoff); 30,000 gives 1,500 a month (750 a cutoff)."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing. Provider switch on 2026-07-01: January-June are six imported monthly rows per worker (basic 30,000, SSS 1,500, PhilHealth 750, Pag-IBIG 200, withholding 1,007.40); July-December are cutoffs 13-24 calculated by the engine. Basic is 30,000 a month.",
+    "Calculated-cutoff withholding is on taxable compensation = gross - SSS - PhilHealth - Pag-IBIG with no exempt other-benefit excess: for gross 18,000 (basic 15,000 + de minimis 3,000): 15,000 - 875 - 375 - 100 = 13,650, tax 0.15 x (13,650 - 10,417) = 484.95. Without a grant: 15,000 - 750 - 375 - 100 = 13,775, tax 0.15 x 3,358 = 503.70. De minimis (inside its ceiling) and other-benefit excess inside the 90,000 pool are not taxable compensation.",
+    "Total withheld = imported 6 x 1,007.40 = 6,044.40 plus 12 calculated cutoffs. The settlement's adjustment is tax due minus total withheld.",
+    "The 13th month is the accrued basic, 30,000, and joins the 90,000 pool in the settlement. Year-end reads Released runs, so each calculated run is set to Released in the fixture."
+  ],
+  "employees": {
+    "poolExhaustedBeforeYearEnd": {
+      "description": "Uniform allowance: previous provider 6,000 a month; engine grant 15,000 a month (7,500 a cutoff). Union paid 126,000: exempt 8,000, excess 118,000; with the 13th month 148,000 against the 90,000 pool.",
+      "imported": { "grossPay": 36000, "basicSalary": 30000, "netPay": 32542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": { "uniformClothing": 6000 } },
+      "grant": { "benefitType": "uniformClothing", "amount": 15000, "frequency": "month", "effectiveOn": "2026-07-01" },
+      "cutoffs": { "withholdingEachCutoff": 484.95, "status": "Exception", "noBreakdownFlagFrom": 13, "poolFlagFrom": 14 },
+      "yearEnd": { "grossCompensation": 516000, "thirteenthMonth": 30000, "nonTaxable": 128900, "statutoryContributions": 30900, "taxableIncome": 387100, "taxDue": 20565, "taxWithheld": 11863.8, "adjustment": 8701.2, "outcome": "collect" },
+      "knownFinding": {
+        "text": "The engine ignores the previous provider's de minimis and benefit-pool consumption when it withholds, so it never taxes the overflow of the 90,000 pool inside the calculated cutoffs; the settlement collects it in one amount. Hand-derived withholding if the union were counted: the pool's remaining room is used after 8 engine cutoffs (28,000 + 8 x 7,500 = 88,000), so cutoff 21 has overflow 5,500 (taxable 19,150, tax 937.50 + 0.20 x 2,483 = 1,434.10) and cutoffs 22-24 overflow 7,500 (taxable 21,150, tax 937.50 + 0.20 x 4,483 = 1,834.10). Under-withheld by the engine: 949.15 + 3 x 1,349.15 = 4,996.60.",
+        "currentEngineWithholding": { "21": 484.95, "22": 484.95, "23": 484.95, "24": 484.95 },
+        "handDerivedWithholding": { "21": 1434.1, "22": 1834.1, "23": 1834.1, "24": 1834.1 }
+      }
+    },
+    "ceilingExhaustedByBothSources": {
+      "description": "Phase 14 inputs: uniform allowance 6,000 a month from each source. Union 72,000: exempt 8,000, excess 64,000, pool 94,000 (4,000 over).",
+      "imported": { "grossPay": 36000, "basicSalary": 30000, "netPay": 32542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0, "deMinimisBreakdown": { "uniformClothing": 6000 } },
+      "grant": { "benefitType": "uniformClothing", "amount": 6000, "frequency": "month", "effectiveOn": "2026-07-01" },
+      "cutoffs": { "withholdingEachCutoff": 484.95, "status": "Exception", "noBreakdownFlagFrom": 13, "poolFlagFrom": 15 },
+      "yearEnd": { "grossCompensation": 462000, "thirteenthMonth": 30000, "nonTaxable": 128900, "statutoryContributions": 30900, "taxableIncome": 333100, "taxDue": 12465, "taxWithheld": 11863.8, "adjustment": 601.2, "outcome": "collect" }
+    },
+    "historyWithoutDeMinimis": {
+      "description": "Phase 14 inputs: previous provider paid no de minimis; engine grant 6,000 a month. Exempt 8,000, excess 28,000.",
+      "imported": { "grossPay": 30000, "basicSalary": 30000, "netPay": 26542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0 },
+      "grant": { "benefitType": "uniformClothing", "amount": 6000, "frequency": "month", "effectiveOn": "2026-07-01" },
+      "cutoffs": { "withholdingEachCutoff": 484.95, "status": "Exception", "noBreakdownFlagFrom": 13, "poolFlagFrom": 15 },
+      "yearEnd": { "grossCompensation": 426000, "thirteenthMonth": 30000, "nonTaxable": 96900, "statutoryContributions": 30900, "taxableIncome": 329100, "taxDue": 11865, "taxWithheld": 11863.8, "adjustment": 1.2, "outcome": "collect" }
+    },
+    "controlNoGrant": {
+      "description": "Control: imported history but no de minimis grant at all. Nothing to hold: Ready, no flags, withholding 503.70 a cutoff, and the settlement balances to a 1.20 collection.",
+      "imported": { "grossPay": 30000, "basicSalary": 30000, "netPay": 26542.6, "taxWithheld": 1007.4, "sssEmployee": 1500, "philHealthEmployee": 750, "pagIbigEmployee": 200, "thirteenthMonth": 0 },
+      "grant": null,
+      "cutoffs": { "withholdingEachCutoff": 503.7, "status": "Ready", "noBreakdownFlagFrom": null, "poolFlagFrom": null },
+      "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 59400, "statutoryContributions": 29400, "taxableIncome": 330600, "taxDue": 12090, "taxWithheld": 12088.8, "adjustment": 1.2, "outcome": "collect" }
+    }
+  },
+  "limitations": [
+    "Only the engine's behavior in the calculated cutoffs of a provider-switch year with one de minimis category is certified; the release approval workflow and the HTTP/role gates are not exercised.",
+    "poolExhaustedBeforeYearEnd pins a known engine finding: the engine's own withholding is unchanged until fixed, and the suite fails when it changes so the pinned values must then be replaced by the hand-derived ones.",
+    "The 'no breakdown' review flag also fires when the importer DID store a category breakdown (it only checks that imported history exists); its wording is pinned as the current behavior.",
+    "SSS is computed by the engine on gross including de minimis, as in Phase 14."
+  ]
+}

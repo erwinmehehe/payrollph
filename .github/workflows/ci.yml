@@ -387,6 +387,15 @@ jobs:
           name: payrollph-golden-payroll-phase14
           path: qa-artifacts/golden-payroll-phase14-reconciliation.json
           retention-days: 14
+      - name: Run provider-switch cutoff withholding golden reconciliation (Phase 15)
+        run: npx tsx scripts/golden-payroll-phase15.ts
+      - name: Upload Phase 15 provider-switch cutoff withholding reconciliation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase15
+          path: qa-artifacts/golden-payroll-phase15-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
