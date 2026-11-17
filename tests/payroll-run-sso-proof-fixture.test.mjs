@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {zeroCreditSsoProofFixture} from '../scripts/qa/payroll-run-sso-proof-fixture.mjs';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
+import {historicWageRegistryProofView} from '../scripts/qa/wage-registry-source-hold.mjs';
 const read=()=>readWageWithdrawalFixture();
 test('fresh wage renewals can be zeroed only in the disposable nineteen-method fixture, without changing the live ledger',()=>{
  const path='scripts/qa/tenant-isolation-coverage-manifest.json',raw=readFileSync(path,'utf8'),m=JSON.parse(raw);
@@ -16,6 +17,7 @@ test('fresh wage renewals can be zeroed only in the disposable nineteen-method f
   else assert.deepEqual(next,row);
  }
  assert.equal(verifyOracleSourceHolds(f).size,19);
+ assert.doesNotThrow(()=>historicWageRegistryProofView(f),'SSO replay must retain the complete exact wage-withdrawal history');
  assert.deepEqual(zeroCreditSsoProofFixture(f),f);
  assert.equal(readFileSync(path,'utf8'),raw);
 });

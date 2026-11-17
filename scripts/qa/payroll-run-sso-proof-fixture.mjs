@@ -6,6 +6,7 @@ import {pathToFileURL} from 'node:url';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from './payroll-run-oracle-hold.mjs';
 import {verifyWageRegistrySourceHold} from './wage-registry-source-hold.mjs';
 import {verifyWageRenewalMethod,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
+import {readWageRenewalInventory} from './wage-registry-renewal-plan.mjs';
 const FILE='scripts/qa/tenant-isolation-coverage-manifest.json';
 const blob=bytes=>createHash('sha1').update('blob '+Buffer.byteLength(bytes)+'\0').update(bytes).digest('hex');
 export function zeroCreditSsoProofFixture(input){
@@ -30,8 +31,13 @@ export function zeroCreditSsoProofFixture(input){
       continue;
     }
     assert.equal(row.status,'COVERED','Only the exact nineteen existing renewals may be removed from this disposable fixture');
-    if(row.testedBy?.kind===WAGE_RENEWAL_KIND)assert.equal(verifyWageRenewalMethod(m,file,verb),1);
-    else{
+    if(row.testedBy?.kind===WAGE_RENEWAL_KIND){
+      assert.equal(verifyWageRenewalMethod(m,file,verb),1);
+      const captured=readWageRenewalInventory().methods.find(entry=>entry.path===file&&entry.verb===verb);
+      assert.ok(captured,'Disposable fixture requires the exact captured withdrawal');
+      m.allApiRouteFiles[file].methods[m.allApiRouteFiles[file].methods.indexOf(row)]=structuredClone(captured.held);
+      held++;continue;
+    }else{
       assert.equal(row.testedBy?.kind,'payroll-run-source-renewal-real-http-pg16');
       assert.equal(row.testedBy.method,key);
     }
