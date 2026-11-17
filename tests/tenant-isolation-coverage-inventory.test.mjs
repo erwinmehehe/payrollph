@@ -4296,6 +4296,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
   // present source guard, and source contract (no arbitrary downgrade).
   if (isNewOrChanged && key === "src/app/api/documents/[id]/route.ts GET" &&
       currentBlob === "7ec01fa9698db169e75569617aca825571842e7c") {
+    const path = "src/app/api/documents/[id]/route.ts";
     const oldView = structuredClone(liveManifest);
     const oldRow = oldView.allApiRouteFiles[path];
     const currentRow = liveManifest.allApiRouteFiles[path];
