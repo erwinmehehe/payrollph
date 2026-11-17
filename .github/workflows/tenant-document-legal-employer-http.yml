@@ -1,0 +1,120 @@
+name: Private document legal-employer GET boundary (fictional PG16 HTTP)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tenant-document-legal-employer-http.yml"
+      - "scripts/qa/tenant-document-legal-employer-http.mjs"
+      - "tests/tenant-document-legal-employer-proof.test.mjs"
+      - "src/app/api/documents/[id]/route.ts"
+      - "src/lib/private-document-tenant-lookup.ts"
+      - "src/lib/multi-entity-server.ts"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  document-entity-real-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      NODE_ENV: production
+      TZ: Asia/Manila
+      NEXT_TELEMETRY_DISABLED: "1"
+      TENANT_DOCUMENT_ENTITY_PROOF: disposable-pg16-real-http
+      TENANT_SECOND_PASS_MODE: isolated-ci-only
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      MULTI_ENTITY_ENABLED: "true"
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      FINAL_PAY_SIGNED_REVIEW_ENABLED: "false"
+      PAYROLL_CALCULATION_HISTORY_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      SMTP_PASSWORD: ""
+      RESEND_API_KEY: ""
+      CRON_SECRET: ""
+      WORKER_TOKEN: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      S3_ACCESS_KEY_ID: ""
+      S3_SECRET_ACCESS_KEY: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Exact checkout, no stale evidence
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify synthetic proof source and negative controls
+        run: |
+          node --check scripts/qa/tenant-document-legal-employer-http.mjs
+          node --test tests/tenant-document-legal-employer-proof.test.mjs
+          node --test tests/tenant-private-document-id-boundary.test.mjs
+      - name: Generate ephemeral local encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Push new isolated PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated database baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build private routes in local production-mode runtime only
+        run: npm run build
+      - name: Start localhost-only application
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/doc-entity-local.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 60 /tmp/doc-entity-local.log
+          exit 1
+      - name: Execute owned bytes, same-parent denied IDs, revoked grants and unchanged SQL
+        run: node --import tsx scripts/qa/tenant-document-legal-employer-http.mjs
+      - name: Bounded localhost diagnostic on failure
+        if: failure()
+        run: tail -n 60 /tmp/doc-entity-local.log || true
