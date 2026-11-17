@@ -1,6 +1,6 @@
 /** Capture the immutable pre-renewal inventory. This grants no method credits. */
 import assert from 'node:assert/strict';
-import {existsSync,readFileSync,writeFileSync} from 'node:fs';
+import {openSync,closeSync,unlinkSync,readFileSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {verifiedWageCreditHolds} from './wage-registry-credit-holds.mjs';
@@ -23,7 +23,13 @@ export function readWageRenewalInventory(read=readFileSync){
  return result;
 }
 export function captureWageRenewalInventory(){
- assert.ok(!existsSync(INVENTORY),'Never overwrite or recapture the immutable wage-source withdrawal inventory');
+ let fd;
+ try{fd=openSync(INVENTORY,'wx');}catch(error){
+  if(error.code==='EEXIST')throw new Error('Never overwrite or recapture the immutable wage-source withdrawal inventory');
+  throw error;
+ }
+ let completed=false;
+ try{
  const manifest=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
  assert.equal(verifiedWageCreditHolds(manifest).size,75,'Never overwrite or recapture the inventory after credits have been promoted');
  const baseMainCommit=execFileSync('git',['rev-parse','origin/main'],{encoding:'utf8'}).trim();
@@ -35,7 +41,9 @@ export function captureWageRenewalInventory(){
  assert.equal(methods.length,75);
  const inventory={schema:'payrollph-wage-source-renewal-inventory-v1',baseMainCommit,
   label:'SOLO_VERIFIED_DEV_RECOVERY',methods};
- writeFileSync(INVENTORY,JSON.stringify(inventory,null,2)+'\n',{flag:'wx'});
+ writeFileSync(fd,JSON.stringify(inventory,null,2)+'\n');
+ completed=true;
  return {methods:methods.length,baseMainCommit,credits:0};
+ }finally{closeSync(fd);if(!completed)unlinkSync(INVENTORY);}
 }
 if(process.argv[1]?.replaceAll('\\','/').endsWith('/wage-registry-renewal-plan.mjs')&&process.argv.includes('--capture'))console.log(JSON.stringify(captureWageRenewalInventory()));

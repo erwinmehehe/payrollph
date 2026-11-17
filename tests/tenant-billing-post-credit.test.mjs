@@ -1,5 +1,5 @@
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
-import {reviewedWageRenewalEngineWithdrawal} from '../scripts/qa/wage-registry-renewal-supersession.mjs';
+import {reviewedWageRenewalEngineWithdrawal,historicalWageHoldProjection} from '../scripts/qa/wage-registry-renewal-supersession.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
 import { verifyAllTransitiveWageHolds } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
@@ -93,8 +93,10 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
   assert.equal(m.metrics.gap, counts.gap);
   assert.equal(m.metrics.publicByDesign, counts.publicByDesign);
   assert.equal(m.metrics.privilegedOperationsTokenOnly, counts.privilegedOperationsTokenOnly);
-  assertLiveTenantCounts(assert, m);
-  const base = baseTenantManifest();
+  const inspectedBase = baseTenantManifest();
+  const base=inspectedBase?{...inspectedBase,manifest:historicalWageHoldProjection(inspectedBase.manifest)}:null;
+  // This is explicitly the historical 75-hold fixture, never the live ledger.
+  assertLiveTenantCounts(assert, m, process.env, base);
   if (base) {
     const before = tallyTenantManifest(base.manifest);
     // #2005's newer source-sealed PG16 receipt superseded the older archived proof.

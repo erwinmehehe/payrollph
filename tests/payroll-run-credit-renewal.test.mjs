@@ -1,5 +1,6 @@
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
+import {verifyWageRenewalEngineWithdrawal} from '../scripts/qa/wage-registry-renewal-supersession.mjs';
 import {baseTenantManifest} from './helpers/tenant-counts.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -157,9 +158,10 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
   const renewed=result.status==='SUPERSEDED_BY_WAGE_SOURCE_RENEWAL';
   assert.equal(result.held,renewed?0:19);
   assert.equal(result.status,renewed?'SUPERSEDED_BY_WAGE_SOURCE_RENEWAL':'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD');
+  assert.equal(verifyWageRenewalEngineWithdrawal(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'))).size,75);
   for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
     const text=readFileSync(file,'utf8');
-    assert.ok(text.includes(renewed?'> **CURRENT / #2006 PAYROLL-ENGINE SOURCE SUPERSESSION — 75 ZERO-CREDIT HOLDS':'> **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD'));
+    assert.ok(text.includes('> **CURRENT / #2006 PAYROLL-ENGINE SOURCE SUPERSESSION — 75 ZERO-CREDIT HOLDS'));
     assert.ok(text.split('\n\n').some(b=>b.startsWith('> **SSO DEFAULT-OFF INTEGRATION HOLD')));
     // The independently source-verified MKT-01 and OIDC receipts change only the live totals, not historical Studio proofs.
     const studioBanners=text.split('\n').filter(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
