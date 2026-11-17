@@ -92,7 +92,8 @@ function overviewHasLink(route, method, line) {
   const row = inventory.split("\n").find(value => value.startsWith("| [`" + route + "` " + method + "]"));
   const held=wageHeldPriorProof(manifest,"src/app/api/"+route+"/route.ts",method);
   return Boolean(row && row.includes("tenant-dl01-batch2-http.mjs#L" + line) &&
-    (held ? row.endsWith("**GAP** (source HELD; older proof archived) |") : row.endsWith("**COVERED** |")));
+    (held ? row.includes("Historical #2005 source receipt, invalidated by #2006") &&
+      row.endsWith("**GAP** |") : row.endsWith("**COVERED** |")));
 }
 
 test("four newly credited DL-01 methods have independently reviewable real HTTP/PG16 proof pins", () => {

@@ -922,16 +922,16 @@ If a real HTTP cross-employer leak is reproduced, create a stand-alone security 
 
 All 490 current exported methods and all 20 page/action entries must resolve to **COVERED with executed four-part proof**, **PUBLIC-BY-DESIGN with an explicit method-level reason**, or **NEEDS OWNER with a concrete owner question**. Every case has a source- and CI-line-pinned evidence record. The manifest must remain **NOT ACCEPTED** until independent reviewer/owner acceptance. As of baseline: **406 API method GAPs and 20 page/action GAPs remain; 0 confirmed live exploits, no new fixes in this planning PR.**
 
-## Supplemental payroll-run source-withdrawal renewals
+## Supplemental payroll-run source-withdrawal renewals (historical only)
 
-These source-withdrawn methods were outside the immutable 406-method queue. All seven supplemental methods are provisionally renewed by the same source-sealed nineteen-method receipt; no frozen link is changed.
+These seven methods were outside the immutable 406-method queue and are already included in the 22 current zero-credit supplemental holds above. The nineteen-method PG16 receipt remains archived historical evidence only; #2006 invalidated its source credit. This appendix adds no current credits or extra methods.
 
-- HELD `GET /api/payroll-runs` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- HELD `POST /api/payroll-runs` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/assurance` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/release-checklist` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `POST /api/payroll-runs` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/assurance` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/explain/[employeeId]` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/payout-reconciliation` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/pre-run-readiness` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/release-checklist` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Xendit POST:** 458 COVERED / 5 API GAP. Four operations, two attacker employers, genuine victim positive, zero real providers. Independent and production acceptance PENDING.

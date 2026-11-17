@@ -159,7 +159,7 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
   assert.equal(result.status,renewed?'SUPERSEDED_BY_WAGE_SOURCE_RENEWAL':'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD');
   for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
     const text=readFileSync(file,'utf8');
-    assert.ok(text.includes(renewed?'> **CURRENT / WAGE-SOURCE API RENEWAL':'> **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD'));
+    assert.ok(text.includes(renewed?'> **CURRENT / #2006 PAYROLL-ENGINE SOURCE SUPERSESSION — 75 ZERO-CREDIT HOLDS':'> **CURRENT / PR #1989 WAGE-ORDER DEPENDENCY PROOF HOLD'));
     assert.ok(text.split('\n\n').some(b=>b.startsWith('> **SSO DEFAULT-OFF INTEGRATION HOLD')));
     // The independently source-verified MKT-01 and OIDC receipts change only the live totals, not historical Studio proofs.
     const studioBanners=text.split('\n').filter(line=>line.startsWith('> **SOLO_VERIFIED_DEV_RECOVERY — complete Studio POST proposal:** '));
