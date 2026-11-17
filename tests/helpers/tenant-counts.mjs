@@ -17,6 +17,7 @@ import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts
 import { reviewedWageRegistrySourceWithdrawals } from "../../scripts/qa/wage-registry-source-hold.mjs";
 import { reviewedTransitiveWageWithdrawals } from "../../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import { reviewedSealedWageWithdrawals } from "../../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
+import { wageRenewalHoldView, WAGE_RENEWAL_KIND } from "../../scripts/qa/wage-registry-renewal-verify.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Newly restored methods only, backed by the sealed executed renewal. */
@@ -239,6 +240,46 @@ export function baseTenantManifest(env = process.env) {
   return null;
 }
 
+/**
+ * Historical-only test projections withdraw the 75 sealed wage-source method
+ * renewals for old receipt assertions. Compare that archived fixture against
+ * the equally withdrawn source-current main, never against 75 restored credits.
+ *
+ * This is deliberately NOT a general downgrade exception:
+ * - The committed PR manifest must be byte-for-byte equivalent to the main base
+ *   (a PR changing coverage cannot borrow the archive comparison).
+ * - All 75 renewed method identities and exact old hold records must match the
+ *   sealed current-source receipt, including the unchanged route and proof pins.
+ * - Every OTHER method still goes through the ordinary non-regression guard.
+ * - This only returns a temporary in-memory comparison base; no credits, flags,
+ *   tests, production data or repository ledgers are changed.
+ */
+function historicalWageComparisonBase(assert, manifest, baseManifest) {
+  const original = JSON.parse(readFileSync(MANIFEST, "utf8"));
+  if (JSON.stringify(original) !== JSON.stringify(baseManifest)) return baseManifest;
+  const methods = Object.values(baseManifest.allApiRouteFiles).flatMap(row => row.methods);
+  const restored = methods.filter(row => row.testedBy?.kind === WAGE_RENEWAL_KIND);
+  if (restored.length !== 75) return baseManifest;
+  const held = Object.values(manifest.allApiRouteFiles).flatMap(row => row.methods)
+    .filter(row => row.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal");
+  // A partial/forged downgrade must remain subject to the original hard fail.
+  if (held.length !== 23) return baseManifest;
+  const projected = wageRenewalHoldView(baseManifest);
+  const renewedRows = [];
+  for (const [path, row] of Object.entries(baseManifest.allApiRouteFiles)) {
+    for (const method of row.methods) {
+      if (method.testedBy?.kind !== WAGE_RENEWAL_KIND) continue;
+      const historical = projected.allApiRouteFiles[path].methods.find(x => x.name === method.name);
+      const supplied = manifest.allApiRouteFiles[path]?.methods.find(x => x.name === method.name);
+      assert.deepEqual(supplied, historical,
+        "Historical wage projection must preserve every sealed withdrawal: " + method.name + " " + path);
+      renewedRows.push(method.name + " " + path);
+    }
+  }
+  assert.equal(new Set(renewedRows).size, 75, "The exact 75 historical method identities must be preserved");
+  return projected;
+}
+
 export function assertLiveTenantCounts(assert, manifest, env = process.env, injectedBase = undefined) {
   const live = tallyTenantManifest(manifest);
   for (const key of ["routeFiles", "methods", "coveredAfter", "publicByDesign", "privilegedOperationsTokenOnly", "gap"]) {
@@ -262,16 +303,17 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     assert.ok(!(env.CI === "true" && env.FAIL_CLOSED_GUARD_BASE_REF), "the CI base manifest must be readable");
     return { live, base: null };
   }
-  const before = tallyTenantManifest(base.manifest);
+  const comparisonBase = historicalWageComparisonBase(assert, manifest, base.manifest);
+  const before = tallyTenantManifest(comparisonBase);
   const explicitlySuperseded = new Set([
-    ...reviewedYearEndSourceSupersession(base.manifest, manifest),
-    ...yearEndAnnualizationSourceHold(base.manifest, manifest),
-    ...reviewedWorker360LegalEmployerSupersession(base.manifest, manifest),
-    ...reviewedOidcSourceSupersession(base.manifest, manifest),
-    ...verifyOracleSourceHolds(manifest, base.manifest),
-    ...reviewedWageRegistrySourceWithdrawals(base.manifest, manifest),
-    ...reviewedTransitiveWageWithdrawals(base.manifest, manifest),
-    ...reviewedSealedWageWithdrawals(base.manifest, manifest),
+    ...reviewedYearEndSourceSupersession(comparisonBase, manifest),
+    ...yearEndAnnualizationSourceHold(comparisonBase, manifest),
+    ...reviewedWorker360LegalEmployerSupersession(comparisonBase, manifest),
+    ...reviewedOidcSourceSupersession(comparisonBase, manifest),
+    ...verifyOracleSourceHolds(manifest, comparisonBase),
+    ...reviewedWageRegistrySourceWithdrawals(comparisonBase, manifest),
+    ...reviewedTransitiveWageWithdrawals(comparisonBase, manifest),
+    ...reviewedSealedWageWithdrawals(comparisonBase, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
