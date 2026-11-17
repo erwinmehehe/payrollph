@@ -3741,7 +3741,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     const routeFile = "src/app/api/invitations/accept/route.ts";
     assert.equal(manifest.allApiRouteFiles[routeFile].gitBlobSha, currentBlob);
     if (method.status === "COVERED") {
-      assert.equal(verifyInvitationAcceptCredits(manifest), 2,
+      assert.equal(verifyInvitationAcceptCredits(liveManifest), 2,
         "Both executed source-pinned invitation GET/POST receipts must verify");
       return true;
     }
@@ -6413,7 +6413,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if (recovered) {
         assert.equal(proof?.file, recovered.file,
           "Provisional method credit cannot borrow another proof runner");
-        assert.equal(verifyFiveMethodCredits(historicWorker360ProofView(manifest)).methodsCredited, FIVE_METHOD_EVIDENCE.length,
+        assert.equal(verifyFiveMethodCredits(historicWorker360ProofView(liveManifest)).methodsCredited, FIVE_METHOD_EVIDENCE.length,
           "All three exact-head source/contract/workflow receipts must pass");
         continue;
       }
@@ -6505,7 +6505,7 @@ test("all credited proof links point to the claimed route and every recertified 
       // Scope-locked invitation GET/POST retains two executed PG16 receipts.
       if (path === "src/app/api/invitations/accept/route.ts" &&
           ["GET", "POST"].includes(method.name)) {
-        assert.equal(verifyInvitationAcceptCredits(manifest), 2,
+        assert.equal(verifyInvitationAcceptCredits(liveManifest), 2,
           "Both separately executed invitation source/job receipts must verify");
         continue;
       }
