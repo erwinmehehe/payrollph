@@ -1,5 +1,5 @@
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
-import {wageRenewalHoldView} from '../scripts/qa/wage-registry-renewal-verify.mjs';
+import {reviewedWageRenewalEngineWithdrawal,historicalWageHoldProjection} from '../scripts/qa/wage-registry-renewal-supersession.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
 import { verifyAllTransitiveWageHolds } from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
@@ -94,11 +94,14 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
   assert.equal(m.metrics.publicByDesign, counts.publicByDesign);
   assert.equal(m.metrics.privilegedOperationsTokenOnly, counts.privilegedOperationsTokenOnly);
   const inspectedBase = baseTenantManifest();
-  const base=inspectedBase?{...inspectedBase,manifest:wageRenewalHoldView(inspectedBase.manifest)}:null;
+  const base=inspectedBase?{...inspectedBase,manifest:historicalWageHoldProjection(inspectedBase.manifest)}:null;
   // This is explicitly the historical 75-hold fixture, never the live ledger.
   assertLiveTenantCounts(assert, m, process.env, base);
   if (base) {
     const before = tallyTenantManifest(base.manifest);
+    // #2005's newer source-sealed PG16 receipt superseded the older archived proof.
+    // The immutable withdrawal inventory retains that older proof byte-for-byte.
+    const reviewedRenewalWithdrawals=reviewedWageRenewalEngineWithdrawal(base.manifest,m);
     let wageWithdrawalsFromBase = 0;
     for (const key of wageHoldKeys) {
       const at = key.indexOf(" "), verb = key.slice(0, at), path = key.slice(at + 1);
@@ -108,8 +111,13 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
       assert.equal(current.testedBy, null, key + ": prior proof may not be credited");
       assert.equal(current.reviewedUncertified?.coverageCredits, 0, key + ": no invented proof credit");
       if (previous?.status === "COVERED") {
-        assert.deepEqual(current.reviewedUncertified.priorProof, previous.testedBy,
-          key + ": archived prior proof must match the actual inspected base");
+        if(previous.testedBy?.kind==='wage-registry-current-source-pg16-http-renewal'){
+          assert.ok(reviewedRenewalWithdrawals.has(key),
+            key + ': #2005 current-source proof must be sealed before source-exact withdrawal');
+        }else{
+          assert.deepEqual(current.reviewedUncertified.priorProof, previous.testedBy,
+            key + ': archived prior proof must match the actual inspected base');
+        }
         wageWithdrawalsFromBase++;
       }
     }

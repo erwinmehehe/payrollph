@@ -1,6 +1,6 @@
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 461 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
-> **CURRENT / WAGE-SOURCE API RENEWAL — SOLO_VERIFIED_DEV_RECOVERY:** 498 API methods = **461 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP**. 75 exact-source method renewals; original withdrawals and receipts remain immutable history. Independent/security/payroll and production acceptance remain PENDING. No live release, provider or money activation.
+> **CURRENT / #2006 PAYROLL-ENGINE SOURCE SUPERSESSION — 75 ZERO-CREDIT HOLDS:** 498 methods = **386 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 75 GAP**. The sealed #2005 PG16 receipt is historical: it pins the previous payroll engine. All 75 methods are GAP / zero-credit until fresh exact-source PG16 verification. Independent security/payroll sign-off, live release and production approval remain PENDING.
 
 > **SSO DEFAULT-OFF INTEGRATION HOLD (PR #1954, pending review):** Deployment remains default-OFF. Source-current start and callback proofs provisionally recover two protocol methods; anonymous resolve remains GAP by explicit owner decision. **498 methods = 461 COVERED / 24 PUBLIC-BY-DESIGN / 12 TOKEN-ONLY / 1 GAP**. Independent identity/privacy/security and production acceptance PENDING.
 
@@ -248,20 +248,20 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 24 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 1 | **DL-02** | 26 | 26 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-01** | 33 | 33 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 1 | **DL-01** | 26 | 14 | 2 | 0 | 10 | INCOMPLETE |
+| 1 | **DL-02** | 26 | 24 | 0 | 0 | 2 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 21 | 0 | 0 | 12 | INCOMPLETE |
+| 2 | **MNY-02** | 33 | 28 | 1 | 0 | 4 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 9 | 0 | 0 | 18 | INCOMPLETE |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 4 | **PII-02** | 38 | 34 | 2 | 0 | 2 | INCOMPLETE |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 40 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-01** | 33 | 16 | 11 | 6 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-02** | 33 | 27 | 1 | 5 | 0 | PROVISIONAL — NOT ACCEPTED |
+| 6 | **EDG-01** | 33 | 15 | 11 | 6 | 1 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 23 | 1 | 5 | 4 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **377 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 0 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **84 COVERED + 8 PUBLIC-BY-DESIGN**. 0 batches remain INCOMPLETE; DL-01, DL-02, MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, WRK-03, EDG-01, EDG-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **324 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 53 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **62 COVERED + 8 PUBLIC-BY-DESIGN + 22 GAP**. 8 batches remain INCOMPLETE; PII-01, WRK-01, WRK-02, WRK-03 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -858,28 +858,28 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 
 These 22 additional methods were previously source-credited but are now individually **GAP / HELD / zero credits** after the changed NWPC wage dependency. Their prior receipts remain historical, not current-source coverage. Fresh exact-source fictional PG16 own/foreign/unchanged-victim execution and independent security review are required before any credit is restored.
 
-- RENEWED `GET /api/compliance/bank-validations/[id]/file` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `PATCH /api/compliance/bank-validations/[id]` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/compliance/bank-validations` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `POST /api/compliance/bank-validations` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/compliance/bir-1601c-remittances` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `POST /api/compliance/bir-1601c-remittances` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/compliance/calendar` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/compliance/remittance-month-close` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `POST /api/compliance/remittance-month-close` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/compliance/statutory-remittance-corrections` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `POST /api/compliance/statutory-remittance-corrections` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/dashboard` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/employees` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/first-payroll/preview` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/hcm/governance-readiness` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/assurance` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/explain/[employeeId]` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/payout-reconciliation` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/release-checklist` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `POST /api/payroll-runs` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/pre-run-readiness` — [fresh source-sealed PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/compliance/bank-validations/[id]/file` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `PATCH /api/compliance/bank-validations/[id]` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/compliance/bank-validations` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `POST /api/compliance/bank-validations` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/compliance/bir-1601c-remittances` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `POST /api/compliance/bir-1601c-remittances` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/compliance/calendar` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/compliance/remittance-month-close` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `POST /api/compliance/remittance-month-close` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/compliance/statutory-remittance-corrections` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `POST /api/compliance/statutory-remittance-corrections` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/dashboard` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/employees` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/first-payroll/preview` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/hcm/governance-readiness` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/assurance` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/release-checklist` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `POST /api/payroll-runs` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
 
 ## Page and server-action closure (20 independently requested wrong-employer surfaces)
 
@@ -922,16 +922,16 @@ If a real HTTP cross-employer leak is reproduced, create a stand-alone security 
 
 All 490 current exported methods and all 20 page/action entries must resolve to **COVERED with executed four-part proof**, **PUBLIC-BY-DESIGN with an explicit method-level reason**, or **NEEDS OWNER with a concrete owner question**. Every case has a source- and CI-line-pinned evidence record. The manifest must remain **NOT ACCEPTED** until independent reviewer/owner acceptance. As of baseline: **406 API method GAPs and 20 page/action GAPs remain; 0 confirmed live exploits, no new fixes in this planning PR.**
 
-## Supplemental payroll-run source-withdrawal renewals
+## Supplemental payroll-run source-withdrawal renewals (historical only)
 
-These source-withdrawn methods were outside the immutable 406-method queue. All seven supplemental methods are provisionally renewed by the same source-sealed nineteen-method receipt; no frozen link is changed.
+These seven methods were outside the immutable 406-method queue and are already included in the 22 current zero-credit supplemental holds above. The nineteen-method PG16 receipt remains archived historical evidence only; #2006 invalidated its source credit. This appendix adds no current credits or extra methods.
 
-- RENEWED `GET /api/payroll-runs` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- RENEWED `POST /api/payroll-runs` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/assurance` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/explain/[employeeId]` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/payout-reconciliation` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/pre-run-readiness` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
-- RENEWED `GET /api/payroll-runs/[id]/release-checklist` — source-sealed nineteen-method real HTTP/PG16 receipt; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `POST /api/payroll-runs` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/assurance` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/explain/[employeeId]` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/payout-reconciliation` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/pre-run-readiness` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
+- ARCHIVED HOLD `GET /api/payroll-runs/[id]/release-checklist` — historical nineteen-method real HTTP/PG16 receipt; #2006 current GAP / zero credit; independent acceptance PENDING
 
 > **SOLO_VERIFIED_DEV_RECOVERY — complete Xendit POST:** 458 COVERED / 5 API GAP. Four operations, two attacker employers, genuine victim positive, zero real providers. Independent and production acceptance PENDING.
