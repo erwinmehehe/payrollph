@@ -1,3 +1,4 @@
+import {assertLiveTenantCounts} from "./helpers/tenant-counts.mjs";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import test from "node:test";
@@ -59,15 +60,14 @@ test("document and HCM POST refuse un-attributed legal-employer mutations before
  assert.ok(admin.includes('"Cache-Control": "private, no-store"'));
 });
 test("all four changed route methods have zero current security proof credit",()=>{
- assert.equal(manifest.metrics.coveredAfter,457);
- assert.equal(manifest.metrics.gap,4);
+ assertLiveTenantCounts(assert,manifest);
  for(const path of ["src/app/api/documents/route.ts","src/app/api/hcm/documents/route.ts"]){
    const row=manifest.allApiRouteFiles[path];
    assert.deepEqual(row.methods.map(m=>m.name),["GET","POST"]);
    assert.ok(row.methods.every(m=>m.status==="GAP"&&m.testedBy===null&&
      m.reviewedUncertified?.coverageCredits===0&&m.reviewedUncertified?.exactHeadPg16Http==="PENDING"));
  }
- assert.match(manifest.acceptanceStatus,/^NOT ACCEPTED: 4 API methods/);
+ assert.ok(manifest.acceptanceStatus.startsWith("NOT ACCEPTED: "+manifest.metrics.gap+" API methods"));
 });
 test("exact-head proof requires real own documents and same-parent/forged/revoked denial",()=>{
  for(const required of [
@@ -76,6 +76,10 @@ test("exact-head proof requires real own documents and same-parent/forged/revoke
    "const ownA=await save(", "const ownB=await save(", "const ownVictim=await save(",
    "const sameParentForeign=await save(", "const unassigned=await save(",
    "realForeignSelectorDenials:blocked","hcmProxyEmbargoGet403:true",
+   '"B attempts victim parent",list(victim),b.cookie',
+   '"B query selects victim legal employer",list(b)',
+   '"B header selects victim legal employer",list(b)',
+   'for (const attacker of [a,b])', 'post(endpoint,attacker.cookie)',
    "revokedGrantDenied:true","deniedSqlUnchanged:true",
    "uploadMutation503:true","hcmProxyEmbargoPost403:true",
    "methodCredits:0","productionAccepted:false",

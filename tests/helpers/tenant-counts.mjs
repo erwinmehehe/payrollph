@@ -1,3 +1,4 @@
+import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 /**
  * Live tenant-isolation count invariants, shared by every proof-batch test.
  *
@@ -17,6 +18,7 @@ import { verifyOracleSourceHolds,verifiedOracleRenewalKeys } from "../../scripts
 import { reviewedWageRegistrySourceWithdrawals } from "../../scripts/qa/wage-registry-source-hold.mjs";
 import { reviewedTransitiveWageWithdrawals } from "../../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import { reviewedSealedWageWithdrawals } from "../../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
+import { reviewedWageRenewalEngineWithdrawal, historicalWageHoldProjection } from "../../scripts/qa/wage-registry-renewal-supersession.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Newly restored methods only, backed by the sealed executed renewal. */
@@ -263,15 +265,19 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     return { live, base: null };
   }
   const before = tallyTenantManifest(base.manifest);
+  const invalidatedRenewals = reviewedWageRenewalEngineWithdrawal(base.manifest, manifest);
+  const oldProofView = invalidatedRenewals.size ? historicalWageHoldProjection(base.manifest) : base.manifest;
   const explicitlySuperseded = new Set([
-    ...reviewedYearEndSourceSupersession(base.manifest, manifest),
-    ...yearEndAnnualizationSourceHold(base.manifest, manifest),
-    ...reviewedWorker360LegalEmployerSupersession(base.manifest, manifest),
-    ...reviewedOidcSourceSupersession(base.manifest, manifest),
-    ...verifyOracleSourceHolds(manifest, base.manifest),
-    ...reviewedWageRegistrySourceWithdrawals(base.manifest, manifest),
-    ...reviewedTransitiveWageWithdrawals(base.manifest, manifest),
-    ...reviewedSealedWageWithdrawals(base.manifest, manifest),
+    ...reviewedYearEndSourceSupersession(oldProofView, manifest),
+    ...yearEndAnnualizationSourceHold(oldProofView, manifest),
+    ...reviewedWorker360LegalEmployerSupersession(oldProofView, manifest),
+    ...reviewedOidcSourceSupersession(oldProofView, manifest),
+    ...verifyOracleSourceHolds(manifest, oldProofView),
+    ...reviewedWageRegistrySourceWithdrawals(oldProofView, manifest),
+    ...reviewedTransitiveWageWithdrawals(oldProofView, manifest),
+    ...reviewedSealedWageWithdrawals(oldProofView, manifest),
+    ...invalidatedRenewals,
+    ...reviewedDocumentSourceWithdrawals(base.manifest, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
@@ -290,4 +296,8 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
   assert.ok(live.gap - explicitlySuperseded.size <= before.gap,
     "GAP never rises except exact reviewed source supersessions (base " + base.ref + ")");
   return { live, base: before };
+}
+
+export function reviewedPrivateDocumentSourceHold(before, after, read = readFileSync) {
+  try { return reviewedDocumentSourceWithdrawals(before, after, read); } catch { return new Set(); }
 }

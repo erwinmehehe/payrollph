@@ -140,6 +140,9 @@ export async function proveDocumentMetadata(){
    ["A conflicting query selectors",list(a)+"&legalEntityId="+a.entity.id+
       "&legalEntityId="+otherEntity.id,a.cookie,{}],
    ["A attempts victim parent",list(victim),a.cookie,{}],
+   ["B attempts victim parent",list(victim),b.cookie,{}],
+   ["B query selects victim legal employer",list(b)+"&legalEntityId="+victim.entity.id,b.cookie,{}],
+   ["B header selects victim legal employer",list(b),b.cookie,{header:String(victim.entity.id)}],
   ];
   let blocked=0;
   for(const [label,url,cookie,opts] of attackCases){
@@ -160,13 +163,13 @@ export async function proveDocumentMetadata(){
   assert.deepEqual(await snapshot(),before,"HCM refusal must not touch protected SQL");
   // No legal-employer-at-issuance attribution exists for these upload/policy
   // mutations. Refuse all multi-entity writes BEFORE parsing or touching SQL.
-  for (const [endpoint,expectedStatus,expectedCode] of [
+  for (const attacker of [a,b]) for (const [endpoint,expectedStatus,expectedCode] of [
     ["/api/documents",503,"DOCUMENT_UPLOAD_ENTITY_SCOPE_PENDING"],
     // HCM cannot reach the route-level 503 until the separate global embargo is reviewed.
     ["/api/hcm/documents",403,"ENTITY_HCM_DEFERRED"],
   ]) {
     const beforePost=await snapshot();
-    const rejectedPost=await post(endpoint,a.cookie);
+    const rejectedPost=await post(endpoint,attacker.cookie);
     assert.equal(rejectedPost.status,expectedStatus,"Multi-entity document mutation must fail closed");
     assert.equal(rejectedPost.json?.code,expectedCode);
     assert.ok(!rejectedPost.text.includes("DML_FOREIGN_IN_A_"));

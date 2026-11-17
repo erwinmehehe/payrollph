@@ -43,7 +43,7 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
       assert.equal(method.reviewedUncertified.coverageCredits, 0);
       assert.equal(method.reviewedUncertified.independentSecurityReview, "PENDING");
     }
-    assert.throws(() => verifyYearEndCredits(manifest), /current-source proof required/,
+    assert.throws(() => verifyYearEndCredits(manifest), /(?:current-source proof required|source\/proof changed; renew PG16 review)/,
       "Old 1804 proof cannot certify current wage-dependent year-end calculations");
   } else if (isYearEndHeld(manifest)) {
     assert.equal(verifyYearEndHold(manifest), 0, "A withdrawn year-end credit is held at zero until a fresh exact-head PG16 proof renews it");

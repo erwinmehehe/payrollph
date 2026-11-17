@@ -227,3 +227,29 @@ test("ordinary attendance warnings are reviewable and do not become premium bloc
   assert.ok(result.findings.some((finding) => finding.code === "ENGINE_EXCEPTION"));
   assert.ok(result.findings.every((finding) => finding.code !== "WFM_PREMIUM_ALLOCATION_UNVERIFIED"));
 });
+
+test("#2003: SSS and odd-cent prior-source holds cannot be waived with exception acknowledgment", () => {
+  for (const code of [
+    "SSS_PRIOR_OVER_COLLECTION_REVIEW_REQUIRED",
+    "FIXED_MONTHLY_CARRY_SOURCE_REVIEW_REQUIRED",
+    "STATUTORY_TRUE_UP_INPUT_MISSING",
+  ]) {
+    const value = evaluatePayrollAssurance([entry({
+      status: "Exception",
+      trace: { flags: [code + ": Fictional month-end reconciliation is unresolved"] },
+    })], []);
+    assert.equal(value.summary.blocking, 1, code + " must hard-block release");
+    assert.ok(value.findings.some((finding) =>
+      finding.code === "SSS_MONTH_END_RECONCILIATION_BLOCKED"
+      && finding.severity === "high"
+      && finding.blocking === true
+      && finding.employeeId === 10
+      && finding.detail.includes(code)
+    ), code + " requires non-acknowledgeable release blocker");
+  }
+  const ordinary = evaluatePayrollAssurance([entry({
+    status: "Exception",
+    trace: { flags: ["Missing punch record: reviewer may acknowledge if independently verified"] },
+  })], []);
+  assert.equal(ordinary.summary.blocking, 0, "existing ordinary warning behavior must remain unchanged");
+});

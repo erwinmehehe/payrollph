@@ -13,6 +13,18 @@ export const WAGE_RENEWAL_RECEIPT='scripts/qa/wage-registry-renewal-receipt.json
 export const WAGE_RENEWAL_RECEIPT_BLOB='8af7a0d35cb85b2d616babdc0a56fc62fcad9856';
 export const blob=raw=>{const b=Buffer.from(raw);return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');};
 export function isExactHistoricalLoaderChange(file,sha,raw){
+ if(file==='scripts/qa/tenant-five-scoped-page-credit.mjs'){
+  const archive=readFileSync('scripts/qa/document-source-accounting-archive.json');
+  assert.equal(blob(archive),'b3ccc93613bce6b9ee6ec3dd32b074f7a7befa13');
+  const original=JSON.parse(archive).fiveSource;
+  assert.equal(blob(original),sha,'Original five-page receipt source must remain immutable');
+  assert.equal(blob(readFileSync('scripts/qa/document-source-accounting.mjs')),'38c3a6b756c14435f2cadcf1fe5f304b9080ec28');
+  const expected=original
+   .replace('import assert from "node:assert/strict";','import assert from "node:assert/strict";\nimport {reviewedDocumentSourceHoldCount} from "./document-source-accounting.mjs";')
+   .replace('const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;','const expectedApiGaps = (marketing?.status === "COVERED" ? 4 : 5) + reviewedDocumentSourceHoldCount(m, read);')
+   .replace('if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,','if (marketing?.status === "COVERED") assert.equal(assertMkt01Receipt(m), 1,');
+  return Buffer.from(raw).toString('utf8').replaceAll('\r\n','\n')===expected;
+ }
  if(file==='scripts/qa/tenant-four-scoped-page-credit.mjs'){
   const archive=readFileSync('scripts/qa/wage-registry-renewal-sso-source.json');
   assert.equal(blob(archive),'3988d1c5f79dbbfb1c01253be90e4676fa4d7512');
