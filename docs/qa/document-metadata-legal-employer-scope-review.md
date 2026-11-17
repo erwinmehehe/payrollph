@@ -6,9 +6,9 @@
 
 `GET /api/documents`: preserves employee self-document listing, normal parent-membership/People role and vault checks. With `MULTI_ENTITY_ENABLED=true`, resolves the user’s live legal-employer grants, refuses group/unresolved employer scope, and filters staff by the selected legal employer in PostgreSQL before forming the response. Parent-company `access.companyWide` does NOT bypass legal-entity filtering. Documents without an attributed employee are excluded under multi-entity mode. Response is private/no-store. When the flag is OFF, existing parent/org-unit behavior is preserved.
 
-`GET /api/hcm/documents`: currently aggregates organization-wide policy bodies and target rules, requirement definitions, employee/compliance details, expiry notices and private document metadata. Filtering the employees array alone would still expose cross-legal-employer policy content and references. **Until policies/requirements have approved legal-employer attribution, the entire GET fails closed with 503 and no parent data** under `MULTI_ENTITY_ENABLED=true`, after checking role and session/entity selection. Feature-OFF behavior is unchanged. Availability impact for multi-entity-on HR administrators is an explicit residual and requires product/security owner review.
+`GET /api/hcm/documents`: currently aggregates organization-wide policy bodies and target rules, requirement definitions, employee/compliance details, expiry notices and private document metadata. Filtering employees alone would still expose cross-legal-employer policy content. **The existing `src/proxy.ts` HCM-wide embargo returns 403 / `ENTITY_HCM_DEFERRED` before this route executes** when multi-entity is enabled. The new route-level 503 / `HCM_DOCUMENT_LEGAL_EMPLOYER_SCOPE_PENDING` is defense in depth should the separate embargo ever be lifted after approval; it is NOT currently reachable in the multi-entity HTTP workflow. Both responses refuse without loading parent data. Feature-OFF behavior is unchanged. Availability impact requires product/security owner review.
 
-**Both `POST` handlers now explicitly fail closed with a private/no-store 503 whenever multi-entity mode is enabled.** File uploads lack immutable issuer legal-employer attribution, and HCM document-policy mutations can affect parent-wide rules/compliance for other employers. The refusal occurs after authentication and same-origin validation but before multipart/JSON body parsing or writes. This intentionally blocks multi-entity-on upload and HCM policy mutation until a fully attributed workflow is approved; feature-OFF POST behavior stays unchanged. All four changed GET/POST methods are conservatively `GAP/testedBy:null`, with their original receipts historical only. Branch ledger: **457 covered / 4 GAP / 25 public / 12 privileged of 498**, not independently approved.
+**Both `POST` mutations fail closed under multi-entity mode.** `/api/documents` returns a route-level private/no-store 503 after authentication and same-origin checks, before upload parsing or SQL. `/api/hcm/documents` is blocked earlier by the existing HCM proxy embargo with private/no-store 403 / `ENTITY_HCM_DEFERRED`; the route-level 503 remains defense in depth and cannot be treated as an executed HTTP proof. No multipart/JSON body or SQL mutation runs. All four changed GET/POST methods remain `GAP/testedBy:null` and zero-credit, with historical receipts not promoted. Branch ledger: **457 covered / 4 GAP / 25 public / 12 privileged of 498**, not independently approved.
 
 ## Source-current disposable test
 
@@ -18,15 +18,15 @@
 - Empty, disposable PostgreSQL 16, localhost production-mode Next server, three independent synthetic employer sessions, higher-ID real victim document
 - Own source document lists populated; A-only grant omits B’s document and unattributed parent rows in same parent organization
 - Forged header, query, duplicate legal-employer selectors, parent-tenant cross-read and revoked-grant request refuse without changing protected DB rows
-- HCM policy GET 503 contains no private employee/document/policy data and is no-store
-- Both documents and HCM document-policy POST return 503 without processing mutations or altering employer documents/audit records
+- HCM policy GET 403 / `ENTITY_HCM_DEFERRED` is enforced by the pre-route proxy, contains no private employee/document/policy data, and is no-store
+- Documents POST returns 503; HCM document-policy POST returns proxy-level 403; neither processes mutations or alters employer documents/audit records
 - No production database credentials, external providers, live money, or method-credit promotion
 
 ## Remaining acceptance
 
 - [ ] Exact PR-head real HTTP/PG16 workflow green, and all source/manifest regression guards reconciled without weakening or altering immutable old proofs
 - [ ] Verify feature-OFF compatibility separately with own/foreign metadata positives
-- [ ] Independent HR/product owner approves 503 unavailability until policy/requirement attribution is designed
+- [ ] Independent HR/product owner approves continued HCM proxy-level 403 unavailability; do not loosen the umbrella embargo to satisfy route-level 503 expectations
 - [ ] Clarify policy documents historically issued by previous legal employer and employee transfer edge cases
 - [ ] Independent privacy/security review, with recorded source SHA and residual risks, separate production decision
 - [ ] Reprove the changed GET **and POST** methods before any future source-current credit; no assumed inherited coverage
