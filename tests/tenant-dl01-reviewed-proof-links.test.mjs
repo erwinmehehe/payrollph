@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import { verifyCurrentScopedPageGapCount } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 /** Bookkeeping regression only; the real three-employer HTTP/PG16 suites provide coverage. */
 import assert from 'node:assert/strict'; import { verifyWorker360PageCredit } from '../scripts/qa/tenant-five-method-credit-verify.mjs';
@@ -8,7 +9,7 @@ import { verifyCredit as verifyOnboardingCredit } from '../scripts/qa/tenant-onb
 import { historicWageRegistryProofView, verifyWageRegistrySourceHold } from '../scripts/qa/wage-registry-source-hold.mjs';
 import { verifyAllTransitiveWageHolds, TRANSITIVE_HOLD_KIND } from '../scripts/qa/wage-registry-transitive-source-hold.mjs';
 
-const manifest = JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json', 'utf8'));
+const manifest = readWageWithdrawalFixture();
 const overview = readFileSync('docs/engineering/tenant-isolation-coverage-inventory.md', 'utf8');
 const archival = historicWageRegistryProofView(manifest);
 assert.equal(verifyAllTransitiveWageHolds(manifest).size,47);
@@ -184,7 +185,8 @@ test('DL-01, DL-02 and HCM method proofs remain intact with two guarded scoped p
   assert.ok(overview.includes('(../../scripts/qa/tenant-high-risk-01-http.mjs#L444)'),
     'The independently credited close POST must have its exact own-200 proof link in the inventory');
   }
-  assert.ok(overview.includes('| coveredAfter | ' + manifest.metrics.coveredAfter + ' |'));
-  assert.ok(overview.includes('| gap | ' + manifest.metrics.gap + ' |'));
+  const liveMetrics=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8')).metrics;
+  assert.ok(overview.includes('| coveredAfter | ' + liveMetrics.coveredAfter + ' |'));
+  assert.ok(overview.includes('| gap | ' + liveMetrics.gap + ' |'));
 });
 import { isVerifiedOracleSupersession } from "../scripts/qa/payroll-run-oracle-hold.mjs";

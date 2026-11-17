@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {assertCreditOrWageHold} from './helpers/wage-source-holds.mjs';
 import {verifyXenditPostCredit} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from '../scripts/qa/tenant-studio-post-credit.mjs';
@@ -7,7 +8,7 @@ import test from 'node:test';
 import { CHECKOUT_INPUT_BLOBS } from '../scripts/qa/tenant-billing-checkout-credit-pins.mjs';
 import { CHECKOUT_PATH, CHECKOUT_RECEIPT, checkoutEvidence, verifyCheckoutCredit } from '../scripts/qa/tenant-billing-checkout-credit.mjs';
 import { verifyOracleSourceHolds,isVerifiedOracleRenewal } from '../scripts/qa/payroll-run-oracle-hold.mjs';
-const manifest = () => JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
+const manifest = () => readWageWithdrawalFixture();
 
 test('only the merged real-PG16 two-employer checkout receipt earns one method', () => {
   assert.equal(verifyCheckoutCredit(manifest()), 1);

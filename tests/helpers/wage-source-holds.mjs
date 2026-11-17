@@ -4,13 +4,14 @@ import {historicWageRegistryProofView} from '../../scripts/qa/wage-registry-sour
 import {baseTenantManifest,assertLiveTenantCounts} from './tenant-counts.mjs';
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
+import {wageRenewalHoldView,verifyWageRenewalMethod,WAGE_RENEWAL_KIND} from '../../scripts/qa/wage-registry-renewal-verify.mjs';
 export {wageHeldPriorProof};
 
 export function historicalWageCatalog(manifest){
   // Only immutable catalogue citations may use this view. Current credit
   // verifiers must keep rejecting the live GAP rows.
   if(!Object.values(manifest.allApiRouteFiles).some(f=>f.methods.some(m=>
-    m.reviewedUncertified?.kind?.startsWith('wage-registry-'))))return manifest;
+    m.reviewedUncertified?.kind?.startsWith('wage-registry-')||m.testedBy?.kind===WAGE_RENEWAL_KIND)))return manifest;
   verifiedWageCreditHolds(manifest);
   return historicWageRegistryProofView(manifest);
 }
@@ -18,10 +19,14 @@ export function historicalWageCatalog(manifest){
 /** Strict current-ledger alternative to replaying invalidated receipt verifiers. */
 export function assertWageLedgerDelta(assert,manifest){
   if(!Object.values(manifest.allApiRouteFiles).some(f=>f.methods.some(m=>
-    m.reviewedUncertified?.kind?.startsWith('wage-registry-'))))return false;
+    m.reviewedUncertified?.kind?.startsWith('wage-registry-')||m.testedBy?.kind===WAGE_RENEWAL_KIND)))return false;
+  const liveManifest=manifest;
+  const renewed=Object.values(manifest.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>m.testedBy?.kind===WAGE_RENEWAL_KIND).length;
+  manifest=wageRenewalHoldView(manifest);
   const holds=verifiedWageCreditHolds(manifest),base=baseTenantManifest();
   assert.ok(base,'The wage withdrawal requires an inspectable main manifest');
-  const prior=base.manifest;
+  const priorLive=base.manifest,prior=wageRenewalHoldView(priorLive);
+  const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>m.testedBy?.kind===WAGE_RENEWAL_KIND).length;
   assert.deepEqual(Object.keys(manifest.allApiRouteFiles).sort(),Object.keys(prior.allApiRouteFiles).sort());
   let withdrawn=0;
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
@@ -66,9 +71,9 @@ export function assertWageLedgerDelta(assert,manifest){
     }
   }
   assert.deepEqual(manifest.scopedPages,prior.scopedPages,'Wage withdrawal cannot alter page credits');
-  const {live}=assertLiveTenantCounts(assert,manifest);
-  assert.equal(live.coveredAfter,prior.metrics.coveredAfter-withdrawn);
-  assert.equal(live.gap,prior.metrics.gap+withdrawn);
+  const {live}=assertLiveTenantCounts(assert,liveManifest);
+  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-priorRenewed);
+  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+priorRenewed);
   assert.equal(live.publicByDesign,prior.metrics.publicByDesign);
   assert.equal(live.privilegedOperationsTokenOnly,prior.metrics.privilegedOperationsTokenOnly);
   return true;
@@ -76,6 +81,7 @@ export function assertWageLedgerDelta(assert,manifest){
 
 /** A verified hold must reject the previous credit verifier, not restore its old credit. */
 export function assertCreditOrWageHold(assert,manifest,path,verb,verify){
+  if(verifyWageRenewalMethod(manifest,path,verb))return 1;
   const prior=wageHeldPriorProof(manifest,path,verb);
   if(prior){
     assert.throws(()=>verify(manifest),'A historical receipt cannot certify changed wage source');

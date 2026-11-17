@@ -4,6 +4,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from './payroll-run-oracle-hold.mjs';
 import {payrollRenewalProofBuilder} from './payroll-run-credit-renewal-verify.mjs';
+import {wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 const INVENTORY='docs/engineering/tenant-isolation-coverage-inventory.md';
 const PLAN='docs/engineering/tenant-isolation-closure-plan.md';
@@ -38,7 +39,7 @@ export function applyPayrollRenewal(input){
   return {manifest:m,credited};
 }
 
-function reconcilePlan(doc,m){
+export function reconcilePlan(doc,m){
   const section=doc.split('### Batch DL-01 —')[1]?.split('## Page and server-action closure')[0];assert.ok(section);
   const totals=Object.fromEntries(statuses.map(s=>[s,0]));
   for(const block of ('### Batch DL-01 —'+section).split('### Batch ').slice(1)){
@@ -120,6 +121,16 @@ function documents(m){
 
 export function reconcilePayrollRenewal({write=false}={}){
   const source=JSON.parse(readFileSync(MANIFEST,'utf8'));
+  const renewed=ORACLE_HELD_METHODS.filter(key=>{
+    const at=key.indexOf(' '),path='src/app/api/'+key.slice(at+1)+'/route.ts';
+    return source.allApiRouteFiles[path].methods.find(row=>row.name===key.slice(0,at))?.testedBy?.kind===WAGE_RENEWAL_KIND;
+  });
+  if(renewed.length){
+    wageRenewalHoldView(source);
+    assert.equal(renewed.length,19,'Refuse partial replacement of the payroll renewal owner');
+    assert.equal(verifyOracleSourceHolds(source).size,0);
+    return {write:false,credited:0,held:0,status:'SUPERSEDED_BY_WAGE_SOURCE_RENEWAL',productionCertified:false};
+  }
   const held=ORACLE_HELD_METHODS.filter(key=>{
     const at=key.indexOf(' '),verb=key.slice(0,at),path='src/app/api/'+key.slice(at+1)+'/route.ts';
     return source.allApiRouteFiles[path].methods.find(row=>row.name===verb)

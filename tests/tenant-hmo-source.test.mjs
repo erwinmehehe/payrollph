@@ -1,4 +1,5 @@
 import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 // Source contract only: real HTTP/PG16 CI is a separate required acceptance gate.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -10,7 +11,7 @@ import { originalOracleCallerSource } from "../scripts/qa/payroll-run-oracle-sou
 const suite = readFileSync("scripts/qa/tenant-hmo-http.mjs", "utf8");
 const route = readFileSync("src/app/api/benefits/hmo/route.ts", "utf8");
 const runner = readFileSync("scripts/qa/tenant-second-pass-http.mjs", "utf8");
-const manifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const manifest = readWageWithdrawalFixture();
 const actions = ["create_plan", "add_dependent", "update_dependent", "update_enrollment"];
 
 test("all HMO POST actions, not just a single example, are in this proof batch", () => {

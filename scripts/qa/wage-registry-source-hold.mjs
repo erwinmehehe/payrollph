@@ -5,6 +5,7 @@
  * Reproof requires fresh, independently reviewed real-HTTP source closures.
  */
 import assert from "node:assert/strict";
+import {wageRenewalHoldView} from './wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {historicTransitiveWageProofView} from "./wage-registry-transitive-source-hold.mjs";
@@ -47,6 +48,7 @@ function gitBlob(value) {
 }
 
 export function verifyWageRegistrySourceHold(manifest, path, verb, read = readFileSync) {
+  manifest=wageRenewalHoldView(manifest,read);
   if (!WAGE_SOURCE_HELD_METHODS.includes(path + " " + verb)) return false;
   const row = manifest.allApiRouteFiles?.[path]?.methods.find(method => method.name === verb);
   if (row?.status !== "GAP" || row.reviewedUncertified?.kind !== "wage-registry-dependency-source-withdrawal") return false;
@@ -78,6 +80,7 @@ export function verifyWageRegistrySourceHold(manifest, path, verb, read = readFi
 }
 
 export function verifyAllWageRegistrySourceHolds(manifest, read = readFileSync) {
+  manifest=wageRenewalHoldView(manifest,read);
   const seen = [];
   for (const key of WAGE_SOURCE_HELD_METHODS) {
     const at = key.lastIndexOf(" "), path = key.slice(0, at), verb = key.slice(at + 1);
@@ -96,6 +99,7 @@ export function verifyAllWageRegistrySourceHolds(manifest, read = readFileSync) 
  * explains past receipts; it does not approve the changed wage dependency.
  */
 export function historicWageRegistryProofView(manifest, read = readFileSync) {
+  manifest=wageRenewalHoldView(manifest,read);
   const currentRows = Object.values(manifest.allApiRouteFiles ?? {}).flatMap(file => file.methods);
   const heldRows = currentRows.filter(row =>
     row.reviewedUncertified?.kind === "wage-registry-dependency-source-withdrawal");

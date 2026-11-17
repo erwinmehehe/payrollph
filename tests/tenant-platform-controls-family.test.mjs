@@ -114,7 +114,7 @@ test("enterprise read proves a real inactive own permission set, never defaults 
 test("five distinct platform targets preserve security-write and full enterprise POST source-pinned receipts", async () => {
   const keys = [...rows.map(r => r.key), "GET enterprise"]; assert.equal(keys.length, 5); assert.equal(new Set(keys).size, 5);
   const catalog = [...tenantFamilyCatalog("write"), ...tenantFamilyCatalog("read")]; for (const key of keys) assert.equal(catalog.filter(r => r.key === key).length, 1);
-  const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = JSON.parse(text);
+  const file = "scripts/qa/tenant-isolation-coverage-manifest.json", text = readFileSync(file, "utf8"), manifest = readWageWithdrawalFixture();
   for (const key of keys) {
     const [method, route] = key.split(" "), record = Object.values(manifest.allApiRouteFiles).find(r => r.route === route);
     const row = record.methods.find(r => r.name === method);
@@ -133,3 +133,4 @@ test("five distinct platform targets preserve security-write and full enterprise
   const report = JSON.parse(execFileSync(process.execPath, ["scripts/qa/tenant-table-credit.mjs", "--refresh-links", "--check"], { encoding: "utf8" }));
   assert.equal(report.newlyCredited, 0); assert.deepEqual(report.before, report.after); assert.equal(readFileSync(file, "utf8"), text);
 });
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';

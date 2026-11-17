@@ -1,3 +1,4 @@
+import {zeroCreditSsoProofFixture} from './payroll-run-sso-proof-fixture.mjs';
 /**
  * Four scoped page-only provisional credits. No API methods or runtime source.
  * Only exact PR-head fictional PG16/HTTP proof jobs can justify retaining a
@@ -309,21 +310,8 @@ export function verifyCurrentScopedPageGapCount(manifest, read = readFileSync) {
     assert.equal(manifest.metrics.gap, head.metrics.gap + 19);
     assert.equal(head.scopedPages.filter(p => p.status === "GAP").length, gaps,
       "FOUR_PAGE_REFUSED: only the committed public Careers classification may change the page-GAP count");
-    const expected = structuredClone(head);
-    let held = 0;
-    for (const file of Object.values(expected.allApiRouteFiles))
-      for (const row of file.methods) {
-        if (row.status !== "COVERED" ||
-            row.testedBy?.kind !== "payroll-run-source-renewal-real-http-pg16" ||
-            row.historicalOracleSourceWithdrawal?.kind !==
-              "payroll-run-membership-oracle-source-withdrawal") continue;
-        row.status = "GAP";
-        row.testedBy = null;
-        row.reviewedUncertified = structuredClone(row.historicalOracleSourceWithdrawal);
-        delete row.historicalOracleSourceWithdrawal;
-        row.reason = "Fictional CI-only bootstrap: current caller receipt pending; zero credits. Not a committed ledger change.";
-        held++;
-      }
+    const expected = zeroCreditSsoProofFixture(head);
+    const held = head.metrics.coveredAfter - expected.metrics.coveredAfter;
     assert.equal(held, 19,
       "FOUR_PAGE_REFUSED: only nineteen historical payroll methods may be held");
     const all = Object.values(expected.allApiRouteFiles).flatMap(file => file.methods);

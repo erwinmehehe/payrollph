@@ -1,10 +1,11 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {verifySpendManaged,TARGETS} from "../scripts/qa/tenant-spend-managed-credit.mjs";
 import {verifyAllSealedWageHolds, SEALED_WAGE_HOLD_KIND} from "../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 
-const manifest=()=>JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
+const manifest=()=>readWageWithdrawalFixture();
 const spendRow=(m,key)=>{
   const at=key.indexOf(" "),verb=key.slice(0,at),route=key.slice(at+1);
   return m.allApiRouteFiles["src/app/api/"+route+"/route.ts"].methods.find(x=>x.name===verb);

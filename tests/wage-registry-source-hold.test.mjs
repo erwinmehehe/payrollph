@@ -1,3 +1,4 @@
+import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -9,7 +10,7 @@ import {
   historicWageRegistryProofView,
 } from "../scripts/qa/wage-registry-source-hold.mjs";
 
-const readManifest = () => JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+const readManifest = () => readWageWithdrawalFixture();
 const firstKey = WAGE_SOURCE_HELD_METHODS[0];
 const split = key => {
   const at = key.lastIndexOf(" ");
