@@ -133,6 +133,11 @@ export const PAYROLL_FINDING_EXPLANATION_TEMPLATES: Readonly<Record<string, Expl
     "why": "The existing assurance record contains an engine exception or trace warning.",
     "next": "Review the original exception and obtain the existing required sign-off."
   },
+  "SSS_MONTH_END_RECONCILIATION_BLOCKED": {
+    "what": "Monthly SSS reconciliation is incomplete.",
+    "why": "The prior cutoff or actual-month SSS contribution could not be safely verified against the source payroll record.",
+    "next": "Correct the earlier released-cutoff evidence or statutory source, recalculate, and complete independent payroll review before approval or release."
+  },
   "STATUTORY_RETRO_ATTRIBUTION_UNVERIFIED": {
     "what": "Retroactive statutory attribution remains unverified.",
     "why": "The assurance record has not reconciled the source period for SSS or Pag-IBIG treatment.",

@@ -39,10 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         postgres: [16, 18]
-    # Playwright 1.55 Chromium headless shell is unsupported on the
-    # Ubuntu 26.04 runner currently selected by ubuntu-latest. Keep
-    # the real browser proof on a supported image; never skip the test.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04 # Playwright 1.55.0 Chromium supports Ubuntu 24.04; runner ubuntu-latest moved to 26.04
     timeout-minutes: 20
     env:
       TZ: Asia/Manila

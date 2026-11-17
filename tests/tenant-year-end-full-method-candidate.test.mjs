@@ -32,6 +32,10 @@ test("source-pinned current year-end GET+POST proof receives only provisional #1
   for (const [path, sha] of Object.entries(PINNED)) {
     // A withdrawn credit (annualization source moved) is verified by its exact hold instead of the old pin.
     if (held && path === "src/lib/year-end.ts") continue;
+    if (held && path === "src/lib/payroll-engine.ts" && gitBlob(path) !== sha) {
+      assert.throws(() => verifyYearEndCredits(manifest), /source\/proof changed|current-source proof required/);
+      continue;
+    }
     assert.equal(gitBlob(path), sha, path + ": changed dependency requires a fresh exact-head PG16 proof");
   }
   assert.equal(entry.gitBlobSha, PINNED[ROUTE]);

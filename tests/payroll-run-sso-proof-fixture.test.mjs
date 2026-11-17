@@ -10,8 +10,14 @@ const read=()=>readWageWithdrawalFixture();
 test('fresh wage renewals can be zeroed only in the disposable nineteen-method fixture, without changing the live ledger',()=>{
  const path='scripts/qa/tenant-isolation-coverage-manifest.json',raw=readFileSync(path,'utf8'),m=JSON.parse(raw);
  const f=zeroCreditSsoProofFixture(m),allowed=new Set(ORACLE_HELD_METHODS);
- assert.equal(m.metrics.coveredAfter-f.metrics.coveredAfter,ORACLE_HELD_METHODS.length);
- assert.equal(f.metrics.gap-m.metrics.gap,ORACLE_HELD_METHODS.length);
+ const alreadyHeld=ORACLE_HELD_METHODS.filter(key=>{
+  const at=key.indexOf(' '),verb=key.slice(0,at),file='src/app/api/'+key.slice(at+1)+'/route.ts';
+  const row=m.allApiRouteFiles[file]?.methods.find(r=>r.name===verb);
+  return row?.status==='GAP' && row.reviewedUncertified?.kind==='wage-registry-dependency-source-withdrawal';
+ }).length;
+ assert.equal(alreadyHeld,19,'All nineteen historical payroll methods must remain zero-credit after #2006');
+ assert.equal(m.metrics.coveredAfter-f.metrics.coveredAfter,ORACLE_HELD_METHODS.length-alreadyHeld);
+ assert.equal(f.metrics.gap-m.metrics.gap,ORACLE_HELD_METHODS.length-alreadyHeld);
  for(const [file,route] of Object.entries(m.allApiRouteFiles))for(const row of route.methods){
   const next=f.allApiRouteFiles[file].methods.find(r=>r.name===row.name);
   if(allowed.has(row.name+' '+route.route)){assert.equal(next.status,'GAP');assert.equal(next.testedBy,null);}
