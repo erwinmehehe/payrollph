@@ -1950,11 +1950,17 @@ export async function resumeDueAutomationExecutions(now = new Date(), limit = 25
 }
 
 export async function resumeAutomationExecutionFromApproval(input: {
+  /** The employer that owns the approval task. The execution must belong to the same employer. */
+  organizationId: number;
   approvalTaskId: number;
   decision: "Approved" | "Declined";
   decidedBy: string;
 }) {
+  if (!Number.isSafeInteger(input.organizationId) || input.organizationId <= 0) {
+    throw new Error("Automation approval resume requires the approval task's employer.");
+  }
   const [execution] = await db.select().from(automationExecutions).where(and(
+    eq(automationExecutions.organizationId, input.organizationId),
     eq(automationExecutions.waitingApprovalTaskId, input.approvalTaskId),
     eq(automationExecutions.status, "waiting_approval"),
   )).limit(1);
@@ -1978,6 +1984,7 @@ export async function resumeAutomationExecutionFromApproval(input: {
       updatedAt: new Date(),
     }).where(and(
       eq(automationExecutions.id, execution.id),
+      eq(automationExecutions.organizationId, input.organizationId),
       eq(automationExecutions.status, "waiting_approval"),
       eq(automationExecutions.waitingApprovalTaskId, input.approvalTaskId),
     )).returning();
@@ -1992,12 +1999,29 @@ export async function resumeAutomationExecutionFromApproval(input: {
     updatedAt: new Date(),
   }).where(and(
     eq(automationExecutions.id, execution.id),
+    eq(automationExecutions.organizationId, input.organizationId),
     eq(automationExecutions.status, "waiting_approval"),
     eq(automationExecutions.waitingApprovalTaskId, input.approvalTaskId),
   )).returning({ id: automationExecutions.id });
   if (!claimed) return null;
 
-  return advanceAutomationExecution(execution.id);
+  try {
+    return await advanceAutomationExecution(execution.id);
+  } catch (error) {
+    // The claim above moved the run to in_progress. Nothing else picks up an in_progress run,
+    // so a failure here would leave it stuck forever. Mark it failed, then report the error.
+    const message = error instanceof Error ? error.message : "Automation resume failed.";
+    await db.update(automationExecutions).set({
+      status: "failed",
+      error: message.slice(0, 4000),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(automationExecutions.id, execution.id),
+      eq(automationExecutions.organizationId, input.organizationId),
+      eq(automationExecutions.status, "in_progress"),
+    ));
+    throw error;
+  }
 }
 
 export async function runAutomationEvent(input: {

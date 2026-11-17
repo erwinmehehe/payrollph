@@ -55,7 +55,7 @@ The last one first survived: a forged approval carried a fingerprint that bound 
 
 - It is a proof, not a credit: `coverageCredits: 0`. The ledger keeps `PATCH approvals/[id]` as GAP.
 - **Not exercised:** Dynamic Group routing, approver delegation, the multi-entity group-HR refusal, separation-readiness handoffs (only roster claims), HCM processes with a real source (compensation proposal, effective change, position), an approved automation gate that continues a workflow, and concurrent decisions.
-- **Hardening note, not closed here.** `resumeAutomationExecutionFromApproval` finds the waiting execution by approval-task ID only, with no employer filter. Task IDs are globally unique and the engine only ever stores its own employer's task ID, so no HTTP request reaches another employer's execution; the function should still take the employer ID.
+- **Closed in source (contract tests only, not executed against a database).** `resumeAutomationExecutionFromApproval` now requires the approval task's employer ID and binds it in the lookup and in every write, and the only caller passes `task.organizationId`. A failure after the run is claimed now marks it `failed` instead of leaving it `in_progress`, which no scheduler picks up. See `tests/automation-approval-resume-org-scope.test.ts`.
 - Independent security review stays PENDING.
 
 ## Running it locally

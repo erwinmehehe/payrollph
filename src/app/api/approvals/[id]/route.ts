@@ -778,6 +778,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       };
     } else {
       automationGate = await resumeAutomationExecutionFromApproval({
+        organizationId: task.organizationId,
         approvalTaskId: taskId,
         decision: status,
         decidedBy: actor,
