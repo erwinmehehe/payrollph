@@ -2,7 +2,8 @@ name: Golden Phase 17 imported 13th month pool (disposable PG16)
 
 on:
   pull_request:
-    branches: [main]
+    # Stacked on #2013: also run when the PR targets its branch. Remove this entry once #2019 is retargeted to main.
+    branches: [main, fix/provider-switch-pool-withholding-20261117]
     paths:
       - ".github/workflows/golden-payroll-phase17-pg16.yml"
       - "scripts/golden-payroll-phase17.ts"
