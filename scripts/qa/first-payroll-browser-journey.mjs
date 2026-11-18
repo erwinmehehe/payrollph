@@ -2,17 +2,29 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
+import {realpathSync} from 'node:fs';
 import {requireFictionalJourney,reconcileFirstPayroll} from './first-payroll-full-contract.mjs';
+import {requirePhase15Database,requirePhase15Environment} from './golden-phase15-safety.ts';
 
 const {base}=requireFictionalJourney();
+const localDirectory=process.env.FIRST_PAYROLL_LOCAL_PG16_DIRECTORY;
+if(localDirectory)assert.equal(requirePhase15Environment(process.env),'local-disposable-pg16-only');
 const {db,pool}=await import('../../src/db/index.ts');
 const s=await import('../../src/db/schema.ts');
 const {eq}=await import('drizzle-orm');
 const {seedEmployer,standaloneMakeSession}=await import('./tenant-table-http.mjs');
 const {chromium}=await import('playwright');
-const identity=(await pool.query("select current_setting('server_version_num')::int as version,current_setting('data_directory') as directory")).rows[0];
+const identity=(await pool.query(`select current_setting('server_version_num')::int as version,
+ current_setting('data_directory') as directory,current_database() as database,
+ host(inet_server_addr()) as "serverAddress",host(inet_client_addr()) as "clientAddress",
+ (select count(*)::int from organizations) as employers`)).rows[0];
 assert.equal(Math.floor(identity.version/10000),16);
-assert.ok((process.env.CI==='true'&&process.env.GITHUB_ACTIONS==='true'&&new URL(process.env.DATABASE_URL).port==='5432')||identity.directory.replaceAll('\\','/').endsWith('payrollph-first-payroll-complete-20261031/outputs/pg16'));
+if(localDirectory){
+ requirePhase15Database(identity,'local-disposable-pg16-only');
+ assert.equal(realpathSync(identity.directory),realpathSync(localDirectory),'task-owned local cluster required');
+}else{
+ assert.ok((process.env.CI==='true'&&process.env.GITHUB_ACTIONS==='true'&&new URL(process.env.DATABASE_URL).port==='5432')||identity.directory.replaceAll('\\','/').endsWith('payrollph-first-payroll-complete-20261031/outputs/pg16'));
+}
 const nonce=randomUUID().slice(0,8),errors=[],steps=[];
 mkdirSync('outputs',{recursive:true});
 let browser;
