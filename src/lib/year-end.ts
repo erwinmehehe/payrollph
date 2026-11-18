@@ -177,11 +177,23 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
 }
 
 type YearEndTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/**
+ * A worker year-end annualization could not settle safely and left for manual annualization. Never silently omitted:
+ * it is returned in the summary and recorded in the audit event.
+ */
+export type YearEndSkippedEmployee = {
+  employeeId: number;
+  employeeNo: string;
+  reason: "MWE_IMPORTED_HISTORY_NO_STATUTORY_WAGE_BREAKDOWN";
+  message: string;
+};
+
 type BoundYearEndSummary = {
   refunds: number;
   collections: number;
   totalRefund: number;
   totalCollect: number;
+  skippedEmployees: YearEndSkippedEmployee[];
 };
 
 /**
@@ -469,6 +481,7 @@ export async function runYearEndAnnualization(
     priorEvidence?: { id: number; revision: number; digest: string };
   }> = [];
 
+  const skipped: YearEndSkippedEmployee[] = [];
   for (const employee of staff) {
     const bucket = totals.get(employee.id);
     if (!bucket || bucket.periods === 0) continue;
@@ -482,9 +495,16 @@ export async function runYearEndAnnualization(
     const annualThirteenth = Math.max(thirteenthEntitlement, bucket.thirteenthPaid);
 
     if (employee.mwe && bucket.importedPeriods > 0) {
-      throw new Error(
-        `Imported payroll history for MWE employee ${employee.employeeNo} does not contain the statutory-wage versus taxable-supplementary breakdown required for safe annualization. Import the detailed breakdown or annualize this employee outside Linaw and record the verified adjustment.`,
-      );
+      // Imported totals carry no statutory-wage versus taxable-supplementary breakdown, so an MWE cannot be annualized
+      // safely. Skip ONLY this worker and report it: one such worker must not block every other worker's settlement,
+      // and no adjustment row (hence no refund or collection) is ever produced for the skipped worker.
+      skipped.push({
+        employeeId: employee.id,
+        employeeNo: employee.employeeNo,
+        reason: "MWE_IMPORTED_HISTORY_NO_STATUTORY_WAGE_BREAKDOWN",
+        message: `Imported payroll history for MWE employee ${employee.employeeNo} does not contain the statutory-wage versus taxable-supplementary breakdown required for safe annualization. Import the detailed breakdown or annualize this employee outside Linaw and record the verified adjustment.`,
+      });
+      continue;
     }
 
     const unpaidThirteenthAccrual = Math.max(0, annualThirteenth - bucket.thirteenthPaid);
@@ -609,6 +629,9 @@ export async function runYearEndAnnualization(
       importedHistoryRows: importedHistory.length,
       refunds: refunds.length,
       collections: collections.length,
+      skippedEmployees: skipped.length,
+      skippedEmployeeIds: skipped.map((item) => item.employeeId),
+      skippedReasons: [...new Set(skipped.map((item) => item.reason))],
       includedPayrollRunId: options.includePayrollRunId ?? null,
       boundPayrollRunId: options.bindToPayrollRunId ?? null,
     },
@@ -623,6 +646,13 @@ export async function runYearEndAnnualization(
     collections: collections.length,
     totalRefund: Number(refunds.reduce((sum, row) => sum + Math.abs(row.result.adjustment), 0).toFixed(2)),
     totalCollect: Number(collections.reduce((sum, row) => sum + row.result.adjustment, 0).toFixed(2)),
+    skippedEmployees: skipped,
+    // The year-end route spreads this summary into its response, so the warning reaches the caller without a route change.
+    ...(skipped.length > 0
+      ? {
+          warning: `${skipped.length} employee(s) were NOT annualized and have no year-end adjustment: ${skipped.map((item) => item.employeeNo).join(", ")}. Imported history for a minimum wage earner has no statutory-wage breakdown; annualize them outside Linaw and record the verified adjustment before treating the year end as complete.`,
+        }
+      : {}),
     ruleVersion: ANNUALIZATION_RULE_VERSION,
     includedPayrollRunId: options.includePayrollRunId ?? null,
     boundPayrollRunId: options.bindToPayrollRunId ?? null,

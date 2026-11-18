@@ -17,7 +17,7 @@ The company switched provider on 2026-07-01. January to June are six imported mo
 | De minimis above its monthly ceiling | rice subsidy 3,000 a month | 2,500 a month exempt (15,000), 500 a month (3,000) into the shared 90,000 pool: non-taxable 77,400, taxable 330,600, collect 1.20 |
 | Annual ceiling across months | uniform allowance 2,000 a month against the 8,000 yearly ceiling | 8,000 exempt, 4,000 into the pool however the months fall: non-taxable 71,400, taxable 330,600, collect 1.20 |
 | Rows outside the tax year | the same six months plus rows dated 2025-12-31 and 2027-01-01 | both ignored; identical to the first case |
-| Controls (separate employer) | a row without basic salary; a repeated source reference; imported monetized leave days; an unknown de minimis category; de minimis above the row's gross; a minimum wage earner with imported history; none | refused with the exact reasons, a refused settlement leaves no adjustment rows, and the clean settlement is the single-cutoff result (refund 503.70, 0 imported rows recorded) |
+| Controls (separate employer) | a row without basic salary; a repeated source reference; imported monetized leave days; an unknown de minimis category; de minimis above the row's gross; a minimum wage earner with imported history; none | refused with the exact reasons (the minimum wage earner is skipped and reported instead of refused), a refused or skipped settlement leaves no adjustment rows, and the clean settlement is the single-cutoff result (refund 503.70, 0 imported rows recorded) |
 
 Each worker's stored breakdown is also checked: imported rows 6, periods included 18, runs included 12, basic salary earned 360,000, 13th month entitlement 30,000, already paid, still due.
 
@@ -36,6 +36,6 @@ Imported de minimis shares its statutory ceiling with de minimis grants the engi
 ## Not covered
 
 - The importer's parsing, mapping and approval, and the HTTP, role and MFA gates of the migration routes.
-- Semi-monthly imported rows (they aggregate the same way but are not separately exercised); imported de minimis (see the finding); a minimum wage earner with imported history is refused (certified), not supported.
+- Semi-monthly imported rows (they aggregate the same way but are not separately exercised); imported de minimis (see the finding); a minimum wage earner with imported history is skipped and reported for manual annualization (certified), not supported.
 - The release approval workflow: runs are set to Released in the fixture.
 - **Practitioner review:** the expected values follow the cited BIR rules and the repository's year-end treatment. They have not been reviewed by a qualified Philippine tax practitioner and must be before anyone relies on them for filing.

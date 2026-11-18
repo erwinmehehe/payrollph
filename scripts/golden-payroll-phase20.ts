@@ -2,8 +2,8 @@
  * Golden payroll certification, Phase 20: a minimum wage earner (MWE) in a provider-switch year. For an MWE the basic is exempt, so an
  * ordinary calculated cutoff withholds nothing and only the overflow of the shared PHP 90,000 pool is taxable (the imported 13th month
  * still shrinks the room; an unreadable import assumes nothing; a legacy MWE flag without wage-order evidence holds the run). Year-end
- * annualization behaves differently: it REFUSES an MWE whose employer has imported history, and the refusal aborts the whole employer's
- * year end (no adjustment row is persisted for anyone), while an MWE hired after the switch annualizes normally. It runs the real engine
+ * annualization behaves differently: it cannot annualize an MWE whose employer has imported history, so it SKIPS and reports that worker
+ * (summary and audit, no adjustment row) while every other worker settles, and an MWE hired after the switch annualizes normally. It runs the real engine
  * for cutoffs 13-24 and the real runYearEndAnnualization(). Every expected value is an immutable hand-derived literal in
  * certification/golden-payroll-phase20.json and is never computed with PayrollPH functions.
  */
@@ -22,9 +22,9 @@ type Spec = {
   scenario: string; mwe: boolean; classification: "approved" | "legacy" | "none"; monthlySalary: number; startDate: string;
   imported: { thirteenthMonth: number; unreadableMonth: number | null } | null;
   description: string; supplementary: Array<{ cutoff: number; earningType: string; label: string; amount: number }>;
-  steadyCutoff: Slip; cutoffs: Record<string, Slip>; yearEnd?: Money;
+  steadyCutoff: Slip; cutoffs: Record<string, Slip>; yearEnd?: Money; skippedAtYearEnd?: boolean;
 };
-type Scenario = { description: string; yearEnd: "none" | "refused" | "annualize"; refusal?: string };
+type Scenario = { description: string; yearEnd: "none" | "skip" | "annualize"; skipped?: string[]; skipMessage?: string };
 type Catalog = { version: string; toleranceCentavos: number; scenarios: Record<string, Scenario>; employees: Record<string, Spec>; limitations: string[] };
 type CaseResult = { id: string; part: string; status: "passed" | "failed"; expected: unknown; actual?: unknown; failures: string[] };
 
@@ -235,21 +235,15 @@ async function runScenario(name: string, scenario: Scenario, specs: Array<[strin
     for (const [id, spec] of specs) for (const message of checkCutoffs(id, spec, observed.get(id)!)) fail(id, message);
 
     const actualYearEnd = new Map<string, unknown>();
-    if (scenario.yearEnd === "refused") {
-      let thrown: unknown = null;
-      try { await runYearEndAnnualization(org.id, TAX_YEAR, "golden-phase20"); } catch (error) { thrown = error; }
-      const message = thrown instanceof Error ? thrown.message : String(thrown ?? "");
-      const rows = await db.select().from(yearEndAdjustments).where(and(eq(yearEndAdjustments.organizationId, org.id), eq(yearEndAdjustments.taxYear, TAX_YEAR)));
-      const failures: string[] = [];
-      if (!thrown) failures.push(`${name}: year-end annualization did not refuse the MWE with imported history`);
-      else if (!message.includes(scenario.refusal!)) failures.push(`${name}: expected refusal containing "${scenario.refusal}", got "${message}"`);
-      if (rows.length !== 0) failures.push(`${name}: the refusal must persist no adjustment row for anyone, found ${rows.length}`);
-      results.push(outcome(`${name}:yearEndRefusal`, "engine", { refusal: scenario.refusal, adjustmentRows: 0 }, { refusal: message, adjustmentRows: rows.length }, failures));
-    } else if (scenario.yearEnd === "annualize") {
-      await runYearEndAnnualization(org.id, TAX_YEAR, "golden-phase20");
+    if (scenario.yearEnd === "skip" || scenario.yearEnd === "annualize") {
+      const summary = await runYearEndAnnualization(org.id, TAX_YEAR, "golden-phase20");
       const adjustments = await db.select().from(yearEndAdjustments).where(and(eq(yearEndAdjustments.organizationId, org.id), eq(yearEndAdjustments.taxYear, TAX_YEAR)));
       for (const [id, spec] of specs) {
         const row = adjustments.find((item) => item.employeeId === workers.get(id)!);
+        if (spec.skippedAtYearEnd) {
+          if (row) fail(id, "a skipped worker must have no year-end adjustment row (no refund, collection or payroll line)");
+          continue;
+        }
         if (!row) { fail(id, "no year-end adjustment row"); continue; }
         const actual = {
           grossCompensation: Number(row.grossCompensation), thirteenthMonth: Number(row.thirteenthMonth), nonTaxable: Number(row.nonTaxable),
@@ -258,6 +252,25 @@ async function runScenario(name: string, scenario: Scenario, specs: Array<[strin
         };
         actualYearEnd.set(id, actual);
         if (spec.yearEnd) for (const message of compare(`${id} year-end`, spec.yearEnd, actual)) fail(id, message);
+      }
+      // Skipped workers are reported (never silently dropped) and must not count as annualized employees.
+      const expectedSkipped = (scenario.yearEnd === "skip" ? scenario.skipped ?? [] : []).map((id) => workers.get(id)!).sort();
+      const reported = summary.skippedEmployees.map((item) => item.employeeId).sort();
+      const failures: string[] = [];
+      if (JSON.stringify(reported) !== JSON.stringify(expectedSkipped)) failures.push(`${name}: expected skipped workers ${JSON.stringify(expectedSkipped)}, summary reported ${JSON.stringify(reported)}`);
+      if (scenario.yearEnd === "skip" && !summary.skippedEmployees.every((item) => item.message.includes(scenario.skipMessage!))) failures.push(`${name}: skip reason must contain "${scenario.skipMessage}"`);
+      if (summary.employees !== adjustments.length) failures.push(`${name}: summary counted ${summary.employees} employees but ${adjustments.length} adjustment rows exist`);
+      if (scenario.yearEnd === "skip") {
+        const audit = await pool.query("SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = 'Year-end annualization computed' ORDER BY id DESC LIMIT 1", [org.id]);
+        const meta = audit.rows[0]?.metadata as { skippedEmployees?: number; skippedEmployeeIds?: number[] } | undefined;
+        if (meta?.skippedEmployees !== expectedSkipped.length || JSON.stringify([...(meta?.skippedEmployeeIds ?? [])].sort()) !== JSON.stringify(expectedSkipped)) {
+          failures.push(`${name}: the audit event must record the skipped workers, got ${JSON.stringify(meta)}`);
+        }
+      }
+      if (scenario.yearEnd === "skip") {
+        results.push(outcome(`${name}:yearEndSkipReported`, "engine", { skippedEmployeeIds: expectedSkipped, adjustmentRows: specs.length - expectedSkipped.length }, { skippedEmployeeIds: reported, adjustmentRows: adjustments.length }, failures));
+      } else if (failures.length) {
+        for (const message of failures) fail(specs[0][0], message);
       }
     }
     for (const [id, spec] of specs) {
