@@ -1,3 +1,4 @@
+import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 /**
  * Live tenant-isolation count invariants, shared by every proof-batch test.
  *
@@ -240,83 +241,6 @@ export function baseTenantManifest(env = process.env) {
   return null;
 }
 
-/**
- * The private-document GET source was strengthened to bind access to a worker's
- * legal employer, invalidating the old parent-tenant-only HTTP receipt.
- * Authorize ONLY the exact reviewed one-method zero-credit withdrawal.
- * This never grants a credit, proves the updated handler over HTTP, or waives
- * other changed route/receipt tests.
- */
-export function reviewedPrivateDocumentSourceHold(beforeManifest, afterManifest, read = readFileSync) {
-  const path = "src/app/api/documents/[id]/route.ts";
-  const priorSha = "0acb38b1396b1e35adf02efd6e033cdd0416e0d0";
-  const currentSha = "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6";
-  const prior = beforeManifest.allApiRouteFiles?.[path];
-  const current = afterManifest.allApiRouteFiles?.[path];
-  const before = prior?.methods?.find(m => m.name === "GET");
-  const now = current?.methods?.find(m => m.name === "GET");
-  const hold = now?.reviewedUncertified;
-  const none = new Set();
-  if (prior?.gitBlobSha !== priorSha || current?.gitBlobSha !== currentSha ||
-      prior.methods?.length !== 1 || current.methods?.length !== 1 ||
-      before?.status !== "COVERED" || now?.status !== "GAP" ||
-      now.testedBy !== null || before.testedBy?.file !== "scripts/qa/tenant-second-pass-http.mjs" ||
-      before.testedBy?.ownPositiveLine !== 840 ||
-      before.testedBy?.foreignDenialLine !== 950 ||
-      hold?.kind !== "document-download-multi-entity-legal-employer-source-change-zero-credit" ||
-      hold.previousRouteBlobSha !== priorSha || hold.routeBlobSha !== currentSha ||
-      JSON.stringify(hold.previousMethodProof) !== JSON.stringify(before.testedBy) ||
-      hold.sourceContractTest !== "tests/tenant-private-document-id-boundary.test.mjs" ||
-      hold.historicalTransferTests !== "scripts/qa/tenant-document-legal-employer-http.mjs" ||
-      hold.exactHeadPg16Http !== "PENDING" ||
-      hold.independentSecurityReview !== "PENDING" ||
-      hold.productionCertified !== false || hold.coverageCredits !== 0 ||
-      !now.reason.startsWith("REVIEW-ONLY SOURCE HOLD:") ||
-      current.sourceRevisionReview?.noNewMethodCredit !== true ||
-      current.sourceRevisionReview?.newRouteBlobSha !== currentSha ||
-      current.sourceRevisionReview?.historicalTransferSourceReview !==
-        "DENY-AMBIGUOUS-TRANSFER-RECORDS; issuance-time ownership still requires independent reconciliation" ||
-      current.sourceRevisionReview?.oldRouteBlobSha !== priorSha ||
-      JSON.stringify(current.sourceRevisionReview?.priorActiveMembershipRevision) !==
-        JSON.stringify(prior.sourceRevisionReview)) return none;
-  function gitBlob(bytes) {
-    const b = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-    return createHash("sha1").update("blob " + b.length + "\0").update(b).digest("hex");
-  }
-  let source;
-  try {
-    source = read(path).toString("utf8");
-    if (gitBlob(source) !== currentSha ||
-        gitBlob(read(hold.sourceContractTest)) !== "6404dfe9c6421a12e302015567f5448db048cef6")
-      return none;
-  } catch { return none; }
-  const chain = [
-    "legalEntityId: employees.legalEntityId",
-    'if (criticalReleaseFlagEnabled("multiEntity"))',
-    "const entityScope = await resolveMultiEntityContext({",
-    "assertEntityResource(entityScope.context, employee.legalEntityId)",
-    "const [appliedTransfer, otherAssignment] = await Promise.all([",
-    'eq(entityTransferRequests.status, "applied")',
-    "ne(employeeEntityAssignments.legalEntityId, employee.legalEntityId)",
-    "if (appliedTransfer.length > 0 || otherAssignment.length > 0)",
-    "assertScope(access, employee.orgUnitId)",
-    "signedDocumentObjectUrl(document.objectStorageKey",
-    'Buffer.from(document.content, "base64")',
-  ];
-  let last = -1;
-  for (const check of chain) {
-    const next = source.indexOf(check, last + 1);
-    if (next < 0 || next <= last) return none;
-    last = next;
-  }
-  const orphan = source.indexOf('} else if (criticalReleaseFlagEnabled("multiEntity")) {');
-  const unscoped = source.indexOf('} else if (!access.companyWide) {');
-  if (!(orphan > chain[0].length && unscoped > orphan && unscoped < source.indexOf("if (document.objectStorageKey)")) ||
-      !source.includes('if (!entityScope.ok || assertEntityResource(entityScope.context, employee.legalEntityId)) {\n          return Response.json({ error: "Document not found." }, { status: 404 });'))
-    return none;
-  return new Set(["GET " + path]);
-}
-
 export function assertLiveTenantCounts(assert, manifest, env = process.env, injectedBase = undefined) {
   const live = tallyTenantManifest(manifest);
   for (const key of ["routeFiles", "methods", "coveredAfter", "publicByDesign", "privilegedOperationsTokenOnly", "gap"]) {
@@ -353,7 +277,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...reviewedTransitiveWageWithdrawals(oldProofView, manifest),
     ...reviewedSealedWageWithdrawals(oldProofView, manifest),
     ...invalidatedRenewals,
-    ...reviewedPrivateDocumentSourceHold(base.manifest, manifest),
+    ...reviewedDocumentSourceWithdrawals(base.manifest, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {
@@ -372,4 +296,8 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
   assert.ok(live.gap - explicitlySuperseded.size <= before.gap,
     "GAP never rises except exact reviewed source supersessions (base " + base.ref + ")");
   return { live, base: before };
+}
+
+export function reviewedPrivateDocumentSourceHold(before, after, read = readFileSync) {
+  try { return reviewedDocumentSourceWithdrawals(before, after, read); } catch { return new Set(); }
 }

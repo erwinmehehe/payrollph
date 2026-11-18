@@ -37,7 +37,7 @@ test("forged source, receipt, approval and unrelated method downgrades cannot bo
     m => {m.allApiRouteFiles[path].methods[0].reviewedUncertified.independentSecurityReview = "APPROVED";},
     m => {m.allApiRouteFiles[path].methods[0].reviewedUncertified.previousMethodProof = {file:"fabricated.mjs"};},
     m => {m.allApiRouteFiles[path].sourceRevisionReview.noNewMethodCredit = false;},
-    m => {m.allApiRouteFiles[path].reviewedUncertified.historicalTransferTests = "fabricated.mjs";},
+    m => {m.allApiRouteFiles[path].methods[0].reviewedUncertified.historicalTransferTests = "fabricated.mjs";},
     m => {m.allApiRouteFiles[path].sourceRevisionReview.historicalTransferSourceReview = "unreviewed";},
   ]) {
     const altered = structuredClone(current);
@@ -57,14 +57,14 @@ test("forged source, receipt, approval and unrelated method downgrades cannot bo
     "This helper recognizes only document GET; ordinary global count guard must reject any second downgrade");
 });
 
-test("OIDC's historical-only verifier projects exactly one verified document GET, never live credit", async () => {
-  const {historicDocumentGetCountView} = await import("../scripts/qa/tenant-oidc-batch-credit-verify.mjs");
+test("Historical receipt view includes the verified download and metadata holds", async () => {
+  const {historicalDocumentHoldView} = await import("../scripts/qa/document-source-accounting.mjs");
   const currentSnapshot = structuredClone(current);
-  const projected = historicDocumentGetCountView(current);
+  const projected = historicalDocumentHoldView(current);
   assert.equal(current.allApiRouteFiles[path].methods[0].status, "GAP");
   assert.equal(projected.allApiRouteFiles[path].methods[0].status, "COVERED");
-  assert.equal(projected.metrics.gap, current.metrics.gap - 1);
-  assert.equal(projected.metrics.coveredAfter, current.metrics.coveredAfter + 1);
+  assert.equal(projected.metrics.gap, current.metrics.gap - 7);
+  assert.equal(projected.metrics.coveredAfter, current.metrics.coveredAfter + 7);
   assert.deepEqual(current, currentSnapshot, "Historical receipt must never change live inventory");
   for (const mutate of [
     x => { x.allApiRouteFiles[path].gitBlobSha = "0".repeat(40); },
@@ -74,13 +74,13 @@ test("OIDC's historical-only verifier projects exactly one verified document GET
   ]) {
     const forged = structuredClone(current);
     mutate(forged);
-    assert.throws(() => historicDocumentGetCountView(forged),
-      /Only the exact zero-credit legal-employer source hold/);
+    assert.throws(() => historicalDocumentHoldView(forged),
+      /Only exact archived zero-credit document holds/);
   }
   const additional = structuredClone(current);
   const unrelated = additional.allApiRouteFiles["src/app/api/hr-cases/route.ts"].methods[0];
   unrelated.status = "GAP";
-  const onlyDocument = historicDocumentGetCountView(additional);
+  const onlyDocument = historicalDocumentHoldView(additional);
   assert.equal(onlyDocument.allApiRouteFiles["src/app/api/hr-cases/route.ts"].methods[0].status, "GAP",
     "A separate method downgrade must remain visible and fail the normal historical method-count guard");
 });

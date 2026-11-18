@@ -1,4 +1,4 @@
-import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
+import {verifyHistoricalSecurityCredits,SECURITY_TARGETS,readHistoricalSecurityEvidence} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -90,7 +90,7 @@ test("runner has real two-tenant positives, own-victim SQL invariants and zero c
     'POST_method_status: "GAP"', "newCoverageCredits: 0",
   ]) assert.ok(runner.includes(phrase), "missing evidence: " + phrase);
   assert.ok(runner.includes('if(securityWriteRun())'),'Full webhook actions are reserved to strict egress-blocked fixture mode');
-  assert.equal(readSecurityEvidence().runs.developer.result.webhookTests,2);
+  assert.equal(readHistoricalSecurityEvidence().runs.developer.result.webhookTests,2);
 });
 
 test("GitHub workflow uses only fake PG16, full Next HTTP and disabled money/provider flags", () => {
@@ -111,7 +111,7 @@ test("coverage stays GAP and source/coverage ledger are untouched", () => {
   const entry = manifest.allApiRouteFiles["src/app/api/developer/route.ts"];
   assert.ok(entry, "source-pinned developer route required");
   const target = entry.methods.find(method => method.name === "POST");
-  assert.equal(target?.status,'COVERED');assert.equal(verifySecurityCredits(manifest),3);
+  assert.equal(target?.status,'GAP');assert.equal(verifyHistoricalSecurityCredits(manifest),3);
 });
 
 
@@ -132,7 +132,7 @@ test("actual developer authentication, employee consumer and key-audit source ha
     assert.equal(gitBlob(path), sha,
       path + ": changed source invalidates the saved tenant boundary proof, re-run final-head PG16 HTTP");
   }
-  assert.equal(gitBlob('scripts/qa/tenant-developer-key-http.mjs'),readSecurityEvidence().pins['scripts/qa/tenant-developer-key-http.mjs']);
+  assert.equal(gitBlob('scripts/qa/tenant-developer-key-http.mjs'),readHistoricalSecurityEvidence().pins['scripts/qa/tenant-developer-key-http.mjs']);
   const auth = readFileSync(new URL("../src/lib/api-auth.ts", import.meta.url), "utf8");
   const employees = readFileSync(new URL("../src/app/api/v1/employees/route.ts", import.meta.url), "utf8");
   assert.match(auth, /eq\(apiKeys\.keyHash, sha256\(token\)\)/);

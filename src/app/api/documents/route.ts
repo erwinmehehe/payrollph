@@ -21,6 +21,7 @@ import {
 } from "@/lib/document-schema-compat";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
     return Response.json({
       documents: rows,
       limits: { maxBytes: MAX_UPLOAD_BYTES, accepted: ["application/pdf", "image/png", "image/jpeg"] },
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
   const denied = await assertOrganizationRole(
@@ -73,6 +74,23 @@ export async function GET(request: Request) {
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
     return Response.json({ error: "Private HR documents are outside your role." }, { status: 403 });
+  }
+
+  // A company-wide parent membership cannot enumerate other legal employers'
+  // private document names or identifiers. Select an actual currently granted
+  // legal employer BEFORE loading staff names and returning document metadata.
+  let selectedLegalEntityId: number | null = null;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    const entityScope = await resolveMultiEntityContext({
+      userId: user.id, organizationId, request,
+    });
+    if (!entityScope.ok) return entityScope.response;
+    // No group-wide document listing without a separate HR privacy approval.
+    if (entityScope.context.group || entityScope.context.legalEntityId == null) {
+      return Response.json({ error: "Legal-employer document listing is not available." },
+        { status: 403, headers: { "Cache-Control": "private, no-store" } });
+    }
+    selectedLegalEntityId = entityScope.context.legalEntityId;
   }
 
   const rows = await db.select({
@@ -98,18 +116,21 @@ export async function GET(request: Request) {
     .orderBy(desc(documents.id));
 
   const staff = await db.select({ id: employees.id, first: employees.firstName, last: employees.lastName, orgUnitId: employees.orgUnitId })
-    .from(employees).where(eq(employees.organizationId, organizationId));
+    .from(employees).where(and(
+      eq(employees.organizationId, organizationId),
+      selectedLegalEntityId == null ? undefined : eq(employees.legalEntityId, selectedLegalEntityId),
+    ));
   const visibleStaff = access.companyWide ? staff : staff.filter((row) => row.orgUnitId === access.orgUnitId);
   const names = new Map(visibleStaff.map((row) => [row.id, `${row.first} ${row.last}`]));
   const visibleEmployeeIds = new Set(visibleStaff.map((row) => row.id));
-  const visibleDocuments = access.companyWide
+  const visibleDocuments = access.companyWide && selectedLegalEntityId == null
     ? rows
     : rows.filter((row) => row.employeeId != null && visibleEmployeeIds.has(row.employeeId));
 
   return Response.json({
     documents: visibleDocuments.map((row) => ({ ...row, employeeName: row.employeeId ? names.get(row.employeeId) ?? null : null })),
     limits: { maxBytes: MAX_UPLOAD_BYTES, accepted: ["application/pdf", "image/png", "image/jpeg"] },
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -118,6 +139,16 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  // The documents table cannot attribute legacy or new uploads to a legal
+  // employer at issuance. Until a reviewed immutable owner field exists,
+  // no staff or employee upload may create un-attributed multi-entity files.
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal-employer document uploads require source reconciliation.",
+      code: "DOCUMENT_UPLOAD_ENTITY_SCOPE_PENDING",
+    }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
 
   if (!documentUploadsEnabled()) {
     return Response.json(

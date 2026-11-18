@@ -66,6 +66,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import test from "node:test";
 import { assertLiveTenantCounts, reviewedPrivateDocumentSourceHold } from "./helpers/tenant-counts.mjs";
+import {protectedDocumentCreditKeys,historicalDocumentHoldView} from '../scripts/qa/document-source-accounting.mjs';
 import { verifyUnacceptedSelfSchedulePage } from "../scripts/qa/tenant-self-schedule-page-verify.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
 import { validateTenantPathBinding } from "../scripts/qa/tenant-table-path.mjs";
@@ -86,8 +87,9 @@ const manifest = wageRenewalHoldView(historicSixPageView(liveManifest));
 assertLiveTenantCounts(assert, liveManifest);
 // Verify the exact 23+47+5 immutable, zero-credit wage-source holds.
 const archivedWageManifest = historicWageRegistryProofView(manifest);
-verifyMergedProofCredits(liveManifest);
-verifyReconciledFamilyCredits(liveManifest);
+const documentedSourceHolds = protectedDocumentCreditKeys(manifest);
+verifyMergedProofCredits(manifest);
+verifyReconciledFamilyCredits(manifest);
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
 
 function normalize(value) { return value.split(sep).join("/"); }
@@ -314,6 +316,10 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if(method.status==='GAP'){
+    const at=key.lastIndexOf(' ');
+    if(documentedSourceHolds.has(key.slice(at+1)+' '+key.slice(0,at)))return true;
+  }
   if(method.status==="GAP" && method.reviewedUncertified?.kind===SEALED_WAGE_HOLD_KIND){
     const checked=verifyAllSealedWageHolds(manifest);
     const at=key.lastIndexOf(" "),path=key.slice(0,at),verb=key.slice(at+1);
@@ -4590,7 +4596,7 @@ test("DL-02 proofs distinguish cross-tenant denials from employee membership rev
   ]);
   let revokedCount = 0;
   let count = 0;
-  for (const [path, record] of Object.entries(archivedWageManifest.allApiRouteFiles)) {
+  for (const [path, record] of Object.entries(historicalDocumentHoldView(archivedWageManifest).allApiRouteFiles)) {
     for (const method of record.methods) {
       if (method.testedBy?.file !== file) continue;
       count += 1;
@@ -4755,7 +4761,7 @@ test("extended three-employer reads and asset writes have checkable method-speci
     ["documents", "GET", 200, "ownDocumentsResult"],
   ]) {
     const key = "src/app/api/" + route + "/route.ts";
-    const entry = archivedWageManifest.allApiRouteFiles[key].methods.find((item) => item.name === method);
+    const entry = historicalDocumentHoldView(archivedWageManifest).allApiRouteFiles[key].methods.find((item) => item.name === method);
     assert.equal(entry?.status, "COVERED", key + " " + method + ": historical own/victim evidence required");
     const proof = entry.testedBy;
     assert.equal(proof?.file, "scripts/qa/tenant-second-pass-http.mjs",

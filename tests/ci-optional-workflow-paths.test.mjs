@@ -196,6 +196,18 @@ test("Employee Vault synthetic browser includes the higher-ID victim employer re
     "The foreign employer and its worker must remain independently seeded higher-ID victims");
 });
 
+test("Employee Vault executes pinned Chromium on a supported runner without application dependency drift", () => {
+  const workflow=readWorkflow("employee-vault-profile-browser-acceptance.yml");
+  const required=["runs-on: ubuntu-24.04", "--package-lock=true playwright@1.55.0",
+    "git diff --exit-code -- package.json package-lock.json", "npx playwright install --only-shell chromium"];
+  for(const fragment of required) {
+    assert.ok(workflow.includes(fragment), "Missing real browser setup guard: "+fragment);
+    const changed=workflow.replace(fragment,"REMOVED");
+    assert.equal(required.every(part=>changed.includes(part)),false);
+  }
+  assert.ok(!workflow.includes("--package-lock=false"));
+});
+
 test("Core Modules browser authenticates each flag server independently before asserting role denial", () => {
   const browser = readFileSync(new URL("../scripts/core-modules-synthetic-browser.mjs", import.meta.url), "utf8");
   const source = readWorkflow("core-modules-browser-acceptance.yml");

@@ -1,7 +1,8 @@
+import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 import {wageHeldPriorProof} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {verifiedWageCreditHolds} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {historicWageRegistryProofView} from '../../scripts/qa/wage-registry-source-hold.mjs';
-import {baseTenantManifest,assertLiveTenantCounts,reviewedPrivateDocumentSourceHold} from './tenant-counts.mjs';
+import {baseTenantManifest,assertLiveTenantCounts} from './tenant-counts.mjs';
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {wageRenewalHoldView,verifyWageRenewalMethod,WAGE_RENEWAL_KIND} from '../../scripts/qa/wage-registry-renewal-verify.mjs';
@@ -27,11 +28,7 @@ export function assertWageLedgerDelta(assert,manifest){
   const holds=verifiedWageCreditHolds(manifest),base=baseTenantManifest();
   assert.ok(base,'The wage withdrawal requires an inspectable main manifest');
   const priorLive=base.manifest;
-  // The legal-employer document GET source independently invalidates exactly
-  // one old receipt. Its executable guard, source blob and zero-credit row must
-  // pass their own reviewer before the wage-only comparison may recognize it.
-  const documentSourceHold=reviewedPrivateDocumentSourceHold(priorLive,liveManifest);
-  assert.ok(documentSourceHold.size<=1,"Only one legal-employer document GET may be source-held");
+  const documentWithdrawals=reviewedDocumentSourceWithdrawals(priorLive,liveManifest);
   const revoked=reviewedWageRenewalEngineWithdrawal(priorLive,liveManifest);
   const prior=revoked.size?priorLive:wageRenewalHoldView(priorLive);
   const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>m.testedBy?.kind===WAGE_RENEWAL_KIND).length;
@@ -39,24 +36,14 @@ export function assertWageLedgerDelta(assert,manifest){
   let withdrawn=0;
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
     const previous=prior.allApiRouteFiles[path];
+    if(file.methods.length>0&&file.methods.every(row=>documentWithdrawals.has(row.name+" "+path)))continue;
     const currentRoute={...file},previousRoute={...previous};
     delete currentRoute.methods;delete previousRoute.methods;
-    if(documentSourceHold.has('GET '+path)){
-      assert.equal(path,'src/app/api/documents/[id]/route.ts',
-        'A document-only supersession cannot authorize another route');
-      assert.deepEqual(file.methods.map(row=>row.name),['GET']);
-      assert.deepEqual(previous.methods.map(row=>row.name),['GET']);
-      assert.equal(file.methods[0].status,'GAP');
-      assert.equal(file.methods[0].testedBy,null);
-      assert.equal(file.methods[0].reviewedUncertified.coverageCredits,0);
-      // Reviewed source proof verifies the complete changed route and former
-      // receipt. No other API route or method may borrow this exception.
-      continue;
-    }
     assert.deepEqual(currentRoute,previousRoute,'No route or source identity may change: '+path);
     assert.deepEqual(file.methods.map(x=>x.name),previous.methods.map(x=>x.name));
     for(const row of file.methods){
       const old=previous.methods.find(x=>x.name===row.name),key=row.name+' '+path;
+      if(documentWithdrawals.has(key))continue;
       if(holds.has(key)){
         if(old.status==='GAP')assert.deepEqual(row,old,'Inherited hold must stay exact: '+key);
         else if(revoked.has(key)) {
@@ -96,8 +83,8 @@ export function assertWageLedgerDelta(assert,manifest){
   }
   assert.deepEqual(manifest.scopedPages,prior.scopedPages,'Wage withdrawal cannot alter page credits');
   const {live}=assertLiveTenantCounts(assert,liveManifest);
-  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-documentSourceHold.size);
-  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+documentSourceHold.size);
+  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-documentWithdrawals.size);
+  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+documentWithdrawals.size);
   assert.equal(live.publicByDesign,prior.metrics.publicByDesign);
   assert.equal(live.privilegedOperationsTokenOnly,prior.metrics.privilegedOperationsTokenOnly);
   return true;

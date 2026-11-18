@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import test from "node:test";
 import {verifyMigrationPostCredit} from "../scripts/qa/tenant-migrations-post-credit.mjs";
-import {verifySecurityCredits} from "../scripts/qa/tenant-security-write-credit.mjs";
+import {verifyHistoricalSecurityCredits} from "./helpers/document-security-fixture.mjs";
 import {verifyAllTransitiveWageHolds,TRANSITIVE_HOLD_KIND} from "../scripts/qa/wage-registry-transitive-source-hold.mjs";
 
 const get=()=>readWageWithdrawalFixture();
@@ -53,7 +53,7 @@ test("changed wage-order source, watch or archived import proof fails closed",()
 
 test("migrations cannot borrow unrelated security-write or transfer method receipts",()=>{
  const m=get();
- assert.equal(verifySecurityCredits(m),3,"Unchanged developer/document security proofs retain distinct credit");
+ assert.equal(verifyHistoricalSecurityCredits(m),3,"Historical developer/document evidence stays distinct; no renewed current credit");
  const approvals=m.allApiRouteFiles["src/app/api/approvals/[id]/route.ts"].methods.find(x=>x.name==="PATCH");
  assert.equal(approvals.status,"GAP");
  assert.equal(approvals.testedBy,null);

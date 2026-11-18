@@ -7,6 +7,7 @@ import { verifyCredit as verifyClockCredit } from "../scripts/qa/tenant-clock-cr
 import test from "node:test";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import assert from "node:assert/strict";
+import {protectedDocumentCreditKeys} from '../scripts/qa/document-source-accounting.mjs';
 import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { readFileSync } from "node:fs";
@@ -412,5 +413,13 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
     assert.equal(manifest.allApiRouteFiles[path].methods.find(row=>row.name===verb).status,"GAP");
     outside.add(identity);
   }
-  assert.equal(total.GAP+outside.size, manifest.metrics.gap, "Every live GAP belongs to the frozen or exact supplemental renewal queue");
+  const documentOutside=[...protectedDocumentCreditKeys(manifest)].filter(key=>{
+    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
+    const identity=verb+' /api/'+manifest.allApiRouteFiles[path].route;
+    if(seen.has(identity)||outside.has(identity))return false;
+    assert.ok(doc.includes('`'+verb+' '+manifest.allApiRouteFiles[path].route+'`'),
+      'Document source withdrawal must be explicitly scheduled');
+    return true;
+  });
+  assert.equal(total.GAP+outside.size+documentOutside.length, manifest.metrics.gap, "Every live GAP belongs to the frozen or exact supplemental renewal queue");
 });
