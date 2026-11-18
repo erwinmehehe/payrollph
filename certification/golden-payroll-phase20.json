@@ -1,7 +1,7 @@
 {
   "version": "phase20-mwe-provider-switch-2026-11-18",
   "toleranceCentavos": 0,
-  "description": "Phases 15-19 certified a non-MWE worker in a provider-switch year. Phase 20 certifies a minimum wage earner (MWE) there. For an MWE the basic pay is exempt, so an ordinary calculated cutoff withholds nothing and only the overflow of the shared PHP 90,000 pool (13th month and other benefits) is taxable; the imported 13th month still shrinks the room. Year-end annualization is a different matter: it REFUSES an MWE whose employer has imported history (the import has no statutory-wage versus taxable-supplementary breakdown), and the refusal aborts the whole employer's year-end, not just that worker. A worker hired after the switch (no imported rows) annualizes normally.",
+  "description": "Phases 15-19 certified a non-MWE worker in a provider-switch year. Phase 20 certifies a minimum wage earner (MWE) there. For an MWE the basic pay is exempt, so an ordinary calculated cutoff withholds nothing and only the overflow of the shared PHP 90,000 pool (13th month and other benefits) is taxable; the imported 13th month still shrinks the room. Year-end annualization is a different matter: it cannot annualize an MWE whose employer has imported history (the import has no statutory-wage versus taxable-supplementary breakdown), so it SKIPS that worker, reports them in the summary and the audit event, and produces no adjustment row for them, while every other worker of the employer settles normally. A worker hired after the switch (no imported rows) annualizes normally.",
   "sources": {
     "bir": "BIR RR 11-2018 as amended by TRAIN: a minimum wage earner's statutory minimum wage and holiday, overtime, night-differential and hazard pay are exempt; taxable compensation is the taxable supplementary compensation (here only the 13th-month and benefit-pool excess over 90,000) less the employee's SSS, PhilHealth and Pag-IBIG contributions. Semi-monthly withholding table effective 2023 onward (to 10,417 exempt; over 10,417: 15% of the excess; over 16,667: 937.50 + 20% of the excess).",
     "thirteenthMonthAndBenefits": "NIRC Sec. 32(B)(7)(e): 13th-month pay and other benefits share one exemption of 90,000; the excess is taxable compensation.",
@@ -18,13 +18,14 @@
   ],
   "scenarios": {
     "mwePoolOverflow": {
-      "description": "Employer A. Five MWE workers with imported history; no year end is run because it would refuse them (see mweImportedYearEndRefusal).",
+      "description": "Employer A. Five MWE workers with imported history; no year end is run because it would refuse them (see mweImportedYearEndSkip).",
       "yearEnd": "none"
     },
-    "mweImportedYearEndRefusal": {
-      "description": "Employer B. An MWE with imported history and a non-MWE colleague. Year-end annualization must refuse for the whole employer: it throws the missing-breakdown error and persists no adjustment row for anyone.",
-      "yearEnd": "refused",
-      "refusal": "does not contain the statutory-wage versus taxable-supplementary breakdown"
+    "mweImportedYearEndSkip": {
+      "description": "Employer B. An MWE with imported history and a non-MWE colleague. Year-end annualization must skip and report only the MWE (summary and audit), persist no adjustment row for them, and still settle the colleague.",
+      "yearEnd": "skip",
+      "skipped": ["mweWithImportedHistory"],
+      "skipMessage": "does not contain the statutory-wage versus taxable-supplementary breakdown"
     },
     "mweHireAnnualizes": {
       "description": "Employer C. An MWE hired on 2026-07-01 (no imported rows) and a non-MWE colleague with imported history. Year-end annualization runs and settles both.",
@@ -91,22 +92,27 @@
       "cutoffs": {}
     },
     "mweWithImportedHistory": {
-      "scenario": "mweImportedYearEndRefusal",
+      "scenario": "mweImportedYearEndSkip",
       "mwe": true, "classification": "approved", "monthlySalary": 17000, "startDate": "2026-01-01",
       "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
-      "description": "An MWE with six imported rows and ordinary calculated cutoffs (gross 8,500, withholding 0, net 7,762.50, Ready). Year end: annualization refuses this employer.",
+      "description": "An MWE with six imported rows and ordinary calculated cutoffs (gross 8,500, withholding 0, net 7,762.50, Ready). Year end: this worker is skipped and reported, and has no adjustment row.",
       "supplementary": [],
       "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
-      "cutoffs": {}
+      "cutoffs": {},
+      "skippedAtYearEnd": true
     },
-    "colleagueBlockedByRefusal": {
-      "scenario": "mweImportedYearEndRefusal",
+    "colleagueSettlesBesideSkippedMwe": {
+      "scenario": "mweImportedYearEndSkip",
       "mwe": false, "classification": "none", "monthlySalary": 60000, "startDate": "2026-01-01",
       "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
-      "description": "A non-MWE colleague of the MWE above, ordinary in every cutoff (gross 30,000, withholding 3,259.10, net 25,015.90, Ready). Because the refusal aborts the employer's year end, no adjustment row exists for this worker either.",
+      "description": "A non-MWE colleague of the MWE above, ordinary in every cutoff (gross 30,000, withholding 3,259.10, net 25,015.90, Ready). The skipped MWE must not block them: year end settles this worker exactly as it would alone: entries 6 x 60,000 + 12 x 30,000 = 720,000; entitlement 60,000, nothing paid, so gross compensation 780,000; contributions 41,400; non-taxable 101,400; taxable 678,600; tax 22,500 + 0.20 x 278,600 = 78,220.00; withheld 39,109.20 + 12 x 3,259.10 = 78,218.40; collect 1.60.",
       "supplementary": [],
       "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 25015.9, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
-      "cutoffs": {}
+      "cutoffs": {},
+      "yearEnd": {
+        "grossCompensation": 780000, "thirteenthMonth": 60000, "nonTaxable": 101400, "statutoryContributions": 41400,
+        "taxableIncome": 678600, "taxDue": 78220, "taxWithheld": 78218.4, "adjustment": 1.6, "outcome": "collect"
+      }
     },
     "mweJulyHireAnnualizes": {
       "scenario": "mweHireAnnualizes",
@@ -137,7 +143,7 @@
   },
   "limitations": [
     "One MWE salary (17,000 a month, fixtures) and one region; because 17,000 a month sits inside the exempt first bracket, the MWE exemption of the basic is not discriminated by the ordinary cutoffs, only by the December pool-overflow cases; holiday, overtime, night-differential and hazard premiums (also exempt for an MWE) are not exercised, and no MWE with a taxable supplementary allowance other than the pool is covered.",
-    "The year-end behavior certified for an MWE with imported history is a REFUSAL of the whole employer, not an annualization. This phase certifies that the refusal happens and that nothing is persisted; it does not certify that refusing the whole employer is the right product behavior, and no annualization of such an MWE is certified.",
+    "The year-end behavior certified for an MWE with imported history is a SKIP-AND-REPORT of that worker, not an annualization: no adjustment row, so no refund, collection, 2316 draft or payroll line is produced for them, and they must be annualized outside Linaw. No annualization of such an MWE is certified.",
     "The MWE classification rows are fixtures inserted as approved; the approval workflow and the rule that an MWE's evidenced daily wage must equal the statutory minimum wage are not exercised here.",
     "The settlement's refund or collection is certified, not whether it is paid out."
   ]

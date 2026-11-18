@@ -1,10 +1,11 @@
 # Golden payroll Phase 20: a minimum wage earner in a provider-switch year
 
 Phases 15-19 certified a non-MWE worker. Phase 20 certifies a **minimum wage
-earner (MWE)** in a provider-switch year, and in doing so documents a behavior
-that matters for launch: year-end annualization **refuses** an MWE whose
-employer has imported history, and the refusal **aborts the whole employer's
-year end**, not just that worker.
+earner (MWE)** in a provider-switch year. It first documented a launch problem
+and now certifies its fix: year-end annualization could not annualize an MWE
+whose employer has imported history, and it used to **throw for the whole
+employer**, so one such worker blocked everyone's year end. It now **skips and
+reports only that worker** while every other worker settles.
 
 - Catalog: `certification/golden-payroll-phase20.json` (hand-derived literals,
   zero centavo tolerance, never computed with PayrollPH functions)
@@ -49,14 +50,23 @@ overflow of the shared PHP 90,000 pool) less contributions, floored at 0.
   flag has no approved wage-order classification, so the tax is the same but the
   run is held for governance.
 
-## Employer B: the refusal
+## Employer B: skip and report
 
 An MWE with imported history and a non-MWE colleague, both ordinary in every
-cutoff. Year-end annualization throws
-"...does not contain the statutory-wage versus taxable-supplementary breakdown
-required for safe annualization..." and **persists no adjustment row for
-anyone**: the colleague, who has nothing wrong with their records, gets no
-year-end settlement either.
+cutoff. Year-end annualization cannot annualize the MWE (the import has no
+statutory-wage versus taxable-supplementary breakdown), so it:
+
+- returns the worker in `summary.skippedEmployees` with the reason and the
+  "...does not contain the statutory-wage versus taxable-supplementary
+  breakdown..." message, and records the skipped ids in the
+  "Year-end annualization computed" audit event;
+- produces **no adjustment row** for them, so no refund, collection, 2316 draft
+  or payroll line, and does not count them in `summary.employees`;
+- **still settles the colleague**: collect 1.60 on taxable 678,600, exactly as
+  if the MWE were not there.
+
+The route warns in its response which workers were not annualized and that they
+must be annualized outside Linaw before the year end is treated as complete.
 
 ## Employer C: an MWE hired after the switch
 
@@ -77,17 +87,22 @@ All ten cases pass against the real engine. Mutation-checked by editing
 |---|---|
 | ignore the imported 13th month | case 1 |
 | count an unreadable worker as known | case 3 |
-| remove the MWE year-end refusal | the refusal case |
+| skip without leaving the loop (the MWE is annualized anyway) | the MWE has an adjustment row |
+| skip without reporting the worker | the skip-reported case |
+| omit the skipped ids from the audit event | the skip-reported case |
 | treat the MWE as an ordinary taxpayer in the engine | cases 1, 2 and 3 |
 | drop the legacy-classification hold | case 5 |
 | annualize the MWE as an ordinary taxpayer | the July-hire case |
 
 ## What this does not certify
 
-- **That refusing the whole employer is the right product behavior.** It is the
-  current behavior and this phase locks it in; an MWE with imported history has
-  no certified annualization at all. Whether one such worker should block the
-  employer's year end for everyone else is a product and compliance decision.
+- **Any annualization of an MWE with imported history.** None exists: the
+  worker is skipped and must be annualized outside Linaw. Nothing in the product
+  forces that to happen; the warning and the audit event are the only trail, so
+  an owner must not treat the year end as complete while a skipped worker is
+  reported.
+- Persisting the skipped worker (for example a "needs manual annualization" row)
+  would need a schema change and is not part of this fix.
 - One MWE salary (17,000 a month, fixtures) and one region. Holiday, overtime,
   night-differential and hazard premiums, which are also exempt for an MWE, are
   not exercised, and neither is a taxable supplementary allowance other than

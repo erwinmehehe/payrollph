@@ -195,10 +195,16 @@ async function runEngine(catalog: Catalog) {
     await refusedDeMinimis({ madeUpBenefit: 100 }, 30000, control.deMinimisUnknownCategoryRefusal, "an unknown imported de minimis category");
     await refusedDeMinimis({ riceSubsidy: 2500 }, 2000, control.deMinimisAboveGrossRefusal, "imported de minimis above the row's gross pay");
 
-    // A minimum wage earner cannot be annualized from imported totals (no statutory-wage versus taxable-supplementary breakdown).
+    // A minimum wage earner cannot be annualized from imported totals (no statutory-wage versus taxable-supplementary breakdown):
+    // the worker is SKIPPED and reported, never guessed, and no adjustment row is produced for them.
     await db.update(employees).set({ mwe: true }).where(eq(employees.id, worker.id));
-    check(await rejects(runYearEndAnnualization(controlOrg.id, TAX_YEAR, "golden-phase13"), control.mweRefusal), "minimum wage earner with imported history");
-    if (await settledRows() !== 0) controlFailures.push("a refused MWE settlement must leave no adjustment rows");
+    const mweSummary = await runYearEndAnnualization(controlOrg.id, TAX_YEAR, "golden-phase13");
+    if (mweSummary.skippedEmployees.length !== 1 || mweSummary.skippedEmployees[0].employeeId !== worker.id ||
+        !mweSummary.skippedEmployees[0].message.includes(control.mweRefusal)) {
+      controlFailures.push(`minimum wage earner with imported history: expected exactly this worker skipped with "${control.mweRefusal}", got ${JSON.stringify(mweSummary.skippedEmployees)}`);
+    }
+    if (mweSummary.employees !== 0) controlFailures.push("a skipped MWE must not count as an annualized employee");
+    if (await settledRows() !== 0) controlFailures.push("a skipped MWE must leave no adjustment rows");
     await db.update(employees).set({ mwe: false }).where(eq(employees.id, worker.id));
 
     // With no imported history the same worker settles on the one calculated cutoff.

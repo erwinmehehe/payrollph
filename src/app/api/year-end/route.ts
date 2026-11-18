@@ -474,6 +474,8 @@ export async function POST(request: Request) {
                 collections: boundSummary.collections,
                 totalRefund: boundSummary.totalRefund,
                 totalCollect: boundSummary.totalCollect,
+                skippedEmployees: boundSummary.skippedEmployees.length,
+                skippedEmployeeIds: boundSummary.skippedEmployees.map((item) => item.employeeId),
                 requiresRecalculation: true,
               },
             }, tx);
@@ -523,12 +525,16 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  const skippedWarning = summary.skippedEmployees.length > 0
+    ? `${summary.skippedEmployees.length} employee(s) were NOT annualized and have no year-end adjustment: ${summary.skippedEmployees.map((item) => item.employeeNo).join(", ")}. Imported history for a minimum wage earner has no statutory-wage breakdown; annualize them outside Linaw and record the verified adjustment before treating the year end as complete.`
+    : undefined;
+
   if (summary.employees === 0) {
     return Response.json({
       ...summary,
       generated2316Drafts: 0,
       available2316Drafts: 0,
-      warning: `No payroll runs eligible for ${taxYear} annualization were found.`,
+      warning: skippedWarning ?? `No payroll runs eligible for ${taxYear} annualization were found.`,
     });
   }
 
@@ -536,6 +542,7 @@ export async function POST(request: Request) {
     ...summary,
     generated2316Drafts: 0,
     available2316Drafts: summary.employees,
+    ...(skippedWarning ? { warning: skippedWarning } : {}),
     certificateStorage: "not-persisted",
     certificateAccess: "Generate each draft on demand with format=2316&employeeId=... after recent MFA.",
     payrollSettlement: targetRun
