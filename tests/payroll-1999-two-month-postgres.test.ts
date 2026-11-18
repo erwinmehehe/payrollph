@@ -1,21 +1,33 @@
-/** Actual engine/settlement/payslip/GL comparison; fictional isolated Actions PG only. */
+/** Actual engine/settlement/payslip/GL comparison on fictional disposable PostgreSQL. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {MONTHS,WORKERS,cents,pesos,extra,expectedCutoff} from './fixtures/payroll-1999-reference';
-const enabled=process.env.PAYROLL_1999_DISPOSABLE==='github-actions-only';
+import {requirePhase15Database,requirePhase15Environment} from '../scripts/qa/golden-phase15-safety';
+const mode=process.env.PAYROLL_1999_DISPOSABLE;
+const local=mode==='local-disposable-pg16-only';
+const enabled=local||mode==='github-actions-only';
 const OFF=['FINAL_PAY_SIGNED_REVIEW_ENABLED','EXACT_THIRTEENTH_CENTAVOS_ENABLED','PAYROLL_CALCULATION_HISTORY_ENABLED','NEXT_CSP_ENABLED','PAYMONGO_DISBURSEMENTS_ENABLED','XENDIT_PAYOUTS_ENABLED','XENDIT_PAYOUTS_LIVE_APPROVED','WORKER_ENABLED','CENTRAL_SCHEDULER_ENABLED'];
 function guard(){
- assert.equal(process.env.CI,'true');assert.equal(process.env.GITHUB_ACTIONS,'true');assert.equal(process.env.DEMO_MODE,'false');
+ if(local){
+  assert.equal(requirePhase15Environment(process.env),'local-disposable-pg16-only');
+ }else{
+  assert.equal(process.env.CI,'true');assert.equal(process.env.GITHUB_ACTIONS,'true');
+ }
+ assert.equal(process.env.DEMO_MODE,'false');
  assert.equal(process.env.DATABASE_URL,'postgresql://postgres:postgres@127.0.0.1:5432/app_db');
  for(const key of OFF)assert.equal(process.env[key],'false',key+' must remain OFF');
 }
 type Row={month:string;cutoff:number;worker:string;component:string;expectedCentavos:number;actualCentavos:number;deltaCentavos:number;status:string;source:string};
 test('1999: two completed months / four actual engine cutoffs / eight workers / released records and exports',{
- skip:enabled?false:'NOT RUN: requires dedicated fictional PG16/PG18 Actions job, never a development or production database',
+ skip:enabled?false:'NOT RUN: requires explicit disposable PostgreSQL mode',
 },async()=>{
  guard();
+ if(local){
+  const {activeMailProvider}=await import('../src/lib/mail-provider');
+  assert.equal(activeMailProvider(),'none');
+ }
  const {and,eq}=await import('drizzle-orm');
  const {db,pool}=await import('../src/db');
  const {organizations,legalEntities,employees,employeePayProfiles,payrollRuns,payrollEntries,payslips,supplementaryEarnings,timePunches}=await import('../src/db/schema');
@@ -33,9 +45,17 @@ test('1999: two completed months / four actual engine cutoffs / eight workers / 
    source:component.startsWith('ph')?'2020-0005 employed split + 2025 schedule; original 2026 advisory/odd-cent assignment NOT VERIFIED':source});
  };
  try{
-  const version=await db.execute(sql`select current_setting('server_version_num')::integer as version, current_database() as database`);
-  const major=Math.floor(Number(version.rows[0].version)/10000);assert.ok([16,18].includes(major));assert.equal(version.rows[0].database,'app_db');
-  assert.equal((await db.select().from(organizations)).length,0,'Fresh isolated employer database required');
+  const {rows:[identity]}=await db.execute<{version:number;database:string;serverAddress:string|null;clientAddress:string|null;employers:number}>(sql`
+   select current_setting('server_version_num')::integer as version,current_database() as database,
+    host(inet_server_addr()) as "serverAddress",host(inet_client_addr()) as "clientAddress",
+    (select count(*)::int from organizations) as employers`);
+  if(local){
+   requirePhase15Database(identity,'local-disposable-pg16-only');
+  }else{
+   assert.ok([16,18].includes(Math.floor(identity.version/10000)));
+   assert.equal(identity.database,'app_db');
+   assert.equal(identity.employers,0,'Fresh isolated employer database required');
+  }
   const [org]=await db.insert(organizations).values({name:'Fictional #1999 two-month employer',legalName:'Fictional Private Employer',plan:'Core',statutoryDeductionTiming:'split'}).returning();
   const [entity]=await db.insert(legalEntities).values({organizationId:org.id,code:'FICTIONAL1999',legalName:'Fictional single-site employer',displayName:'Fictional #1999',primaryEntity:true}).returning();
   const ids=new Map<string,number>();
