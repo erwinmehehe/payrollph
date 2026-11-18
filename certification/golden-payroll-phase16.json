@@ -1,0 +1,69 @@
+{
+  "version": "phase16-mid-cutoff-hire-2026-11-17",
+  "toleranceCentavos": 0,
+  "description": "Phase 9 certified a mid-year hire that starts exactly on a cutoff boundary (2026-07-01). Phase 16 certifies a hire that starts INSIDE a cutoff: the earned fraction of the semi-monthly salary, the provisional first-cutoff statutory deductions, the month-final true-up in the second cutoff of the month, the withholding on each payslip, and that the year-end settlement then refunds exactly what was over-withheld.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (taxable compensation to 10,417 exempt; to 16,667 at 15% over 10,417) and the annual table (to 250,000 exempt).",
+    "sss": "SSS 2025 schedule (RA 11199): employee share 5% of the monthly salary credit; for monthly compensation of 14,000 the credit is 14,000 (700); of 15,000 (750); of 22,000 (1,100); of 30,000 (1,500).",
+    "philHealth": "PhilHealth PA2025-0002: premium 5% of the monthly basic salary, shared equally; 30,000 gives 1,500, employee share 750. The premium is not prorated for a part-month.",
+    "pagIbig": "Pag-IBIG: employee share 2% of monthly compensation up to the 10,000 maximum fund salary, so at most 200 a month.",
+    "proration": "Engine contract (not a statutory formula): a fixed monthly salary earned in part of a cutoff is the semi-monthly salary times calendar days employed divided by calendar days in the cutoff."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' statutory timing, monthly salary 30,000 (15,000 a cutoff), no allowances, no imported history, no leave or attendance adjustments.",
+    "Employee H1 starts Thursday 2026-07-09. Cutoff 13 is 2026-07-01 to 2026-07-15 (15 days); H1 is employed on 7 of them (07-09 to 07-15): basic 15,000 x 7 / 15 = 7,000.00. The first-cutoff statutory deductions are provisional: SSS and Pag-IBIG on twice the cutoff pay (14,000: SSS credit 14,000, 700 a month, 350 in this cutoff; Pag-IBIG 2% = 280, capped at 200, 100 in this cutoff) and PhilHealth on the full monthly basic (750 a month, 375 a cutoff). Taxable compensation 7,000 - 350 - 375 - 100 = 6,175, below 10,417, so no withholding.",
+    "Cutoff 14 (2026-07-16 to 2026-07-31) is the month-final true-up: actual July compensation 7,000 + 15,000 = 22,000, SSS credit 22,000, 1,100 for the month, minus 350 already collected = 750. PhilHealth 750 - 375 = 375. Pag-IBIG 200 - 100 = 100. Contributions 1,225, taxable 15,000 - 1,225 = 13,775, tax 0.15 x (13,775 - 10,417) = 503.70.",
+    "Employee H2 starts Thursday 2026-07-16, so cutoff 14 is the only cutoff of its month and the whole actual month is settled in it: July compensation 15,000, SSS credit 15,000, 750; PhilHealth on the full monthly basic, 750; Pag-IBIG 2% of 15,000 capped at 10,000, 200. Contributions 1,700, taxable 15,000 - 1,700 = 13,300, tax 0.15 x (13,300 - 10,417) = 432.45. H2 has no payroll entry in cutoff 13.",
+    "From August (cutoffs 15-24) both workers are on a full month at 30,000: SSS 750, PhilHealth 375, Pag-IBIG 100 each cutoff, withholding 503.70, net 13,271.30 (Phase 9 steadyThirty).",
+    "Year end follows the Phase 9 convention: grossCompensation includes the accrued 13th month (basic earned / 12), which is fully exempt under the 90,000 ceiling; non-taxable = 13th month + statutory contributions. A refund is a negative adjustment."
+  ],
+  "employees": {
+    "hiredMidFirstCutoff": {
+      "description": "Starts 2026-07-09 (cutoff 13, 7 of 15 days). Basic earned for the year 7,000 + 15,000 x 11 = 172,000; 13th month 172,000 / 12 = 14,333.33; gross compensation 186,333.33. Contributions: July 825 + 1,225 = 2,050 plus 10 cutoffs x 1,225 = 12,250, total 14,300. Non-taxable 14,333.33 + 14,300 = 28,633.33; taxable 157,700.00, below 250,000, tax due 0. Withheld 0 + 11 x 503.70 = 5,540.70, all refunded.",
+      "startDate": "2026-07-09",
+      "firstCutoff": 13,
+      "cutoffs": {
+        "13": { "grossPay": 7000, "sss": 350, "philHealth": 375, "pagIbig": 100, "withholding": 0, "netPay": 6175, "status": "Ready" },
+        "14": { "grossPay": 15000, "sss": 750, "philHealth": 375, "pagIbig": 100, "withholding": 503.7, "netPay": 13271.3, "status": "Ready" }
+      },
+      "steadyFromCutoff": 15,
+      "yearEnd": {
+        "grossCompensation": 186333.33,
+        "thirteenthMonth": 14333.33,
+        "nonTaxable": 28633.33,
+        "statutoryContributions": 14300,
+        "taxableIncome": 157700,
+        "taxDue": 0,
+        "taxWithheld": 5540.7,
+        "adjustment": -5540.7,
+        "outcome": "refund"
+      }
+    },
+    "hiredOnSecondCutoffStart": {
+      "description": "Starts 2026-07-16 (first day of cutoff 14, a full cutoff of work). Basic earned 15,000 x 11 = 165,000; 13th month 13,750; gross compensation 178,750. Contributions: July 1,700 plus 10 cutoffs x 1,225 = 12,250, total 13,950. Non-taxable 13,750 + 13,950 = 27,700; taxable 151,050, tax due 0. Withheld 432.45 + 10 x 503.70 = 5,469.45, all refunded.",
+      "startDate": "2026-07-16",
+      "firstCutoff": 14,
+      "cutoffs": {
+        "14": { "grossPay": 15000, "sss": 750, "philHealth": 750, "pagIbig": 200, "withholding": 432.45, "netPay": 12867.55, "status": "Ready" }
+      },
+      "steadyFromCutoff": 15,
+      "yearEnd": {
+        "grossCompensation": 178750,
+        "thirteenthMonth": 13750,
+        "nonTaxable": 27700,
+        "statutoryContributions": 13950,
+        "taxableIncome": 151050,
+        "taxDue": 0,
+        "taxWithheld": 5469.45,
+        "adjustment": -5469.45,
+        "outcome": "refund"
+      }
+    }
+  },
+  "steadyCutoff": { "grossPay": 15000, "sss": 750, "philHealth": 375, "pagIbig": 100, "withholding": 503.7, "netPay": 13271.3, "status": "Ready" },
+  "limitations": [
+    "Calendar-day proration of a fixed monthly salary is the engine's contract, not a statutory rule; the case pins it so a change is deliberate.",
+    "Only fixed monthly pay is certified. Daily and hourly workers (Phase 8) and mid-cutoff separation are not covered here.",
+    "The provisional first-cutoff SSS estimate (twice the cutoff pay) is the engine's documented method; the month-final total, which is what SSS bills, is certified by the true-up in the second cutoff."
+  ]
+}
