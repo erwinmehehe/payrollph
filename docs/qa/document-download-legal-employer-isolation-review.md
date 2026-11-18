@@ -1,6 +1,6 @@
 # Document GET legal-employer isolation — source-review candidate
 
-**STATUS: DRAFT / ZERO NEW CREDIT / NOT SECURITY ACCEPTED.** No deployment, storage migration, production database, payroll or provider changes.
+**STATUS: DRAFT / ZERO NEW CREDIT / INDEPENDENT REVIEW PENDING.**
 
 ## Scope
 `GET /api/documents/[id]` is already restricted to an active parent-organization membership and People role, employee identity and org-unit scope. Those checks are not enough to distinguish two separate legal employers inside **one** parent organization while `multiEntity` is enabled.
@@ -14,7 +14,7 @@ The source change:
 - Does not grant `group_hr` access through legacy document endpoints.
 
 ## Evidence and honesty
-The source contract `tests/tenant-private-document-id-boundary.test.mjs` checks the new guard's order and opaque denial. **It is NOT execution proof.** This branch deliberately demotes `GET documents/[id]` from historical COVERED to a **zero-credit GAP**, recording the old receipt without carrying its proof into the changed source. After reconciling the latest `main`, the manifest records **385 COVERED / 25 PUBLIC / 12 TOKEN-ONLY / 76 GAP of 498**: 75 separately invalidated payroll-source proof credits from `main`, plus this one document method. None were restored or re-credited. Overall status remains NOT ACCEPTED.
+The source contract `tests/tenant-private-document-id-boundary.test.mjs` checks the guard order and opaque denial. The branch holds `GET documents/[id]` at **GAP / zero credit** and retains its original receipt as historical evidence. The combined inventory has **379 COVERED / 25 PUBLIC / 12 TOKEN-ONLY / 82 GAP of 498**. The GAP total includes 75 payroll-source holds, six document-related holds from #2017, and one download hold from this PR.
 
 Before promotion/merge, security must run a new exact-head real HTTP/disposable PostgreSQL 16 suite:
 1. Two separately authenticated members with A-only legal-employer grants and one real higher-ID B employee/document in the SAME parent organization. The own A clean document GET succeeds with nonempty verified legacy bytes, or a synthetic short-lived object URL; both actors' B document IDs and forged query/header legal-entity selectors are denied and indistinguishable from unknown IDs, with zero body/URL/PII exposure.
@@ -34,8 +34,10 @@ The source-current [disposable PG16 HTTP runner](../../scripts/qa/tenant-documen
 
 The dedicated disposable PG16 HTTP proof now also persists synthetic private-object document rows (no S3 upload or object server), configures an **HTTPS loopback-only, test-key signer**, and calls the real document GET handler. It requires a granted own-employer request to return a 302 signed URL bound to the exact document object key with a 60-second expiry, no inline content, no-store headers and a persisted access audit **before** the redirect. An actual same-parent other-employer private-object document, including a forged selector, must remain indistinguishable from an absent document and must not receive a signed URL or mutate protected SQL. Same-session revocation now uses a **separate worker without any historical transfer/assignment** so the denial cannot be falsely attributed to an already-active transfer-history hold; the private-object URL path is checked again after the revocation.
 
-This **does not** test remote S3 object retrieval/readback, production credentials, malware/object integrity end to end, the feature-OFF HTTP path, or immutable legal-employer-at-issuance attribution. It confers **zero new credits**. The document handler and its original source pins remain unchanged by the added tests; the reconciled manifest preserves every source-withdrawal GAP. No re-pin, review approval, merge into `main`, or production enablement is implied.
+The signed URL test stops at the synthetic redirect. Remote object retrieval, production storage configuration, full malware/object integrity behavior, and immutable legal-employer attribution at issuance remain outstanding. The proof adds zero credits.
 
-## Latest-main integration (zero-credit reconciliation)
+## Verification before the latest main sync
 
-Merged main through `6c349677c481d11aeba9f2ed4c50fa1376306713` into this draft branch at `bfd830bc0198f6d9adab8da7b3cb78b9794e3225` (GitHub PR now has no merge conflict). All 75 main payroll-source withdrawal records remain exact, separate from this document GET hold. The source-count regression guard recognizes only the explicitly pinned document downgrade on top of those 75 holds. The resulting 498-method live ledger has 76 GAPs and zero new proof credits. The historical fixed-gap verifier failures still need independently sealed current-source proof and are not solved by this reconciliation; this is **not** a passing security gate or permission to merge/release.
+On `ee81987d5`, the [flag-on disposable PG16 document job](https://github.com/erwinmehehe/payrollph/actions/runs/44215197683/job/134503174410) and the [default-off vault browser job](https://github.com/erwinmehehe/payrollph/actions/runs/44215197651/job/134503173753) passed. The browser job checks authenticated view and download bytes at desktop and mobile widths. The [metadata job](https://github.com/erwinmehehe/payrollph/actions/runs/44215197195/job/134503172594) also passed on that commit and exercises the separate metadata scope from merged #2017. Fresh CI after the sync is required for the combined branch.
+
+Independent privacy/security approval is still pending. A reviewer should decide whether to accept the conservative refusal for transferred or unattributed documents as part of this source fix and retain that limitation until an issuance-time attribution plan is implemented.
