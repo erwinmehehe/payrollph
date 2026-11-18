@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import yaml from "js-yaml";
 import { collectRenewalInputs } from "./payroll-run-renewal-inputs.mjs";
 import { methodKey, requiredWageFamilies } from "./wage-registry-renewal-methods.mjs";
 import { INVENTORY, readWageRenewalInventory } from "./wage-registry-renewal-plan.mjs";
 import { RECIPES, OUTPUT } from "./wage-registry-renewal-workflow.mjs";
 import { verifiedWageCreditHolds } from "./wage-registry-credit-holds.mjs";
+import { historicalReceiptInputs, literalJobInputs } from "./wage-method-job-inputs.mjs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const COMMON_ROOTS = [
@@ -53,6 +55,16 @@ export function buildWageMethodSourcePlan() {
     ...[...tracked].filter(inGlobalDirectory),
   ])].sort();
   const globalPins = collect(globalRoots);
+  const workflow = yaml.load(read(OUTPUT).toString("utf8"));
+  const { scripts } = JSON.parse(read("package.json"));
+  const jobInputsByFamily = new Map();
+  for (const family of Object.keys(RECIPES)) {
+    const jobs = Object.entries(workflow.jobs).filter(([id]) => id.startsWith(family + "__"));
+    assert.ok(jobs.length, "Missing jobs from the renewal workflow: " + family);
+    const commands = jobs.flatMap(([, job]) => (job.steps ?? [])
+      .flatMap((step) => [step.run, step.uses].filter((value) => typeof value === "string")));
+    jobInputsByFamily.set(family, literalJobInputs(commands, scripts, tracked));
+  }
   const methods = inventory.methods.map((entry) => {
     const key = methodKey(entry);
     const live = manifest.allApiRouteFiles[entry.path];
@@ -62,6 +74,11 @@ export function buildWageMethodSourcePlan() {
     assert.equal(row.reviewedUncertified.coverageCredits, 0);
     const proof = entry.held.reviewedUncertified.priorProof;
     const families = requiredWageFamilies(entry);
+    const jobInputs = [...new Set(families.flatMap((family) => {
+      assert.ok(jobInputsByFamily.has(family), "Missing job inputs for " + family);
+      return jobInputsByFamily.get(family);
+    }))].sort();
+    const historicalInputs = historicalReceiptInputs(proof.receiptFile, read, tracked);
     const workflows = families.map((family) => {
       assert.ok(RECIPES[family], "Missing reviewed workflow mapping for " + family);
       return ".github/workflows/" + RECIPES[family][0];
@@ -70,11 +87,14 @@ export function buildWageMethodSourcePlan() {
       entry.path,
       ...METHOD_PROOF_FILES.flatMap((field) => typeof proof[field] === "string" ? [proof[field]] : []),
       ...workflows,
+      ...jobInputs,
+      ...historicalInputs,
     ])].sort();
     const pins = collect(roots);
     assert.equal(pins[entry.path], live.gitBlobSha, "Route pin must match the live manifest: " + key);
     return {
       key, families, roots,
+      jobInputs, historicalInputs,
       historicalReceipt: proof.receiptFile ?? null,
       sourcePins: Object.fromEntries(Object.entries(pins).filter(([path]) => !(path in globalPins))),
       execution: "NOT_RUN",
@@ -82,13 +102,13 @@ export function buildWageMethodSourcePlan() {
     };
   });
   return {
-    schema: "payrollph-wage-method-source-plan-v1",
+    schema: "payrollph-wage-method-source-plan-v2",
     sourceHead, inventory: INVENTORY, globalRoots, globalPins, methods,
     coverageCredits: 0,
     status: "PLANNING_ONLY",
     unresolvedEvidence: [
-      "Review non-import inputs used by the actual jobs, including shell entrypoints, generated inputs, runtime file reads, and dynamic imports.",
-      "Resolve proof inputs referenced indirectly through historical receipts. Historical receipts do not establish current execution.",
+      "Review shell expansions, generated files, folder-based inputs, runtime file reads, and computed imports. Literal discovery is not a complete execution trace.",
+      "Historical receipts supply dependency candidates; they do not establish current execution.",
       "Bind complete reviewed source inputs and successful fresh execution before any receipt or credit is accepted.",
     ],
   };

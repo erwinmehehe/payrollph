@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { comparePlannedSources } from "../scripts/qa/wage-method-source-plan.mjs";
+import { historicalReceiptInputs, literalJobInputs } from "../scripts/qa/wage-method-job-inputs.mjs";
 
 const plan = {
   globalPins: { "src/proxy.ts": "common" },
@@ -26,4 +27,27 @@ test("shared inputs and newly added database files select every method", () => {
       affected: [{ key: "GET a", methodChanges: [] }, { key: "GET b", methodChanges: [] }],
     });
   }
+});
+
+test("workflow inputs include literal SQL and package script lifecycle hooks", () => {
+  const tracked = new Set(["scripts/pre.mjs", "scripts/setup.mjs", "scripts/post.mjs", "docs/sql/baseline.sql"]);
+  const scripts = {
+    precheck: "node ./scripts/pre.mjs",
+    check: "npm run setup",
+    setup: "node scripts/setup.mjs",
+    postcheck: "node scripts/post.mjs",
+  };
+  assert.deepEqual(literalJobInputs(["npm run check", "psql -f docs/sql/baseline.sql"], scripts, tracked),
+    [...tracked].sort());
+});
+
+test("nested receipts supply tracked paths without trusting old hashes or looping", () => {
+  const records = {
+    "receipts/a.json": { receiptFile: "receipts/b.json", sourcePins: { "src/a.ts": "old-sha" } },
+    "receipts/b.json": { receiptFile: "receipts/a.json", file: "fixtures/b.json" },
+  };
+  const tracked = new Set([...Object.keys(records), "src/a.ts", "fixtures/b.json"]);
+  const read = (file) => JSON.stringify(records[file]);
+  assert.deepEqual(historicalReceiptInputs("receipts/a.json", read, tracked), [...tracked].sort());
+  assert.throws(() => historicalReceiptInputs("receipts/missing.json", read, tracked), /Untracked historical receipt/);
 });
