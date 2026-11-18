@@ -856,6 +856,10 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 - `POST /api/webhooks/xendit-payout` — [source](../../src/app/api/webhooks/xendit-payout/route.ts#L16)
 - `POST /api/webhooks/xendit/subscriptions` — [source](../../src/app/api/webhooks/xendit/subscriptions/route.ts#L31)
 
+### Additional private document-download source hold — PR #2016 (zero credit)
+
+- HELD `GET /api/documents/[id]` — [source-bound historical proof withdrawal](../../tests/tenant-document-entity-source-hold.test.mjs). Legal-employer grant and transfer-history refusal occur before document bytes or signed URL. This remains DRAFT / NO-GO; employer-at-issuance ownership, exact-current PG16 HTTP/real private-object evidence and independent HR/security/privacy acceptance remain PENDING. No production merge or release.
+
 ### Supplemental wage-source method holds outside the frozen 406-method queue
 
 These 22 additional methods were previously source-credited but are now individually **GAP / HELD / zero credits** after the changed NWPC wage dependency. Their prior receipts remain historical, not current-source coverage. Fresh exact-source fictional PG16 own/foreign/unchanged-victim execution and independent security review are required before any credit is restored.

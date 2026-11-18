@@ -4,7 +4,7 @@ import {historicalSamlMetadataView} from '../scripts/qa/tenant-saml-metadata-pub
 import {historicalSsoResolveView} from '../scripts/qa/tenant-sso-resolve-public-policy.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
-import {readOidcBatchExecution,verifyOidcBatchMethod,verifyOidcBatchCredits,historicOidcBatchView,
+import {readOidcBatchExecution,verifyOidcBatchMethod,verifyOidcBatchCredits,historicDocumentGetCountView,historicOidcBatchView,
  OIDC_START,OIDC_BATCH_CALLBACK,OIDC_BATCH_RECEIPT} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersession.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
@@ -34,10 +34,10 @@ test('changing any executed input, receipt or baseline SQL inventory requires a 
  assert.throws(()=>readOidcBatchExecution(readFileSync,p=>[...readdirSync(p),'9999_unexecuted.sql']),/SQL inventory changed/);
 });
 test('historical page/payroll view restores only the two sealed GAP rows, never the committed ledger',()=>{
- const m=historicalWageCatalog(historicalSsoResolveView(historicalSamlMetadataView(manifest()))),before=structuredClone(m),old=historicOidcBatchView(m);
- assert.deepEqual(m,before);assert.equal(old.metrics.gap,m.metrics.gap+2);
- assert.equal(old.metrics.coveredAfter,m.metrics.coveredAfter-2);
+ const m=historicalWageCatalog(historicalSsoResolveView(historicalSamlMetadataView(manifest()))),before=structuredClone(m),old=historicOidcBatchView(m),historicDoc=historicDocumentGetCountView(m);
+ assert.deepEqual(m,before);assert.equal(historicDoc.metrics.gap,m.metrics.gap-1);assert.equal(old.metrics.gap,historicDoc.metrics.gap+2);
+ assert.equal(old.metrics.coveredAfter,historicDoc.metrics.coveredAfter-2);
  assert.equal(verifyOidcCallbackHold(old),0);
- for(const[path,entry]of Object.entries(m.allApiRouteFiles))if(![OIDC_START,OIDC_BATCH_CALLBACK].includes(path))assert.deepEqual(old.allApiRouteFiles[path],entry);
+ for(const[path,entry]of Object.entries(m.allApiRouteFiles))if(![OIDC_START,OIDC_BATCH_CALLBACK].includes(path))assert.deepEqual(old.allApiRouteFiles[path],historicDoc.allApiRouteFiles[path]);
  assert.deepEqual(old.scopedPages,m.scopedPages);
 });

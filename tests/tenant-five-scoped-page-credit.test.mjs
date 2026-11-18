@@ -4,7 +4,7 @@ import {historicWageRegistryProofView} from '../scripts/qa/wage-registry-source-
 import {historicalSsoResolveView} from '../scripts/qa/tenant-sso-resolve-public-policy.mjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { historicOidcBatchView, verifyOidcBatchCredits } from "../scripts/qa/tenant-oidc-batch-credit-verify.mjs";
+import { historicDocumentGetCountView, historicOidcBatchView, verifyOidcBatchCredits } from "../scripts/qa/tenant-oidc-batch-credit-verify.mjs";
 import {
   TARGETS, verifyFivePageProofInputs, verifyFivePageCredits,
   expectedFivePageCreditManifest, gitBlobSha,
@@ -37,7 +37,7 @@ test("five page-only credits preserve the API ledger; only separately proved MKT
   // #1989 withdrew 75 previously COVERED wage-dependent API methods. Both
   // sides of this historical OIDC comparison must use the same verified
   // pre-withdrawal wage ledger; this projection never changes the live manifest.
-  const priorWageAndSaml = historicWageRegistryProofView(historicalSsoResolveView(historicalSamlMetadataView(m)));
+  const priorWageAndSaml = historicDocumentGetCountView(historicWageRegistryProofView(historicalSsoResolveView(historicalSamlMetadataView(m))));
   assert.equal(historicOidcBatchView(m).metrics.gap, priorWageAndSaml.metrics.gap + 2,
     "Historical page accounting withdraws precisely the two OIDC method credits");
   // Live method classifications must be tallied rather than frozen to a
