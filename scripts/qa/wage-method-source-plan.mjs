@@ -1,21 +1,23 @@
 /** Read-only planning for a future per-method renewal receipt. */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import yaml from "js-yaml";
 import { collectRenewalInputs } from "./payroll-run-renewal-inputs.mjs";
 import { methodKey, requiredWageFamilies } from "./wage-registry-renewal-methods.mjs";
 import { INVENTORY, readWageRenewalInventory } from "./wage-registry-renewal-plan.mjs";
-import { RECIPES, OUTPUT } from "./wage-registry-renewal-workflow.mjs";
+import { generatedWorkflow, RECIPES, OUTPUT } from "./wage-registry-renewal-workflow.mjs";
 import { verifiedWageCreditHolds } from "./wage-registry-credit-holds.mjs";
-import { historicalReceiptInputs, literalJobInputs } from "./wage-method-job-inputs.mjs";
+import { historicalReceiptInputs, literalJobInputs, reviewedTableInputs } from "./wage-method-job-inputs.mjs";
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const COMMON_ROOTS = [
   ".gitattributes", OUTPUT, "src/proxy.ts", "src/instrumentation.ts",
   "package.json", "package-lock.json", "tsconfig.json", "next.config.ts", "drizzle.config.ts",
   "scripts/qa/apply-isolated-baseline.mjs", "docs/sql/source-baseline-supplement.sql",
+  "scripts/qa/apply-audit-0109-isolated.mjs", "scripts/qa/apply-source-baseline-supplement.mjs",
+  "scripts/qa/wage-registry-renewal-workflow.mjs",
 ];
 const METHOD_PROOF_FILES = ["file", "rowFile", "sourceRowFile", "rejectedFile", "testFile", "workflowFile"];
 const git = (args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
@@ -55,7 +57,9 @@ export function buildWageMethodSourcePlan() {
     ...[...tracked].filter(inGlobalDirectory),
   ])].sort();
   const globalPins = collect(globalRoots);
-  const workflow = yaml.load(read(OUTPUT).toString("utf8"));
+  const workflowText = read(OUTPUT).toString("utf8");
+  assert.equal(workflowText, generatedWorkflow(), "Generated workflow must match its checked-in recipes");
+  const workflow = yaml.load(workflowText);
   const { scripts } = JSON.parse(read("package.json"));
   const jobInputsByFamily = new Map();
   for (const family of Object.keys(RECIPES)) {
@@ -90,11 +94,13 @@ export function buildWageMethodSourcePlan() {
       ...jobInputs,
       ...historicalInputs,
     ])].sort();
-    const pins = collect(roots);
+    const staticPins = collect(roots);
+    const computedInputs = reviewedTableInputs(Object.keys(staticPins), tracked, readdirSync);
+    const pins = computedInputs.length ? collect([...roots, ...computedInputs]) : staticPins;
     assert.equal(pins[entry.path], live.gitBlobSha, "Route pin must match the live manifest: " + key);
     return {
       key, families, roots,
-      jobInputs, historicalInputs,
+      jobInputs, historicalInputs, computedInputs,
       historicalReceipt: proof.receiptFile ?? null,
       sourcePins: Object.fromEntries(Object.entries(pins).filter(([path]) => !(path in globalPins))),
       execution: "NOT_RUN",
@@ -106,6 +112,12 @@ export function buildWageMethodSourcePlan() {
     sourceHead, inventory: INVENTORY, globalRoots, globalPins, methods,
     coverageCredits: 0,
     status: "PLANNING_ONLY",
+    generatedInputs: {
+      workflow: { path: OUTPUT, status: "RECIPE_PARITY_VERIFIED" },
+      schema: { status: "PINNED_PRODUCERS_ONLY", outputs: "Disposable schema; execution proof must record its setup result." },
+      profiles: { status: "PINNED_PRODUCERS_ONLY", outputs: "Matrix-specific environment; fresh jobs must attest the applied profile." },
+      build: { status: "NOT_ATTESTED", outputs: "Next.js build output and runtime traces must come from the executed job." },
+    },
     unresolvedEvidence: [
       "Review shell expansions, generated files, folder-based inputs, runtime file reads, and computed imports. Literal discovery is not a complete execution trace.",
       "Historical receipts supply dependency candidates; they do not establish current execution.",

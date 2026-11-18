@@ -1,6 +1,30 @@
 /** Find literal repository inputs in workflow command text and historical receipts. */
 import assert from "node:assert/strict";
 
+const TABLE_ROWS = [
+  "scripts/qa/tenant-table-rows/read/",
+  "scripts/qa/tenant-table-rows/write/",
+];
+const TABLE_CONSUMERS = new Set([
+  "scripts/qa/tenant-table-catalog.mjs",
+  "scripts/qa/tenant-table-http.mjs",
+  "scripts/qa/tenant-write-table-http.mjs",
+]);
+
+/** Track directory membership as well as bytes for the reviewed table catalog. */
+export function reviewedTableInputs(inputs, tracked, listDirectory) {
+  if (![...inputs].some((file) => TABLE_CONSUMERS.has(file))) return [];
+  return TABLE_ROWS.flatMap((prefix) => {
+    const names = listDirectory(prefix).sort();
+    assert.ok(names.length && names.every((name) => /^[a-z][a-z0-9-]*\.mjs$/.test(name)),
+      "Unexpected tenant table directory entries: " + prefix);
+    const files = names.map((name) => prefix + name);
+    const expected = [...tracked].filter((file) => file.startsWith(prefix)).sort();
+    assert.deepEqual(files, expected, "Tenant table directory must match tracked inputs: " + prefix);
+    return files;
+  });
+}
+
 export function literalJobInputs(commands, packageScripts, tracked) {
   const files = new Set();
   const scripts = new Set();

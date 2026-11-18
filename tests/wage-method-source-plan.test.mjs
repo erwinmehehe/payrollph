@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { comparePlannedSources } from "../scripts/qa/wage-method-source-plan.mjs";
-import { historicalReceiptInputs, literalJobInputs } from "../scripts/qa/wage-method-job-inputs.mjs";
+import { historicalReceiptInputs, literalJobInputs, reviewedTableInputs } from "../scripts/qa/wage-method-job-inputs.mjs";
 
 const plan = {
   globalPins: { "src/proxy.ts": "common" },
@@ -50,4 +50,18 @@ test("nested receipts supply tracked paths without trusting old hashes or loopin
   const read = (file) => JSON.stringify(records[file]);
   assert.deepEqual(historicalReceiptInputs("receipts/a.json", read, tracked), [...tracked].sort());
   assert.throws(() => historicalReceiptInputs("receipts/missing.json", read, tracked), /Untracked historical receipt/);
+});
+
+test("computed catalog inputs match the full tracked directory membership", () => {
+  const tracked = new Set([
+    "scripts/qa/tenant-table-rows/read/example.mjs",
+    "scripts/qa/tenant-table-rows/write/example.mjs",
+  ]);
+  const consumers = ["scripts/qa/tenant-table-catalog.mjs"];
+  assert.deepEqual(reviewedTableInputs(consumers, tracked, () => ["example.mjs"]), [...tracked]);
+  assert.throws(() => reviewedTableInputs(consumers, tracked, () => ["example.mjs", "extra.mjs"]),
+    /must match tracked inputs/);
+  assert.deepEqual(reviewedTableInputs(["src/app/api/example/route.ts"], tracked, () => {
+    throw new Error("Unrelated methods should not read the catalog");
+  }), []);
 });
