@@ -1,0 +1,144 @@
+{
+  "version": "phase20-mwe-provider-switch-2026-11-18",
+  "toleranceCentavos": 0,
+  "description": "Phases 15-19 certified a non-MWE worker in a provider-switch year. Phase 20 certifies a minimum wage earner (MWE) there. For an MWE the basic pay is exempt, so an ordinary calculated cutoff withholds nothing and only the overflow of the shared PHP 90,000 pool (13th month and other benefits) is taxable; the imported 13th month still shrinks the room. Year-end annualization is a different matter: it REFUSES an MWE whose employer has imported history (the import has no statutory-wage versus taxable-supplementary breakdown), and the refusal aborts the whole employer's year-end, not just that worker. A worker hired after the switch (no imported rows) annualizes normally.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: a minimum wage earner's statutory minimum wage and holiday, overtime, night-differential and hazard pay are exempt; taxable compensation is the taxable supplementary compensation (here only the 13th-month and benefit-pool excess over 90,000) less the employee's SSS, PhilHealth and Pag-IBIG contributions. Semi-monthly withholding table effective 2023 onward (to 10,417 exempt; over 10,417: 15% of the excess; over 16,667: 937.50 + 20% of the excess).",
+    "thirteenthMonthAndBenefits": "NIRC Sec. 32(B)(7)(e): 13th-month pay and other benefits share one exemption of 90,000; the excess is taxable compensation.",
+    "contributions": "At a monthly basic of 17,000: SSS credit 17,000, employee 5% = 850 a month (425 a cutoff); PhilHealth 2.5% of 17,000 = 425 a month (212.50 a cutoff); Pag-IBIG 2% of the 10,000 fund-salary cap = 200 a month (100 a cutoff). 737.50 a cutoff, 1,475 a month. At 60,000 a month: 875 + 750 + 100 = 1,725 a cutoff."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing. Provider switch on 2026-07-01: January-June are six imported monthly rows per worker, July-December are cutoffs 13-24 calculated by the engine. Pool benefits are paid only in cutoff 23 (2026-12-01 to 2026-12-15).",
+    "The MWE's monthly basic is 17,000 (8,500 a cutoff), fixtures only. Its imported rows carry basic 17,000, SSS 850, PhilHealth 425, Pag-IBIG 200 and withholding 0. In June the previous provider also paid a 13th month of 17,000 where the case says so. Where a case says 'approved', the worker has an approved effective-dated MWE classification (fixture row); where it says 'legacy', only the legacy employee flag is set.",
+    "An ordinary MWE cutoff: gross 8,500; contributions 737.50; taxable compensation = taxable supplementary compensation (0) - contributions, floored at 0 = 0; withholding 0; net 8,500 - 737.50 = 7,762.50. Ready with no flags when the classification is approved.",
+    "The shared pool before a cutoff is the verified imported pool (de minimis excess + 13th month already paid); the exempt part of a cutoff's pool is the lesser of the pool and 90,000 minus that prior pool, the rest is taxable supplementary compensation. For an MWE the taxable compensation of the cutoff is that taxable excess less 737.50 of contributions, taxed with the semi-monthly table.",
+    "With imported history and a current pool above 0 the run is held: status Exception with the shared-pool flag. A worker whose imported history cannot be verified (a row without a readable breakdown) is treated as having an empty prior pool.",
+    "A non-MWE colleague (monthly 60,000, six imported rows of basic 60,000, SSS 1,750, PhilHealth 1,500, Pag-IBIG 200, withholding 6,518.20) has an ordinary cutoff of gross 30,000, contributions 1,725, taxable 28,275, withholding 3,259.10, net 25,015.90.",
+    "Year end follows the Phase 10-19 convention: entries gross plus the accrued unpaid 13th month (entitlement = basic earned / 12); thirteenthMonth is max(entitlement, paid); non-taxable = exempt pool (at most 90,000) + de minimis + statutory contributions; for an MWE the taxable income is only the taxable supplementary compensation plus the pool excess, less contributions, floored at 0."
+  ],
+  "scenarios": {
+    "mwePoolOverflow": {
+      "description": "Employer A. Five MWE workers with imported history; no year end is run because it would refuse them (see mweImportedYearEndRefusal).",
+      "yearEnd": "none"
+    },
+    "mweImportedYearEndRefusal": {
+      "description": "Employer B. An MWE with imported history and a non-MWE colleague. Year-end annualization must refuse for the whole employer: it throws the missing-breakdown error and persists no adjustment row for anyone.",
+      "yearEnd": "refused",
+      "refusal": "does not contain the statutory-wage versus taxable-supplementary breakdown"
+    },
+    "mweHireAnnualizes": {
+      "description": "Employer C. An MWE hired on 2026-07-01 (no imported rows) and a non-MWE colleague with imported history. Year-end annualization runs and settles both.",
+      "yearEnd": "annualize"
+    }
+  },
+  "employees": {
+    "mweImportedThirteenthShrinksRoom": {
+      "scenario": "mwePoolOverflow",
+      "mwe": true, "classification": "approved", "monthlySalary": 17000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 17000, "unreadableMonth": null },
+      "description": "The previous provider paid the full 17,000 13th month in June. In cutoff 23 the engine pays a 100,000 bonus: prior pool 17,000, room 73,000, exempt 73,000, taxable 27,000. Cutoff 23: gross 8,500 + 100,000 = 108,500; MWE taxable compensation 27,000 - 737.50 = 26,262.50; withholding 937.50 + 0.20 x (26,262.50 - 16,667) = 2,856.60; net 108,500 - 737.50 - 2,856.60 = 104,905.90. Status Exception with the shared-pool flag.",
+      "supplementary": [
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 100000 }
+      ],
+      "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {
+        "23": { "grossPay": 108500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 2856.6, "netPay": 104905.9, "status": "Exception", "poolFlag": true, "legacyMweFlag": false }
+      }
+    },
+    "mweNoImportedThirteenthControl": {
+      "scenario": "mwePoolOverflow",
+      "mwe": true, "classification": "approved", "monthlySalary": 17000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
+      "description": "Nothing imported but the basic. In cutoff 23 the engine pays the 17,000 13th month and a 100,000 bonus: prior pool 0, pool 117,000, room 90,000, exempt 90,000, taxable 27,000, the same overflow as the first case by a different route. Gross 8,500 + 117,000 = 125,500; taxable 26,262.50; withholding 2,856.60; net 125,500 - 737.50 - 2,856.60 = 121,905.90.",
+      "supplementary": [
+        { "cutoff": 23, "earningType": "13th_month", "label": "13th month", "amount": 17000 },
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 100000 }
+      ],
+      "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {
+        "23": { "grossPay": 125500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 2856.6, "netPay": 121905.9, "status": "Exception", "poolFlag": true, "legacyMweFlag": false }
+      }
+    },
+    "mweUnreadableHistoryAssumesNothing": {
+      "scenario": "mwePoolOverflow",
+      "mwe": true, "classification": "approved", "monthlySalary": 17000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 17000, "unreadableMonth": 4 },
+      "description": "Same payments as the first case, but the April imported row has no readable breakdown, so the worker's imported history cannot be verified and the engine counts a prior pool of 0: pool 100,000 against room 90,000, exempt 90,000, taxable 10,000. MWE taxable compensation 10,000 - 737.50 = 9,262.50, inside the exempt first bracket, so withholding 0. Gross 108,500; net 108,500 - 737.50 = 107,762.50. The run is held (Exception, shared-pool flag). The payslip under-withholds 2,856.60 against the first case, which is why the hold matters; nothing is assumed about what the previous provider paid.",
+      "supplementary": [
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 100000 }
+      ],
+      "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {
+        "23": { "grossPay": 108500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 107762.5, "status": "Exception", "poolFlag": true, "legacyMweFlag": false }
+      }
+    },
+    "mweOrdinaryCutoffsPayNoTax": {
+      "scenario": "mwePoolOverflow",
+      "mwe": true, "classification": "approved", "monthlySalary": 17000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
+      "description": "No pool benefit at all. Every cutoff 13-24 is an ordinary MWE cutoff: gross 8,500, contributions 737.50, taxable compensation 0, withholding 0, net 7,762.50, Ready with no flags. Honest limit: at this salary 8,500 - 737.50 = 7,762.50 is inside the exempt first bracket (to 10,417 a cutoff), so an ordinary taxpayer would also withhold 0 here; this case certifies the ordinary payslip and the Ready state, and the MWE status itself is discriminated by the December overflow cases.",
+      "supplementary": [],
+      "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {}
+    },
+    "mweLegacyFlagHeldForGovernance": {
+      "scenario": "mwePoolOverflow",
+      "mwe": true, "classification": "legacy", "monthlySalary": 17000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
+      "description": "The worker is an MWE only by the legacy employee flag, with no approved effective-dated classification. The tax is the same (taxable compensation 0, withholding 0, net 7,762.50) but every cutoff is held: status Exception with the legacy-classification flag, because the MWE status has no wage-order evidence.",
+      "supplementary": [],
+      "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Exception", "poolFlag": false, "legacyMweFlag": true },
+      "cutoffs": {}
+    },
+    "mweWithImportedHistory": {
+      "scenario": "mweImportedYearEndRefusal",
+      "mwe": true, "classification": "approved", "monthlySalary": 17000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
+      "description": "An MWE with six imported rows and ordinary calculated cutoffs (gross 8,500, withholding 0, net 7,762.50, Ready). Year end: annualization refuses this employer.",
+      "supplementary": [],
+      "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {}
+    },
+    "colleagueBlockedByRefusal": {
+      "scenario": "mweImportedYearEndRefusal",
+      "mwe": false, "classification": "none", "monthlySalary": 60000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
+      "description": "A non-MWE colleague of the MWE above, ordinary in every cutoff (gross 30,000, withholding 3,259.10, net 25,015.90, Ready). Because the refusal aborts the employer's year end, no adjustment row exists for this worker either.",
+      "supplementary": [],
+      "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 25015.9, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {}
+    },
+    "mweJulyHireAnnualizes": {
+      "scenario": "mweHireAnnualizes",
+      "mwe": true, "classification": "approved", "monthlySalary": 17000, "startDate": "2026-07-01",
+      "imported": null,
+      "description": "An MWE hired on 2026-07-01, so no imported rows. Ordinary cutoffs 13-24 (gross 8,500, withholding 0, net 7,762.50, Ready). Year end: entries 12 x 8,500 = 102,000; basic earned 102,000, entitlement 102,000 / 12 = 8,500, nothing paid, so 8,500 accrued and gross compensation is 110,500; the 8,500 13th month is exempt; contributions 12 x 737.50 = 8,850; non-taxable 8,500 + 8,850 = 17,350; an MWE's taxable income is only taxable supplementary compensation (0) less contributions, floored at 0, so taxable 0, tax due 0, nothing withheld, balanced.",
+      "supplementary": [],
+      "steadyCutoff": { "grossPay": 8500, "sss": 425, "philHealth": 212.5, "pagIbig": 100, "withholding": 0, "netPay": 7762.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {},
+      "yearEnd": {
+        "grossCompensation": 110500, "thirteenthMonth": 8500, "nonTaxable": 17350, "statutoryContributions": 8850,
+        "taxableIncome": 0, "taxDue": 0, "taxWithheld": 0, "adjustment": 0, "outcome": "balanced"
+      }
+    },
+    "colleagueAnnualizesBesideMwe": {
+      "scenario": "mweHireAnnualizes",
+      "mwe": false, "classification": "none", "monthlySalary": 60000, "startDate": "2026-01-01",
+      "imported": { "thirteenthMonth": 0, "unreadableMonth": null },
+      "description": "A non-MWE with imported history and ordinary cutoffs (withholding 3,259.10). Year end: entries 6 x 60,000 + 12 x 30,000 = 720,000; entitlement 60,000, nothing paid, so gross compensation 780,000 and the 13th month is exempt; contributions 6 x 3,450 + 12 x 1,725 = 41,400; non-taxable 101,400; taxable 678,600; tax 22,500 + 0.20 x 278,600 = 78,220.00; withheld 39,109.20 + 12 x 3,259.10 = 78,218.40; collect 1.60.",
+      "supplementary": [],
+      "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 25015.9, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {},
+      "yearEnd": {
+        "grossCompensation": 780000, "thirteenthMonth": 60000, "nonTaxable": 101400, "statutoryContributions": 41400,
+        "taxableIncome": 678600, "taxDue": 78220, "taxWithheld": 78218.4, "adjustment": 1.6, "outcome": "collect"
+      }
+    }
+  },
+  "limitations": [
+    "One MWE salary (17,000 a month, fixtures) and one region; because 17,000 a month sits inside the exempt first bracket, the MWE exemption of the basic is not discriminated by the ordinary cutoffs, only by the December pool-overflow cases; holiday, overtime, night-differential and hazard premiums (also exempt for an MWE) are not exercised, and no MWE with a taxable supplementary allowance other than the pool is covered.",
+    "The year-end behavior certified for an MWE with imported history is a REFUSAL of the whole employer, not an annualization. This phase certifies that the refusal happens and that nothing is persisted; it does not certify that refusing the whole employer is the right product behavior, and no annualization of such an MWE is certified.",
+    "The MWE classification rows are fixtures inserted as approved; the approval workflow and the rule that an MWE's evidenced daily wage must equal the statutory minimum wage are not exercised here.",
+    "The settlement's refund or collection is certified, not whether it is paid out."
+  ]
+}
