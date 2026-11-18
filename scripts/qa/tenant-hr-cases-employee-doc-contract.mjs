@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { requireDisposableHrPageEnv, verifyHrPageSourcePins } from "./tenant-hr-cases-page-contract.mjs";
+import { historicalDocumentHoldView } from "./document-source-accounting.mjs";
 
 export const ORIGIN = "http://127.0.0.1:3000";
 export const SOURCE_PINS = Object.freeze({
@@ -23,9 +24,25 @@ function gitBlob(value) {
 }
 export function verifyHrEmployeeDocPins(read = readFileSync) {
   verifyHrPageSourcePins();
-  for (const [path, expected] of Object.entries(SOURCE_PINS))
-    assert.equal(gitBlob(read(path)), expected,
+  for (const [path, expected] of Object.entries(SOURCE_PINS)) {
+    const actual = gitBlob(read(path));
+    // The newer private GET explicitly withdrew its old proof, and may run
+    // this HR fixture only after its exact-source zero-credit hold verifies.
+    // Do not repin a historical positive or give the method a new credit.
+    if (path === "src/app/api/documents/[id]/route.ts" &&
+        actual === "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6") {
+      const live = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json").toString("utf8"));
+      const restored = historicalDocumentHoldView(live, read);
+      assert.equal(live.allApiRouteFiles[path].gitBlobSha, actual);
+      assert.equal(live.allApiRouteFiles[path].methods[0].status, "GAP");
+      assert.equal(live.allApiRouteFiles[path].methods[0].testedBy, null);
+      assert.equal(live.allApiRouteFiles[path].methods[0].reviewedUncertified.coverageCredits, 0);
+      assert.equal(restored.allApiRouteFiles[path].methods[0].status, "COVERED");
+      continue;
+    }
+    assert.equal(actual, expected,
       "HR_CASE_EMPLOYEE_DOC_REFUSED: source drift " + path);
+  }
 }
 export function refuseUnsafeHrEmployeeDoc(env = process.env) {
   requireDisposableHrPageEnv(env);

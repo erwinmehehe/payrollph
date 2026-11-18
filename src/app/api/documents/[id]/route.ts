@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { documents, employees } from "@/db/schema";
+import { documents, employeeEntityAssignments, employees, entityTransferRequests } from "@/db/schema";
 import {
   assertMembership,
   assertOrganizationRole,
@@ -16,6 +16,7 @@ import { canStaffOpenEmployeeVault, documentObjectIdentityMatches, documentBytes
 import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
 import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
 import { documentVisibleToActiveMember } from "@/lib/private-document-tenant-lookup";
+import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { vaultRecordRemoved } from "@/lib/employee-vault-profile";
 
 export const dynamic = "force-dynamic";
@@ -68,13 +69,55 @@ export async function GET(
       const [employee] = await db.select({
         id: employees.id,
         orgUnitId: employees.orgUnitId,
+        legalEntityId: employees.legalEntityId,
       }).from(employees).where(and(
         eq(employees.id, document.employeeId),
         eq(employees.organizationId, document.organizationId),
       )).limit(1);
       if (!employee) return Response.json({ error: "Document not found." }, { status: 404 });
+      // Parent-organization People access does not authorize another legal
+      // employer's private document. Bind the resource worker to current
+      // entity grants BEFORE signing a URL or releasing document bytes.
+      // Unknown, foreign and revoked grants all return the same opaque 404.
+      if (criticalReleaseFlagEnabled("multiEntity")) {
+        const entityScope = await resolveMultiEntityContext({
+          userId: user.id, organizationId: document.organizationId, request,
+        });
+        if (!entityScope.ok || assertEntityResource(entityScope.context, employee.legalEntityId)) {
+          return Response.json({ error: "Document not found." }, { status: 404 });
+        }
+        // Legacy documents have no immutable legal-employer-at-issuance column.
+        // A worker's *current* employer must not grant HR access to attachments
+        // issued under an earlier legal employer. Hold documents for workers
+        // with a recorded applied transfer OR a different historical assignment
+        // until each document receives reviewed historical owner attribution.
+        const [appliedTransfer, otherAssignment] = await Promise.all([
+          db.select({ id: entityTransferRequests.id }).from(entityTransferRequests)
+            .where(and(
+              eq(entityTransferRequests.organizationId, document.organizationId),
+              eq(entityTransferRequests.employeeId, employee.id),
+              eq(entityTransferRequests.status, "applied"),
+            )).limit(1),
+          employee.legalEntityId == null
+            ? Promise.resolve([{ id: -1 }])
+            : db.select({ id: employeeEntityAssignments.id }).from(employeeEntityAssignments)
+              .where(and(
+                eq(employeeEntityAssignments.organizationId, document.organizationId),
+                eq(employeeEntityAssignments.employeeId, employee.id),
+                ne(employeeEntityAssignments.legalEntityId, employee.legalEntityId),
+              )).limit(1),
+        ]);
+        if (appliedTransfer.length > 0 || otherAssignment.length > 0) {
+          return Response.json({ error: "Document not found." }, { status: 404 });
+        }
+      }
       const scope = assertScope(access, employee.orgUnitId);
       if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+    } else if (criticalReleaseFlagEnabled("multiEntity")) {
+      // Unlinked legacy documents have no legal-employer attribution to check.
+      // Deny them until explicit ownership reconciliation; organization-wide
+      // membership by itself cannot grant all-employer private file access.
+      return Response.json({ error: "Document not found." }, { status: 404 });
     } else if (!access.companyWide) {
       return Response.json({ error: "Company-wide documents are outside your organization-unit scope." }, { status: 403 });
     }

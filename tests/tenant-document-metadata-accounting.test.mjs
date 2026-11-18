@@ -9,7 +9,7 @@ const load=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-man
 
 test('only the exact metadata methods and two dependent security writes may lose source-current credits',()=>{
  const m=load(),before=structuredClone(m);
- assert.equal(reviewedDocumentSourceHoldCount(m),paths.length*2+2);
+ assert.equal(reviewedDocumentSourceHoldCount(m),paths.length*2+2+1);
  const base=baseTenantManifest().manifest;
  const newlyWithdrawn=[...protectedDocumentCreditKeys(m)].filter(key=>{
    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
