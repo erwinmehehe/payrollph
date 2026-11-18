@@ -5,8 +5,6 @@
  */
 import assert from "node:assert/strict";
 import {reviewedDocumentSourceHoldCount,DOCUMENT_ACCOUNTING_ARCHIVE} from '../scripts/qa/document-source-accounting.mjs';
-import {reviewedPrivateDocumentGetSourceHold} from './helpers/tenant-counts.mjs';
-import {historicDocumentGetCountView} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyWageRenewalMethod} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -132,17 +130,15 @@ test("closure plan schedules every original GAP exactly once in priority order",
     ...verifyAllSealedWageHolds(manifest),
   ]);
   assert.equal(wageHolds.size, 75, "Complete 75-method source withdrawal required");
-  const documentGetHold=reviewedPrivateDocumentGetSourceHold(historicDocumentGetCountView(manifest),manifest);
-  assert.deepEqual([...documentGetHold],["GET src/app/api/documents/[id]/route.ts"]);
   const supplemental = new Set([...plan.matchAll(/^- (?:HELD|RENEWED) `(GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS) \/api\/([^`]+)` — /gm)]
     .map(match => match[1] + " " + match[2]));
   for (const key of supplemental) {
     const [verb, route] = key.split(" "), path = "src/app/api/" + route + "/route.ts";
-    assert.ok(oracleHolds.has(verb + " " + path) || wageHolds.has(verb + " " + path) || documentGetHold.has(verb + " " + path),
+    assert.ok(oracleHolds.has(verb + " " + path) || wageHolds.has(verb + " " + path),
       "supplemental queue must have exact source-verified zero-credit withdrawal: " + key);
     assert.ok(!scheduled.has(key), "a frozen method must not be counted twice");
   }
-  assert.equal(supplemental.size, 23, "22 historic supplemental methods and one source-verified private download GET remain scheduled at zero credit");
+  assert.equal(supplemental.size, 22, "All 22 distinct supplemental methods retain their history without duplicate credits");
   const documentHolds = new Set();
   if (reviewedDocumentSourceHoldCount(manifest)) {
     const archive=JSON.parse(readFileSync(DOCUMENT_ACCOUNTING_ARCHIVE));

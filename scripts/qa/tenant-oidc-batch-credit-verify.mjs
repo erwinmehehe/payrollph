@@ -5,7 +5,6 @@ import {createHash} from 'node:crypto';
 import {readFileSync,readdirSync} from 'node:fs';
 import {historicalSamlMetadataView,SAML_PUBLIC_PATH} from './tenant-saml-metadata-public-policy.mjs';
 import {historicWageRegistryProofView} from './wage-registry-source-hold.mjs';
-import {reviewedPrivateDocumentGetSourceHold} from '../../tests/helpers/tenant-counts.mjs';
 export const OIDC_START='src/app/api/auth/sso/start/route.ts';
 export const OIDC_BATCH_CALLBACK='src/app/api/auth/sso/callback/route.ts';
 export const OIDC_BATCH_RECEIPT='scripts/qa/tenant-oidc-batch-executed-receipt.json';
@@ -77,41 +76,6 @@ export function oidcStartCreditDelta(before,m,read=readFileSync){
  const current=m.allApiRouteFiles[OIDC_START].methods.find(x=>x.name==='GET');
  return prior.status==='GAP'&&current.status==='COVERED'?verifyOidcBatchMethod(m,OIDC_START,read):0;
 }
-/**
- * Exact source-reviewed document GET receipt projection for archived page
- * counts ONLY. The original second-pass HTTP receipt predates the same-parent
- * legal-employer guard. Keep the live GET permanently GAP / zero credit; only
- * reconstruct its former row in an ephemeral historic verifier comparison.
- * Source, contract blob, prior receipt, guard order and review-hold fields
- * must all pass the dedicated exact-one-method zero-credit validator.
- */
-export function historicDocumentGetCountView(m, read = readFileSync) {
- const path = "src/app/api/documents/[id]/route.ts";
- const current = m.allApiRouteFiles[path];
- const row = current?.methods?.find(x => x.name === "GET");
- const hold = row?.reviewedUncertified;
- if (hold?.kind !== "document-download-multi-entity-legal-employer-source-change-zero-credit")
-   return m;
- assert.equal(current.methods.length, 1, "Cannot project additional document methods");
- const before = structuredClone(m);
- const former = before.allApiRouteFiles[path];
- former.gitBlobSha = hold.previousRouteBlobSha;
- former.methods[0].status = "COVERED";
- former.methods[0].testedBy = structuredClone(hold.previousMethodProof);
- delete former.methods[0].reviewedUncertified;
- former.sourceRevisionReview = structuredClone(current.sourceRevisionReview?.priorActiveMembershipRevision);
- assert.deepEqual([...reviewedPrivateDocumentGetSourceHold(before, m, read)],
-   ["GET " + path], "Only the exact zero-credit legal-employer source hold may be compared historically");
- const historical = structuredClone(m);
- historical.allApiRouteFiles[path] = former;
- historical.metrics.coveredAfter++;
- historical.metrics.gap--;
- historical.acceptanceStatus = historical.acceptanceStatus.replace(
-   /^NOT ACCEPTED: \d+ API methods/,
-   "NOT ACCEPTED: " + historical.metrics.gap + " API methods");
- return historical;
-}
-
 /** Validation-only reconstruction for sealed page/payroll receipts. Never write this view. */
 export function historicOidcBatchView(m,read=readFileSync){
  const view=structuredClone(m);
@@ -131,5 +95,5 @@ export function historicOidcBatchView(m,read=readFileSync){
  if(historic.allApiRouteFiles[SSO_RESOLVE_PATH]?.methods[0]?.status==='PUBLIC-BY-DESIGN')historic=historicalSsoResolveView(historic,read);
   // Every affected wage-source claim stays held in the live ledger; this is
   // solely a source-verified in-memory projection of the older page receipt.
-  return historicWageRegistryProofView(historicDocumentGetCountView(historic,read),read);
+  return historicWageRegistryProofView(historic,read);
 }

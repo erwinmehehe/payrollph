@@ -1,6 +1,5 @@
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {reviewedDocumentSourceWithdrawals} from '../scripts/qa/document-source-accounting.mjs';
-import {reviewedPrivateDocumentGetSourceHold} from './helpers/tenant-counts.mjs';
 import {reviewedWageRenewalEngineWithdrawal,historicalWageHoldProjection} from '../scripts/qa/wage-registry-renewal-supersession.mjs';
 import { historicWorker360ProofView } from "../scripts/qa/tenant-five-scoped-page-credit.mjs";
 import { verifyAllWageRegistrySourceHolds } from "../scripts/qa/wage-registry-source-hold.mjs";
@@ -154,7 +153,7 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
       const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
       return wageHoldKeys.has(key)&&base.manifest.allApiRouteFiles[path]?.methods.find(row=>row.name===verb)?.status==='COVERED';
     }).length;
-    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+overlappingOracleWithdrawals+oracleRenewalDelta(base.manifest,m)+mkt01Delta-wageWithdrawalsFromBase-reviewedDocumentSourceWithdrawals(base.manifest,m).size-reviewedPrivateDocumentGetSourceHold(base.manifest,m).size;
+    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+overlappingOracleWithdrawals+oracleRenewalDelta(base.manifest,m)+mkt01Delta-wageWithdrawalsFromBase-reviewedDocumentSourceWithdrawals(base.manifest,m).size;
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
     assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');

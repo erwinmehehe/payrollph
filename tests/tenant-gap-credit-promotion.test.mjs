@@ -8,8 +8,6 @@ import test from "node:test";
 import { verifyCredit as verifyPerformanceCoreCredit } from "../scripts/qa/tenant-performance-core-credit.mjs";
 import assert from "node:assert/strict";
 import {protectedDocumentCreditKeys} from '../scripts/qa/document-source-accounting.mjs';
-import {reviewedPrivateDocumentGetSourceHold} from './helpers/tenant-counts.mjs';
-import {historicDocumentGetCountView} from '../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.mjs';
 import { readFileSync } from "node:fs";
@@ -407,9 +405,7 @@ test("closure plan reconciles all twelve frozen batches, without claiming accept
   assert.ok(subtotalLines[0].includes(`**${total.COVERED} COVERED + ${total["PUBLIC-BY-DESIGN"]} PUBLIC-BY-DESIGN + ${total["PRIVILEGED-OPERATIONS-TOKEN-ONLY"]} PRIVILEGED-OPERATIONS-TOKEN-ONLY + ${total.GAP} GAP = 406**`),
     "The frozen queue subtotal must reflect the actual source-linked statuses");
   const supplementary=doc.split("\n").filter(line=>line.startsWith("- HELD `"));
-  const documentGetHolds=reviewedPrivateDocumentGetSourceHold(historicDocumentGetCountView(manifest),manifest);
-  assert.deepEqual([...documentGetHolds],["GET src/app/api/documents/[id]/route.ts"]);
-  const sourceHolds=new Set([...verifyOracleSourceHolds(manifest),...verifiedWageCreditHolds(manifest),...documentGetHolds]),outside=new Set();
+  const sourceHolds=new Set([...verifyOracleSourceHolds(manifest),...verifiedWageCreditHolds(manifest)]),outside=new Set();
   for(const line of supplementary){
     const identity=line.split("`")[1],[verb,url]=identity.split(" "),path="src/app"+url+"/route.ts";
     assert.ok(!seen.has(identity)&&!outside.has(identity),"Supplemental renewal must not duplicate a frozen method");

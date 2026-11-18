@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import test from "node:test";
-import {reviewedPrivateDocumentGetSourceHold} from "./helpers/tenant-counts.mjs";
+import {reviewedPrivateDocumentSourceHold} from "./helpers/tenant-counts.mjs";
 
 const path = "src/app/api/documents/[id]/route.ts";
 const current = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
@@ -18,7 +18,7 @@ function former() {
 }
 
 test("only exact changed private document source may withdraw one stale GET credit", () => {
-  assert.deepEqual([...reviewedPrivateDocumentGetSourceHold(former(), current)],
+  assert.deepEqual([...reviewedPrivateDocumentSourceHold(former(), current)],
     ["GET " + path]);
   const row = current.allApiRouteFiles[path].methods[0];
   assert.equal(row.status, "GAP");
@@ -42,26 +42,25 @@ test("forged source, receipt, approval and unrelated method downgrades cannot bo
   ]) {
     const altered = structuredClone(current);
     changed(altered);
-    assert.equal(reviewedPrivateDocumentGetSourceHold(former(), altered).size, 0);
+    assert.equal(reviewedPrivateDocumentSourceHold(former(), altered).size, 0);
   }
   const forgedSource = (file) => file === path
     ? Buffer.from(readFileSync(path, "utf8").replace("assertEntityResource(", "skipEntityResource("))
     : readFileSync(file);
-  assert.equal(reviewedPrivateDocumentGetSourceHold(former(), current, forgedSource).size, 0,
+  assert.equal(reviewedPrivateDocumentSourceHold(former(), current, forgedSource).size, 0,
     "Any changed runtime guard needs new exact-source approval");
   const unrelated = structuredClone(current);
   const other = unrelated.allApiRouteFiles["src/app/api/hr-cases/route.ts"].methods[0];
   other.status = "GAP";
-  assert.deepEqual([...reviewedPrivateDocumentGetSourceHold(former(), unrelated)],
+  assert.deepEqual([...reviewedPrivateDocumentSourceHold(former(), unrelated)],
     ["GET " + path],
     "This helper recognizes only document GET; ordinary global count guard must reject any second downgrade");
 });
 
 test("Historical receipt view includes the verified download and metadata holds", async () => {
   const {historicalDocumentHoldView} = await import("../scripts/qa/document-source-accounting.mjs");
-  const {historicDocumentGetCountView} = await import("../scripts/qa/tenant-oidc-batch-credit-verify.mjs");
   const currentSnapshot = structuredClone(current);
-  const projected = historicDocumentGetCountView(historicalDocumentHoldView(current));
+  const projected = historicalDocumentHoldView(current);
   assert.equal(current.allApiRouteFiles[path].methods[0].status, "GAP");
   assert.equal(projected.allApiRouteFiles[path].methods[0].status, "COVERED");
   assert.equal(projected.metrics.gap, current.metrics.gap - 7);
@@ -75,13 +74,13 @@ test("Historical receipt view includes the verified download and metadata holds"
   ]) {
     const forged = structuredClone(current);
     mutate(forged);
-    assert.throws(() => historicDocumentGetCountView(historicalDocumentHoldView(forged)),
-      /Only the exact zero-credit legal-employer source hold/);
+    assert.throws(() => historicalDocumentHoldView(forged),
+      /Only exact archived zero-credit document holds/);
   }
   const additional = structuredClone(current);
   const unrelated = additional.allApiRouteFiles["src/app/api/hr-cases/route.ts"].methods[0];
   unrelated.status = "GAP";
-  const onlyDocument = historicDocumentGetCountView(historicalDocumentHoldView(additional));
+  const onlyDocument = historicalDocumentHoldView(additional);
   assert.equal(onlyDocument.allApiRouteFiles["src/app/api/hr-cases/route.ts"].methods[0].status, "GAP",
     "A separate method downgrade must remain visible and fail the normal historical method-count guard");
 });

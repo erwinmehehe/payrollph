@@ -2,7 +2,7 @@ import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-sourc
 import {wageHeldPriorProof} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {verifiedWageCreditHolds} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {historicWageRegistryProofView} from '../../scripts/qa/wage-registry-source-hold.mjs';
-import {baseTenantManifest,assertLiveTenantCounts,reviewedPrivateDocumentGetSourceHold} from './tenant-counts.mjs';
+import {baseTenantManifest,assertLiveTenantCounts} from './tenant-counts.mjs';
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {wageRenewalHoldView,verifyWageRenewalMethod,WAGE_RENEWAL_KIND} from '../../scripts/qa/wage-registry-renewal-verify.mjs';
@@ -29,8 +29,6 @@ export function assertWageLedgerDelta(assert,manifest){
   assert.ok(base,'The wage withdrawal requires an inspectable main manifest');
   const priorLive=base.manifest;
   const documentWithdrawals=reviewedDocumentSourceWithdrawals(priorLive,liveManifest);
-  const privateGetHold=reviewedPrivateDocumentGetSourceHold(priorLive,liveManifest);
-  assert.ok(privateGetHold.size<=1,'Only one source-exact private document GET may lose its historical proof');
   const revoked=reviewedWageRenewalEngineWithdrawal(priorLive,liveManifest);
   const prior=revoked.size?priorLive:wageRenewalHoldView(priorLive);
   const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>m.testedBy?.kind===WAGE_RENEWAL_KIND).length;
@@ -39,14 +37,6 @@ export function assertWageLedgerDelta(assert,manifest){
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
     const previous=prior.allApiRouteFiles[path];
     if(file.methods.length>0&&file.methods.every(row=>documentWithdrawals.has(row.name+" "+path)))continue;
-    if(privateGetHold.has('GET '+path)) {
-      assert.equal(path,'src/app/api/documents/[id]/route.ts');
-      assert.deepEqual(file.methods.map(row=>row.name),['GET']);
-      assert.equal(file.methods[0].status,'GAP');
-      assert.equal(file.methods[0].testedBy,null);
-      assert.equal(file.methods[0].reviewedUncertified.coverageCredits,0);
-      continue; // Reviewed GET guard and exact old/new blobs; zero credit only.
-    }
     const currentRoute={...file},previousRoute={...previous};
     delete currentRoute.methods;delete previousRoute.methods;
     assert.deepEqual(currentRoute,previousRoute,'No route or source identity may change: '+path);
@@ -93,8 +83,8 @@ export function assertWageLedgerDelta(assert,manifest){
   }
   assert.deepEqual(manifest.scopedPages,prior.scopedPages,'Wage withdrawal cannot alter page credits');
   const {live}=assertLiveTenantCounts(assert,liveManifest);
-  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-documentWithdrawals.size-privateGetHold.size);
-  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+documentWithdrawals.size+privateGetHold.size);
+  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-documentWithdrawals.size);
+  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+documentWithdrawals.size);
   assert.equal(live.publicByDesign,prior.metrics.publicByDesign);
   assert.equal(live.privilegedOperationsTokenOnly,prior.metrics.privilegedOperationsTokenOnly);
   return true;

@@ -856,10 +856,6 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 - `POST /api/webhooks/xendit-payout` — [source](../../src/app/api/webhooks/xendit-payout/route.ts#L16)
 - `POST /api/webhooks/xendit/subscriptions` — [source](../../src/app/api/webhooks/xendit/subscriptions/route.ts#L31)
 
-### Additional private document-download source hold — PR #2016 (zero credit)
-
-- HELD `GET /api/documents/[id]` — [source-bound historical proof withdrawal](../../tests/tenant-document-entity-source-hold.test.mjs). Legal-employer grant and transfer-history refusal occur before document bytes or signed URL. This remains DRAFT / NO-GO; employer-at-issuance ownership, exact-current PG16 HTTP/real private-object evidence and independent HR/security/privacy acceptance remain PENDING. No production merge or release.
-
 ### Supplemental wage-source method holds outside the frozen 406-method queue
 
 These 22 additional methods were previously source-credited but are now individually **GAP / HELD / zero credits** after the changed NWPC wage dependency. Their prior receipts remain historical, not current-source coverage. Fresh exact-source fictional PG16 own/foreign/unchanged-victim execution and independent security review are required before any credit is restored.
@@ -944,6 +940,7 @@ These seven methods were outside the immutable 406-method queue and are already 
 
 ### Additional source withdrawals: legal-employer document metadata
 
+- `GET documents/[id]` — GAP, zero credits; the former parent-organization private-download receipt is source-withdrawn after the legal-employer grant and transfer-history guard. The source-checked historical receipt is not a current download acceptance; independent HR/privacy/security review and exact-current signed-object PG16 proof remain PENDING.
 - `GET documents` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
 - `POST documents` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.
 - `GET hcm/documents` — GAP, zero credits; changed document source invalidates the previous method receipt. Fresh whole-method HTTP/PG16 proof and source review required.

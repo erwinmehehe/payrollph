@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { requireDisposableHrPageEnv, verifyHrPageSourcePins } from "./tenant-hr-cases-page-contract.mjs";
-import { historicDocumentGetCountView } from "./tenant-oidc-batch-credit-verify.mjs";
+import { historicalDocumentHoldView } from "./document-source-accounting.mjs";
 
 export const ORIGIN = "http://127.0.0.1:3000";
 export const SOURCE_PINS = Object.freeze({
@@ -32,7 +32,7 @@ export function verifyHrEmployeeDocPins(read = readFileSync) {
     if (path === "src/app/api/documents/[id]/route.ts" &&
         actual === "fd26ef35efebbb3e66a4bba37b2bbf9548da1ca6") {
       const live = JSON.parse(read("scripts/qa/tenant-isolation-coverage-manifest.json").toString("utf8"));
-      const restored = historicDocumentGetCountView(live, read);
+      const restored = historicalDocumentHoldView(live, read);
       assert.equal(live.allApiRouteFiles[path].gitBlobSha, actual);
       assert.equal(live.allApiRouteFiles[path].methods[0].status, "GAP");
       assert.equal(live.allApiRouteFiles[path].methods[0].testedBy, null);

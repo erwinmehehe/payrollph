@@ -65,7 +65,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import test from "node:test";
-import { assertLiveTenantCounts, reviewedPrivateDocumentGetSourceHold } from "./helpers/tenant-counts.mjs";
+import { assertLiveTenantCounts, reviewedPrivateDocumentSourceHold } from "./helpers/tenant-counts.mjs";
 import {protectedDocumentCreditKeys,historicalDocumentHoldView} from '../scripts/qa/document-source-accounting.mjs';
 import { verifyUnacceptedSelfSchedulePage } from "../scripts/qa/tenant-self-schedule-page-verify.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
@@ -4311,7 +4311,7 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
     oldRow.methods[0].testedBy = structuredClone(currentRow.methods[0].reviewedUncertified.previousMethodProof);
     delete oldRow.methods[0].reviewedUncertified;
     oldRow.sourceRevisionReview = structuredClone(currentRow.sourceRevisionReview.priorActiveMembershipRevision);
-    assert.equal(reviewedPrivateDocumentGetSourceHold(oldView, liveManifest).size, 1,
+    assert.equal(reviewedPrivateDocumentSourceHold(oldView, liveManifest).size, 1,
       "Only the exact one-document source change may withdraw its old GET receipt");
     return true;
   }
