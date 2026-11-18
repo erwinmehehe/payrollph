@@ -79,6 +79,7 @@ import {
   type DeMinimisType,
 } from "@/lib/ph-compliance";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { importedBenefitPrior as importedBenefitPriorFromRows } from "@/lib/imported-benefit-prior";
 import { formatPayrollPeriodLabel } from "@/lib/payroll-period-ui";
 import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
 import { resolveMweClassification, type MweClassificationRecord } from "@/lib/mwe-classification";
@@ -1177,19 +1178,31 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
     : [];
 
   const taxYearStart = `${String(run.payDate).slice(0, 4)}-01-01`;
-  const priorImportedPayrollEmployees = new Set<number>(
-    chunkIds.length
-      ? (await reader.select({ employeeId: historicalPayrollEntries.employeeId })
-          .from(historicalPayrollEntries)
-          .where(and(
-            eq(historicalPayrollEntries.organizationId, input.organizationId),
-            inArray(historicalPayrollEntries.employeeId, chunkIds),
-            gte(historicalPayrollEntries.payDate, taxYearStart),
-            lt(historicalPayrollEntries.payDate, run.payDate),
-          )))
-          .map((row) => row.employeeId)
-      : [],
+  const importedBenefitRows = chunkIds.length
+    ? await reader.select({
+        employeeId: historicalPayrollEntries.employeeId,
+        payDate: historicalPayrollEntries.payDate,
+        grossPay: historicalPayrollEntries.grossPay,
+        thirteenthMonth: historicalPayrollEntries.thirteenthMonth,
+        deMinimisBreakdown: historicalPayrollEntries.deMinimisBreakdown,
+      })
+        .from(historicalPayrollEntries)
+        .where(and(
+          eq(historicalPayrollEntries.organizationId, input.organizationId),
+          inArray(historicalPayrollEntries.employeeId, chunkIds),
+          gte(historicalPayrollEntries.payDate, taxYearStart),
+          lt(historicalPayrollEntries.payDate, run.payDate),
+        ))
+    : [];
+  // Imported category totals + reported 13th month supply a known floor for cutoff
+  // withholding; they do not prove other 90,000-pool benefits were absent.
+  // All imported workers must stay in the pool-evidence review gate until
+  // complete earlier other-benefit records have been independently reconciled.
+  const importedBenefitPrior = importedBenefitPriorFromRows(
+    importedBenefitRows.map((row) => ({ ...row, payDate: String(row.payDate) })),
+    String(run.payDate),
   );
+  const priorImportedPayrollEmployees = new Set(importedBenefitRows.map((row) => row.employeeId));
 
   const priorDeMinimisEntries = chunkIds.length
     ? await reader.select({
@@ -1276,6 +1289,20 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
           roundToCents((priorBenefitPool90kByEmployee.get(prior.employeeId) ?? 0) + amount),
         );
       }
+    }
+  }
+
+  for (const [employeeId, imported] of importedBenefitPrior.known) {
+    const bucket = priorDeMinimisByEmployee.get(employeeId) ?? {};
+    for (const [type, amount] of Object.entries(imported.deMinimisPaid) as Array<[DeMinimisType, number]>) {
+      bucket[type] = roundToCents(Number(bucket[type] ?? 0) + amount);
+    }
+    priorDeMinimisByEmployee.set(employeeId, bucket);
+    if (imported.benefitPool90k > 0) {
+      priorBenefitPool90kByEmployee.set(
+        employeeId,
+        roundToCents((priorBenefitPool90kByEmployee.get(employeeId) ?? 0) + imported.benefitPool90k),
+      );
     }
   }
 
@@ -1695,6 +1722,7 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
       priorDeMinimisPaid: priorDeMinimisByEmployee.get(employee.id) ?? {},
       priorBenefitPool90k: priorBenefitPool90kByEmployee.get(employee.id) ?? 0,
       importedPayrollHistoryBeforeCutoff: priorImportedPayrollEmployees.has(employee.id),
+      importedDeMinimisBreakdownUnverifiable: importedBenefitPrior.unverifiable.has(employee.id),
 
       loans: (loansByEmployee.get(employee.id) ?? [])
         .filter((l) =>
@@ -2106,6 +2134,8 @@ export function calculateEmployeePay(input: {
   priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
   priorBenefitPool90k?: number;
   importedPayrollHistoryBeforeCutoff?: boolean;
+  /** False only when every imported de minimis category and amount is validated; full 90k pool still needs review. */
+  importedDeMinimisBreakdownUnverifiable?: boolean;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
   approvedLeave?: ResolvedPayrollLeave[];
@@ -3380,7 +3410,9 @@ export function calculateEmployeePay(input: {
   // payroll history from older versions has no category-level de minimis
   // breakdown, so a current de minimis grant cannot be safely calculated
   // against that unknown prior-period consumption.
-  if (input.importedPayrollHistoryBeforeCutoff && (input.deMinimis?.length ?? 0) > 0) {
+  if (input.importedPayrollHistoryBeforeCutoff &&
+      (input.importedDeMinimisBreakdownUnverifiable ?? true) &&
+      (input.deMinimis?.length ?? 0) > 0) {
     flags.push(
       "Imported payroll history exists earlier in this tax year but has no de minimis category breakdown. De minimis tax treatment cannot be proven safely; import the category totals or resolve this employee outside Linaw before release.",
     );
@@ -3426,7 +3458,7 @@ export function calculateEmployeePay(input: {
 
   if (input.importedPayrollHistoryBeforeCutoff && currentBenefitPool90k > 0) {
     flags.push(
-      "Imported payroll history exists earlier in this tax year but does not identify the shared PHP 90,000 13th-month/other-benefits pool consumed before Linaw. Current benefit-pool withholding cannot be proven safely; import verified YTD benefit-pool totals or resolve this employee outside Linaw before release.",
+      "Imported payroll history does not identify the shared PHP 90,000 benefit pool in full. Reported de minimis excess and 13th-month amounts were included in this withholding estimate, but other prior-provider bonuses/benefits may be missing; reconcile the complete YTD pool before release.",
     );
   }
 

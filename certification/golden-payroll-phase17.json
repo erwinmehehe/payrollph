@@ -1,0 +1,90 @@
+{
+  "version": "phase17-imported-thirteenth-month-pool-2026-11-18",
+  "toleranceCentavos": 0,
+  "description": "Phase 15 certified the calculated-cutoff withholding of a provider-switch year where the previous provider's de minimis shrinks the shared PHP 90,000 pool, but every imported row carried thirteenthMonth 0. Phase 17 certifies the other half of the imported pool: a 13th month the previous provider already PAID. It counts toward the 90,000 exemption room the engine has left when it pays a bonus or the 13th-month balance in December, so the December payslip taxes the overflow instead of leaving it to the year-end settlement. It also certifies the safe fallback: when any imported row cannot be read, nothing is assumed.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (over 16,667: 937.50 + 20%; over 33,333: 4,270.70 + 25%; over 83,333: 16,770.70 + 30% of the excess) and the annual table (over 400,000: 22,500 + 20% of the excess over 400,000).",
+    "thirteenthMonthAndBenefits": "NIRC Sec. 32(B)(7)(e): 13th-month pay and other benefits share one exemption of 90,000; the excess is taxable compensation.",
+    "sssPhilHealthPagIbig": "At a 60,000 monthly salary every contribution is at its cap: SSS credit 35,000 (employee 1,750 a month, 875 a cutoff), PhilHealth 2.5% of 60,000 = 1,500 a month (750 a cutoff), Pag-IBIG 200 a month (100 a cutoff). A bonus or 13th month does not change them here because the credit and the Pag-IBIG fund salary are already capped."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), no de minimis grants. Provider switch on 2026-07-01: January-June are six imported monthly rows per worker (basic 60,000, SSS 1,750, PhilHealth 1,500, Pag-IBIG 200, withholding 6,518.20 = two ordinary semi-monthly amounts), July-December are cutoffs 13-24 calculated by the engine.",
+    "An ordinary cutoff: gross 30,000; contributions 875 + 750 + 100 = 1,725; taxable 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10; net 25,015.90.",
+    "The previous provider's June row, when it paid a 13th month, carries thirteenthMonth 30,000 in a gross of 90,000. That amount is exempt, so the row's contributions and withholding are the ordinary ones. Every row carries an empty de minimis breakdown ({}): a readable, known-zero breakdown, so the worker's imported history is verifiable.",
+    "Approved supplementary earnings of type 13th_month and bonus share the 90,000 pool. The engine's pool before a cutoff is the imported 13th month already paid (verified lower bound) plus any earlier engine pool; the exempt part of the cutoff's pool is the lesser of the pool and 90,000 minus that prior pool; the rest is taxable compensation in that cutoff.",
+    "The engine pays pool benefits only in cutoff 23 (2026-12-01 to 2026-12-15 is cutoff 23). In a cutoff with a current pool benefit and imported history the run is held for review (the engine states the 90,000 pool is not fully identified by the import): status Exception with the shared-pool flag. Every other cutoff is Ready with no flag.",
+    "Year end follows the Phase 10 and Phase 13 convention: entries gross includes every paid amount, the accrued unpaid 13th month (entitlement = basic earned / 12 = 60,000, minus what was paid) is added to gross compensation, thirteenthMonth is max(entitlement, paid), non-taxable = the exempt part of 13th month plus other benefits (at most 90,000) plus statutory contributions (6 x 3,450 imported + 12 x 1,725 engine = 41,400), and a refund is a negative adjustment."
+  ],
+  "employees": {
+    "importedThirteenthShrinksRoom": {
+      "description": "Previous provider paid 30,000 of 13th month in June. In cutoff 23 the engine pays the 30,000 balance plus a 90,000 bonus: pool 120,000 against prior 30,000, so the room is 60,000, 60,000 is exempt and 60,000 is taxable. Cutoff 23: gross 30,000 + 120,000 = 150,000; taxable 30,000 + 60,000 - 1,725 = 88,275; withholding 16,770.70 + 0.30 x (88,275 - 83,333) = 18,253.30; net 150,000 - 1,725 - 18,253.30 = 130,021.70. Year end: entries 5 x 60,000 + 90,000 + 12 x 30,000 + 120,000 = 870,000; 13th month paid 60,000 equals the entitlement, nothing accrued; pool 60,000 + 90,000 = 150,000, exempt 90,000; non-taxable 90,000 + 41,400 = 131,400; taxable 738,600; tax 22,500 + 0.20 x 338,600 = 90,220.00; withheld 39,109.20 + 11 x 3,259.10 + 18,253.30 = 93,212.60; refund 2,992.60.",
+      "importedThirteenthMonth": 30000,
+      "importedMissingBreakdownMonth": null,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "13th_month", "label": "13th month balance", "amount": 30000 },
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 90000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 150000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 18253.3, "netPay": 130021.7, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 870000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 738600, "taxDue": 90220, "taxWithheld": 93212.6, "adjustment": -2992.6, "outcome": "refund"
+      }
+    },
+    "importedThirteenthLeavesRoom": {
+      "description": "Previous provider paid 30,000 of 13th month in June. In cutoff 23 the engine pays only a 50,000 bonus: pool 50,000 against prior 30,000, room 60,000, so all 50,000 is exempt and the payslip carries the ordinary withholding. Cutoff 23: gross 30,000 + 50,000 = 80,000; taxable 30,000 - 1,725 = 28,275; withholding 3,259.10; net 80,000 - 1,725 - 3,259.10 = 75,015.90. Year end: entries 5 x 60,000 + 90,000 + 12 x 30,000 + 50,000 = 800,000; entitlement 60,000, paid 30,000, so 30,000 is accrued and gross is 830,000; pool 60,000 + 50,000 = 110,000, exempt 90,000 (the 20,000 above it was not knowable in the cutoff because the unpaid 13th month is only accrued at year end); non-taxable 131,400; taxable 698,600; tax 22,500 + 0.20 x 298,600 = 82,220.00; withheld 39,109.20 + 12 x 3,259.10 = 78,218.40; collect 4,001.60.",
+      "importedThirteenthMonth": 30000,
+      "importedMissingBreakdownMonth": null,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 50000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 80000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 75015.9, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 830000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 698600, "taxDue": 82220, "taxWithheld": 78218.4, "adjustment": 4001.6, "outcome": "collect"
+      }
+    },
+    "controlNoImportedThirteenth": {
+      "description": "Previous provider paid no 13th month. In cutoff 23 the engine pays the full 60,000 13th month and a 60,000 bonus: pool 120,000 against prior 0, room 90,000, 90,000 exempt and 30,000 taxable (the same figures as Phase 10 bonusThenThirteenthSharePool). Cutoff 23: gross 150,000; taxable 30,000 + 30,000 - 1,725 = 58,275; withholding 4,270.70 + 0.25 x (58,275 - 33,333) = 10,506.20; net 150,000 - 1,725 - 10,506.20 = 137,768.80. Year end: entries 6 x 60,000 + 12 x 30,000 + 120,000 = 840,000; paid 60,000 equals the entitlement; exempt 90,000; non-taxable 131,400; taxable 708,600; tax 22,500 + 0.20 x 308,600 = 84,220.00; withheld 39,109.20 + 11 x 3,259.10 + 10,506.20 = 85,465.50; refund 1,245.50.",
+      "importedThirteenthMonth": 0,
+      "importedMissingBreakdownMonth": null,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "13th_month", "label": "13th month", "amount": 60000 },
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 60000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 150000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 10506.2, "netPay": 137768.8, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 840000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 708600, "taxDue": 84220, "taxWithheld": 85465.5, "adjustment": -1245.5, "outcome": "refund"
+      }
+    },
+    "unreadableHistoryAssumesNothing": {
+      "description": "Same payments as the first case (previous provider 13th month 30,000 in June; engine pays the 30,000 balance and a 90,000 bonus), but the April imported row has no de minimis breakdown, so the worker's imported history cannot be verified. The engine must not count the imported 13th month it cannot prove: prior pool 0, room 90,000, so 90,000 is exempt and 30,000 taxable. Cutoff 23: gross 150,000; withholding 10,506.20 (taxable 58,275); net 137,768.80; status Exception with the shared-pool flag. There is no de minimis grant, so the separate no-breakdown flag does not apply. The December settlement still counts the imported 13th month from the imported rows, so it closes the year exactly: entries 870,000; paid 13th month 60,000; non-taxable 131,400; taxable 738,600; tax 90,220.00; withheld 39,109.20 + 11 x 3,259.10 + 10,506.20 = 85,465.50; collect 4,754.50.",
+      "importedThirteenthMonth": 30000,
+      "importedMissingBreakdownMonth": 4,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "13th_month", "label": "13th month balance", "amount": 30000 },
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 90000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 150000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 10506.2, "netPay": 137768.8, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 870000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 738600, "taxDue": 90220, "taxWithheld": 85465.5, "adjustment": 4754.5, "outcome": "collect"
+      }
+    }
+  },
+  "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 25015.9, "status": "Ready", "poolFlag": false },
+  "limitations": [
+    "Only the 13th month the previous provider reports in thirteenthMonth is counted. The import has no field for bonuses or other pool benefits, so the engine's prior pool is a verified lower bound and the run stays held for review whenever the engine pays a pool benefit after an import.",
+    "The accrued, still-unpaid 13th month is not part of a cutoff's pool; it enters only at the year-end settlement, which is why the second case collects at year end what its December payslip could not know.",
+    "A single salary level (60,000 a month, every contribution at its cap) and one tax year. Calculated-cutoff de minimis combined with an imported 13th month is not covered here (Phase 15 covers de minimis).",
+    "The settlement's refund or collection is certified, not whether it is paid out."
+  ]
+}

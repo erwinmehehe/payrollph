@@ -12,7 +12,10 @@ import {
 } from "./wage-registry-renewal-verify.mjs";
 
 export const PRIOR_ENGINE_BLOB = "dc5719a2c34094b5449bf4ecacb198ab0d74a313";
-export const CURRENT_ENGINE_BLOB = "63fa2075cfc68fc9de490b71a7169f25e0a1a552";
+// #2013 composes the reviewed provider-switch correction with #2003. This
+// extends only the zero-credit withdrawal, never the old executed receipt.
+export const CURRENT_ENGINE_BLOB = "a908372f6ea13cce6e8e700d0997d8b73b9ce736";
+export const IMPORTED_BENEFIT_PRIOR_BLOB = "11f6aedd490072a4e1858c95856b7e1c5b43baf7";
 const blob = raw => {
   const data = Buffer.from(raw);
   return createHash("sha1").update("blob " + data.length + "\0").update(data).digest("hex");
@@ -27,6 +30,8 @@ function originalProof(read = readFileSync) {
   assert.equal(receipt.sourcePins["src/lib/payroll-engine.ts"], PRIOR_ENGINE_BLOB);
   assert.equal(blob(read("src/lib/payroll-engine.ts")), CURRENT_ENGINE_BLOB,
     "Unknown payroll-engine source: regenerate review evidence before changing credits");
+  assert.equal(blob(read("src/lib/imported-benefit-prior.ts")), IMPORTED_BENEFIT_PRIOR_BLOB,
+    "Unknown imported-benefit prior source: review zero-credit withdrawal again");
   const inventory = readWageRenewalInventory(read);
   assert.equal(inventory.methods.length, 75);
   assert.equal(receipt.methods.length, 75);
