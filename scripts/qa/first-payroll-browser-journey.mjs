@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {mkdirSync,readFileSync,realpathSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
-import {realpathSync} from 'node:fs';
 import {requireFictionalJourney,reconcileFirstPayroll} from './first-payroll-full-contract.mjs';
 import {requirePhase15Database,requirePhase15Environment} from './golden-phase15-safety.ts';
 
 const {base}=requireFictionalJourney();
 const localDirectory=process.env.FIRST_PAYROLL_LOCAL_PG16_DIRECTORY;
+const localDevApp=process.env.FIRST_PAYROLL_LOCAL_DEV_APP==='true';
 if(localDirectory)assert.equal(requirePhase15Environment(process.env),'local-disposable-pg16-only');
+if(localDevApp)assert.ok(localDirectory,'development app requires guarded local database');
 const {db,pool}=await import('../../src/db/index.ts');
 const s=await import('../../src/db/schema.ts');
 const {eq}=await import('drizzle-orm');
@@ -52,7 +53,8 @@ try{
  await db.insert(s.bankTemplates).values({name:template,version:'fictional-v1',format:'CSV',mappings:{columns:['employee_no','account_number','amount'],includeHeader:true},adapterStage:'draft',specSource:'unknown'});
  browser=await chromium.launch({headless:true,...(process.env.QA_CHROMIUM_EXECUTABLE?{executablePath:process.env.QA_CHROMIUM_EXECUTABLE}:{})});
  async function pageFor(user){
-  const context=await browser.newContext({viewport:{width:1280,height:900},extraHTTPHeaders:{cookie:user.cookie}});
+  const cookie=localDevApp?user.cookie.replace(/^__Host-linaw_session=/,'linaw_session='):user.cookie;
+  const context=await browser.newContext({viewport:{width:1280,height:900},extraHTTPHeaders:{cookie}});
   await context.route('**/*',route=>new URL(route.request().url()).origin===base.origin?route.continue():route.abort());
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   return page;
