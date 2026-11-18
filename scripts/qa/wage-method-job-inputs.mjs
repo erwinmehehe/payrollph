@@ -29,7 +29,11 @@ export function literalJobInputs(commands, packageScripts, tracked) {
   const files = new Set();
   const scripts = new Set();
   function visit(command) {
-    for (const token of command.matchAll(/[\w.@/\[\]-]+\.[a-zA-Z0-9]+/g)) {
+    // Workflows use these checkout-root prefixes to construct absolute paths.
+    // Expand these literal prefixes only; never evaluate shell expressions.
+    const rooted = command.replaceAll("$(pwd)/", "./")
+      .replace(/\$\{GITHUB_WORKSPACE\}\/|\$GITHUB_WORKSPACE\//g, "./");
+    for (const token of rooted.matchAll(/[\w.@/\[\]-]+\.[a-zA-Z0-9]+/g)) {
       const path = token[0].replace(/^\.\//, "");
       if (tracked.has(path)) files.add(path);
     }

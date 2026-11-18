@@ -39,7 +39,7 @@ test("workflow inputs include literal SQL and package script lifecycle hooks", (
     setup: "node scripts/setup.mjs",
     postcheck: "node scripts/post.mjs",
   };
-  assert.deepEqual(literalJobInputs(["npm run check", "psql -f docs/sql/baseline.sql"], scripts, tracked),
+  assert.deepEqual(literalJobInputs(["npm run check", "psql -f $(pwd)/docs/sql/baseline.sql"], scripts, tracked),
     [...tracked].sort());
 });
 

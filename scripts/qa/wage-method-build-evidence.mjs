@@ -45,11 +45,19 @@ function buildEvidence(plan, flags) {
         const runtimeInputPins = {};
         const generatedPins = {};
         let packages = 0;
+        const packageAliases = {};
         const untracked = [];
         for (const dependency of new Set(data.files)) {
           const relative = tracedRepositoryPath(root, trace, dependency);
           if (relative.startsWith(".next/")) {
-            assert.equal(realpathSync(relative), path.resolve(relative), "Build artifact must resolve within the checkout");
+            const actual = tracedRepositoryPath(root, path.join(root, "trace"),
+              path.relative(root, realpathSync(relative)));
+            if (relative.startsWith(".next/node_modules/") && actual.startsWith("node_modules/")) {
+              packageAliases[relative] = actual;
+              packages++;
+              continue;
+            }
+            assert.equal(actual, relative, "Unexpected link in generated build artifacts");
             generatedPins[relative] = digest(relative);
             continue;
           }
@@ -64,7 +72,7 @@ function buildEvidence(plan, flags) {
           status: untracked.length ? "UNTRACKED_INPUTS" : "TRACE_CAPTURED",
           traceSha256: digest(trace),
           bundleSha256: digest(path.join(buildRoot, "server", route)),
-          runtimeInputPins, generatedPins, packages, untracked: untracked.sort(),
+          runtimeInputPins, generatedPins, packageAliases, packages, untracked: untracked.sort(),
         });
       }
     }
