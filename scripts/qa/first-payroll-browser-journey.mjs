@@ -72,7 +72,10 @@ try{
  steps.push('Payroll Officer created and calculated cutoff through browser');
  await maker.getByRole('button',{name:'Submit to checker',exact:true}).click();
  await maker.locator('article').filter({has:maker.getByRole('heading',{name:'Choose the checker for this payroll',exact:true})}).getByRole('combobox').selectOption(String(checker.id));
+ const submitted=maker.waitForResponse(response=>response.request().method()==='POST'&&
+  new URL(response.url()).pathname.endsWith('/submit-review'));
  await maker.getByRole('button',{name:'Submit for review',exact:true}).last().click();
+ assert.equal((await submitted).status(),201,'payroll review must persist before the checker opens Approvals');
  steps.push('Payroll Officer submitted to distinct Checker through browser');
  await maker.screenshot({path:'outputs/first-payroll-browser-maker.png',fullPage:true});
  const review=await pageFor(checker);
