@@ -11,6 +11,7 @@ import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-sourc
  * A batch now only adds proof entries; it never edits shared numbers.
  */
 import { execFileSync } from "node:child_process";
+import { reviewedTimesheetSourceHold } from "../../scripts/qa/timesheet-source-accounting.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { YEAR_END_HOLD_KIND, YEAR_END_HOLD_REASON, YEAR_END_PROOF, YEAR_END_SOURCE_PINS, yearEndHoldRecord } from "../../scripts/qa/tenant-year-end-credit.mjs";
@@ -40,6 +41,7 @@ export function oracleWithdrawalDelta(before, current) {
 
 const MANIFEST = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const RANK = { GAP: 0, "PUBLIC-BY-DESIGN": 1, "PRIVILEGED-OPERATIONS-TOKEN-ONLY": 1, COVERED: 1 };
+
 
 export function tallyTenantManifest(manifest) {
   const methods = Object.entries(manifest.allApiRouteFiles).flatMap(([path, file]) =>
@@ -278,6 +280,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...reviewedSealedWageWithdrawals(oldProofView, manifest),
     ...invalidatedRenewals,
     ...reviewedDocumentSourceWithdrawals(base.manifest, manifest),
+    ...reviewedTimesheetSourceHold(base.manifest, manifest),
   ]);
   const regressions = [];
   for (const [key, old] of before.byKey) {

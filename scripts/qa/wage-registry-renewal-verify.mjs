@@ -23,7 +23,13 @@ export function isExactHistoricalLoaderChange(file,sha,raw){
    .replace('import assert from "node:assert/strict";','import assert from "node:assert/strict";\nimport {reviewedDocumentSourceHoldCount} from "./document-source-accounting.mjs";')
    .replace('const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;','const expectedApiGaps = (marketing?.status === "COVERED" ? 4 : 5) + reviewedDocumentSourceHoldCount(m, read);')
    .replace('if (expectedApiGaps === 4) assert.equal(assertMkt01Receipt(m), 1,','if (marketing?.status === "COVERED") assert.equal(assertMkt01Receipt(m), 1,');
-  return Buffer.from(raw).toString('utf8').replaceAll('\r\n','\n')===expected;
+  const withTimesheetHold=expected
+   .replace('import {reviewedDocumentSourceHoldCount} from "./document-source-accounting.mjs";',
+    'import {reviewedDocumentSourceHoldCount} from "./document-source-accounting.mjs";\nimport { verifiedTimesheetHoldKeys } from "./timesheet-source-accounting.mjs";')
+   .replace('+ reviewedDocumentSourceHoldCount(m, read);',
+    '+\n    reviewedDocumentSourceHoldCount(m, read) + verifiedTimesheetHoldKeys(m, read).size;');
+  const actual=Buffer.from(raw).toString('utf8').replaceAll('\r\n','\n');
+  return actual===expected || actual===withTimesheetHold;
  }
  if(file==='scripts/qa/tenant-four-scoped-page-credit.mjs'){
   const archive=readFileSync('scripts/qa/wage-registry-renewal-sso-source.json');

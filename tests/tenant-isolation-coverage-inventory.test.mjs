@@ -66,6 +66,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import test from "node:test";
 import { assertLiveTenantCounts, reviewedPrivateDocumentSourceHold } from "./helpers/tenant-counts.mjs";
+import { verifiedTimesheetHoldKeys, TIMESHEET_HOLD_KIND } from "../scripts/qa/timesheet-source-accounting.mjs";
 import {protectedDocumentCreditKeys,historicalDocumentHoldView} from '../scripts/qa/document-source-accounting.mjs';
 import { verifyUnacceptedSelfSchedulePage } from "../scripts/qa/tenant-self-schedule-page-verify.mjs";
 import { tenantFamilyCatalog } from "../scripts/qa/tenant-table-catalog.mjs";
@@ -316,6 +317,10 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (method.status === "GAP" && method.reviewedUncertified?.kind === TIMESHEET_HOLD_KIND) {
+    const at = key.lastIndexOf(" ");
+    return verifiedTimesheetHoldKeys(liveManifest).has(key.slice(at + 1) + " " + key.slice(0, at));
+  }
   if(method.status==='GAP'){
     const at=key.lastIndexOf(' ');
     if(documentedSourceHolds.has(key.slice(at+1)+' '+key.slice(0,at)))return true;

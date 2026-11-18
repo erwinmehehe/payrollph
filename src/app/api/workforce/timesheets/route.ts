@@ -1,7 +1,9 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
+  entityTransferRequests,
+  legalEntities,
   workforceTimesheetPolicies,
   workforceTimesheets,
 } from "@/db/schema";
@@ -13,6 +15,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { resolveMultiEntityContext, type MultiEntityContext } from "@/lib/multi-entity-server";
 import {
   checkHcmWorkPeriod,
   hcmWorkPeriodGuardEnabled,
@@ -37,18 +40,28 @@ export const dynamic = "force-dynamic";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-async function visibleEmployees(userId: number, organizationId: number) {
-  const access = await getAccess(userId, organizationId);
-  if (!access) return null;
-  const rows = await db.select().from(employees)
-    .where(eq(employees.organizationId, organizationId))
-    .orderBy(asc(employees.id));
-  return {
-    access,
-    employees: access.companyWide
-      ? rows
-      : rows.filter((employee) => employee.orgUnitId === access.orgUnitId),
-  };
+// Timesheets and their snapshots do not store the historical legal employer.
+// Current worker assignment alone cannot establish access to a transferred
+// worker's time evidence. Hold staff access until that evidence is attributed.
+function timesheetWorkerEmployerScope(
+  context: MultiEntityContext | null, reader: Pick<typeof db, "select"> = db,
+) {
+  if (!context?.enabled) return undefined;
+  const allowed = context.legalEntityId === null
+    ? context.entities.map((entity) => entity.id)
+    : [context.legalEntityId];
+  return and(
+    allowed.length ? inArray(employees.legalEntityId, allowed) : sql`false`,
+    notExists(reader.select({ id: entityTransferRequests.id }).from(entityTransferRequests).where(and(
+      eq(entityTransferRequests.organizationId, employees.organizationId),
+      eq(entityTransferRequests.employeeId, employees.id),
+      eq(entityTransferRequests.status, "applied"),
+    ))),
+  );
+}
+
+function timesheetWorkerDenied() {
+  return Response.json({ error: "Timesheet worker not found." }, { status: 404 });
 }
 
 export async function GET(request: Request) {
@@ -69,8 +82,16 @@ export async function GET(request: Request) {
   const manager = WORKFORCE_MANAGER_ROLES.includes(access.role as typeof WORKFORCE_MANAGER_ROLES[number]);
   let employeeRows: typeof employees.$inferSelect[] = [];
   if (manager) {
-    const visible = await visibleEmployees(user.id, organizationId);
-    employeeRows = visible?.employees ?? [];
+    const entityAccess = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+    if (!entityAccess.ok) return entityAccess.response;
+    const orgUnitScope = access.orgUnitId === null
+      ? isNull(employees.orgUnitId)
+      : eq(employees.orgUnitId, access.orgUnitId);
+    employeeRows = await db.select().from(employees).where(and(
+      eq(employees.organizationId, organizationId),
+      access.companyWide ? undefined : orgUnitScope,
+      timesheetWorkerEmployerScope(entityAccess.context),
+    )).orderBy(asc(employees.id));
   } else if (user.employeeId) {
     const [employee] = await db.select().from(employees).where(and(
       eq(employees.id, user.employeeId),
@@ -135,6 +156,31 @@ export async function POST(request: Request) {
 
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workspace access not found." }, { status: 403 });
+  let entityContext: MultiEntityContext | null = null;
+  if (access.role !== "employee") {
+    const entityAccess = await resolveMultiEntityContext({
+      userId: user.id, organizationId, request, requested: body.legalEntityId,
+    });
+    if (!entityAccess.ok) return entityAccess.response;
+    entityContext = entityAccess.context;
+  }
+
+  // Recheck employer attribution after locking the worker. Transfers update
+  // that same row, so a concurrent transfer cannot invalidate a checked write.
+  async function stillOwnsTimesheetWorker(
+    tx: Parameters<Parameters<typeof db.transaction>[0]>[0], employeeId: number,
+  ) {
+    if (!entityContext?.enabled) return true;
+    const [worker] = await tx.select({ id: employees.id }).from(employees).where(and(
+      eq(employees.organizationId, organizationId), eq(employees.id, employeeId),
+    )).for("share");
+    if (!worker) return false;
+    const [scoped] = await tx.select({ id: employees.id }).from(employees).where(and(
+      eq(employees.organizationId, organizationId), eq(employees.id, employeeId),
+      timesheetWorkerEmployerScope(entityContext, tx),
+    )).limit(1);
+    return Boolean(scoped);
+  }
 
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
@@ -155,6 +201,15 @@ export async function POST(request: Request) {
     if (denied) return denied;
     if (!access.companyWide) {
       return Response.json({ error: "Timesheet policy requires company-wide workforce access." }, { status: 403 });
+    }
+    if (entityContext?.enabled) {
+      const activeEmployers = await db.select({ id: legalEntities.id }).from(legalEntities).where(and(
+        eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true),
+      ));
+      const granted = new Set(entityContext.entities.map((entity) => entity.id));
+      if (!activeEmployers.length || activeEmployers.some((entity) => !granted.has(entity.id))) {
+        return Response.json({ error: "Timesheet policy requires access to every active legal employer." }, { status: 403 });
+      }
     }
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
@@ -213,8 +268,9 @@ export async function POST(request: Request) {
     const [employee] = await db.select().from(employees).where(and(
       eq(employees.id, employeeId),
       eq(employees.organizationId, organizationId),
+      timesheetWorkerEmployerScope(entityContext),
     )).limit(1);
-    if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
+    if (!employee) return timesheetWorkerDenied();
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     const workPeriod = await checkHcmWorkPeriod({
@@ -242,6 +298,7 @@ export async function POST(request: Request) {
     });
     const version = (existing[0]?.version ?? 0) + 1;
     const [created] = await db.transaction(async (tx) => {
+      if (!await stillOwnsTimesheetWorker(tx, employeeId)) return [];
       if (hcmWorkPeriodGuardEnabled()) {
         // Hold the worker row while creating approval evidence; an exit
         // transition cannot commit a different status during this interval.
@@ -326,25 +383,25 @@ export async function POST(request: Request) {
       return Response.json({ error: "timesheetId and approved/rejected decision are required." }, { status: 400 });
     }
 
-    const [timesheet] = await db.select().from(workforceTimesheets).where(and(
+    const [target] = await db.select({ timesheet: workforceTimesheets, employee: employees })
+      .from(workforceTimesheets).innerJoin(employees, and(
+        eq(employees.id, workforceTimesheets.employeeId),
+        eq(employees.organizationId, workforceTimesheets.organizationId),
+      )).where(and(
       eq(workforceTimesheets.id, timesheetId),
       eq(workforceTimesheets.organizationId, organizationId),
+      timesheetWorkerEmployerScope(entityContext),
     )).limit(1);
-    if (!timesheet) return Response.json({ error: "Timesheet not found." }, { status: 404 });
+    if (!target) return timesheetWorkerDenied();
+    const { timesheet, employee } = target;
+    const scope = assertScope(access, employee.orgUnitId);
+    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     if (timesheet.status !== "submitted") {
       return Response.json({ error: "Only submitted timesheets can be decided." }, { status: 409 });
     }
     if (timesheet.submittedByUserId === user.id) {
       return Response.json({ error: "A timesheet submitter cannot approve their own submitted version." }, { status: 409 });
     }
-
-    const [employee] = await db.select().from(employees).where(and(
-      eq(employees.id, timesheet.employeeId),
-      eq(employees.organizationId, organizationId),
-    )).limit(1);
-    if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
-    const scope = assertScope(access, employee.orgUnitId);
-    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
     if (decision === "approved") {
       const workPeriod = await checkHcmWorkPeriod({
@@ -361,10 +418,15 @@ export async function POST(request: Request) {
         periodEnd: String(timesheet.periodEnd),
       });
       if (current.snapshotHash !== timesheet.snapshotHash) {
-        await db.update(workforceTimesheets).set({
-          status: "stale",
-          updatedAt: new Date(),
-        }).where(eq(workforceTimesheets.id, timesheet.id));
+        const stale = await db.transaction(async (tx) => {
+          if (!await stillOwnsTimesheetWorker(tx, timesheet.employeeId)) return [];
+          return tx.update(workforceTimesheets).set({ status: "stale", updatedAt: new Date() }).where(and(
+            eq(workforceTimesheets.id, timesheet.id),
+            eq(workforceTimesheets.organizationId, organizationId),
+            eq(workforceTimesheets.status, "submitted"),
+          )).returning({ id: workforceTimesheets.id });
+        });
+        if (!stale.length) return Response.json({ error: "Timesheet changed. Reload before deciding." }, { status: 409 });
         return Response.json({
           error: "Timesheet evidence changed after submission. The submitted version was marked stale; submit a new version.",
           code: "TIMESHEET_EVIDENCE_CHANGED",
@@ -380,6 +442,7 @@ export async function POST(request: Request) {
     }
 
     const [updated] = await db.transaction(async (tx) => {
+      if (!await stillOwnsTimesheetWorker(tx, timesheet.employeeId)) return [];
       if (decision === "approved" && hcmWorkPeriodGuardEnabled()) {
         await tx.execute(sql`select id from employees where id = ${timesheet.employeeId} and organization_id = ${organizationId} for share`);
         const [freshEmployee] = await tx.select().from(employees).where(and(
@@ -402,6 +465,7 @@ export async function POST(request: Request) {
         updatedAt: new Date(),
       }).where(and(
         eq(workforceTimesheets.id, timesheet.id),
+        eq(workforceTimesheets.organizationId, organizationId),
         eq(workforceTimesheets.status, "submitted"),
       )).returning();
       if (!decided) return [];

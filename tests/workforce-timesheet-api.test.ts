@@ -28,6 +28,22 @@ test("employee may submit own timesheet but submitter cannot self-approve", () =
   assert.ok(route.includes("A timesheet submitter cannot approve their own submitted version."));
 });
 
+test("staff timesheet reads and writes use the selected employer and require transfer-safe attribution", () => {
+  const [read, write] = route.split("export async function POST");
+  assert.match(read, /resolveMultiEntityContext\(\{ userId: user\.id, organizationId, request \}\)/);
+  assert.match(read, /timesheetWorkerEmployerScope\(entityAccess\.context\)/);
+  assert.match(read, /eq\(employees\.legalEntityId,|inArray\(employees\.legalEntityId, allowed\)/);
+  assert.match(read, /eq\(entityTransferRequests\.status, "applied"\)/);
+  assert.match(write, /requested: body\.legalEntityId/);
+  assert.match(write, /Timesheet policy requires access to every active legal employer/);
+  assert.match(write, /\.for\("share"\);[\s\S]*timesheetWorkerEmployerScope\(entityContext, tx\)/);
+  for (const mutation of ["insert(workforceTimesheets)", 'set({ status: "stale"', "status: decision"]) {
+    const at = write.indexOf(mutation);
+    assert.ok(at >= 0 && write.lastIndexOf("stillOwnsTimesheetWorker(tx,", at) >
+      write.lastIndexOf("db.transaction(async (tx)", at), mutation + " must recheck the worker inside the write transaction");
+  }
+});
+
 test("approval re-hashes live evidence and stales changed submissions", () => {
   assert.ok(route.includes("current.snapshotHash !== timesheet.snapshotHash"));
   assert.ok(route.includes('status: "stale"'));

@@ -13,6 +13,7 @@
 import assert from "node:assert/strict";
 import {isExactHistoricalLoaderChange} from './wage-registry-renewal-verify.mjs';
 import {DOCUMENT_ACCOUNTING_ARCHIVE,reviewedDocumentSourceHoldCount} from './document-source-accounting.mjs';
+import { verifiedTimesheetHoldKeys } from "./timesheet-source-accounting.mjs";
 import { readFileSync } from "node:fs";
 import { renewalBlob } from "./payroll-run-renewal-inputs.mjs";
 import { assertMkt01Receipt } from "./tenant-mkt01-marketing-credit.mjs";
@@ -214,7 +215,8 @@ export function verifyReviewedFivePageProbeEquivalence(read = readFileSync) {
     methods.filter(method => method.status === "COVERED").length);
   assert.equal(manifest.metrics.gap,
     methods.filter(method => method.status === "GAP").length);
-  const expectedGaps = (hasMkt01 ? 4 : 5) + reviewedDocumentSourceHoldCount(manifest,read);
+  const expectedGaps = (hasMkt01 ? 4 : 5) + reviewedDocumentSourceHoldCount(manifest,read) +
+    verifiedTimesheetHoldKeys(manifest, read).size;
   assert.equal(historicOidcBatchView(manifest, read).metrics.gap, expectedGaps,
     "PAGE_COMPAT_REFUSED: only the two independently source-verified OIDC methods may join MKT-01");
   assert.match(historicOidcBatchView(manifest, read).acceptanceStatus,
