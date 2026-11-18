@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import { comparePlannedSources } from "../scripts/qa/wage-method-source-plan.mjs";
 import { historicalReceiptInputs, literalJobInputs, reviewedTableInputs } from "../scripts/qa/wage-method-job-inputs.mjs";
+import { tracedRepositoryPath } from "../scripts/qa/wage-method-build-evidence.mjs";
 
 const plan = {
   globalPins: { "src/proxy.ts": "common" },
@@ -64,4 +66,12 @@ test("computed catalog inputs match the full tracked directory membership", () =
   assert.deepEqual(reviewedTableInputs(["src/app/api/example/route.ts"], tracked, () => {
     throw new Error("Unrelated methods should not read the catalog");
   }), []);
+});
+
+test("build input paths resolve inside the checkout and reject escaping paths", () => {
+  const root = path.resolve("fixture-root");
+  const trace = path.join(root, ".next", "server", "route.js.nft.json");
+  assert.equal(tracedRepositoryPath(root, trace, "../../assets/example.pdf"), "assets/example.pdf");
+  assert.throws(() => tracedRepositoryPath(root, trace, "../../../outside.pdf"), /leaves the checkout/);
+  assert.throws(() => tracedRepositoryPath(root, trace, path.join(root, "absolute")), /Relative trace input/);
 });
