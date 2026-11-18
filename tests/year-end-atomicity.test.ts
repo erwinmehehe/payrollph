@@ -75,7 +75,7 @@ async function countAudit(organizationId: number) {
   ));
 }
 
-test("MWE imported-history calculation failure preserves the previously computed year-end adjustment", async () => {
+test("an MWE with imported history is skipped and reported, and the rest of the employer is still annualized", async () => {
   const { org, prior } = await fixture();
   try {
     const [mweWorker] = await db.insert(employees).values({
@@ -91,12 +91,29 @@ test("MWE imported-history calculation failure preserves the previously computed
       grossPay: "14000.00", basicSalary: "14000.00", netPay: "14000.00",
       taxWithheld: "0.00",
     });
-    await assert.rejects(
-      runYearEndAnnualization(org.id, YEAR, "Fictional finance"),
-      /MWE employee.*does not contain the statutory-wage/,
-    );
-    assertPriorUnchanged(prior, await adjustmentRows(org.id));
-    assert.equal((await countAudit(org.id)).length, 0);
+    // One worker the engine cannot annualize must not block everyone else's year end.
+    const summary = await runYearEndAnnualization(org.id, YEAR, "Fictional finance");
+    assert.equal(summary.skippedEmployees.length, 1);
+    assert.equal(summary.skippedEmployees[0].employeeId, mweWorker.id);
+    assert.equal(summary.skippedEmployees[0].reason, "MWE_IMPORTED_HISTORY_NO_STATUTORY_WAGE_BREAKDOWN");
+    assert.match(summary.skippedEmployees[0].message, /does not contain the statutory-wage/);
+    assert.match(String((summary as { warning?: string }).warning), /NOT annualized/);
+    assert.equal(summary.employees, 1, "only the annualized worker is counted");
+    // The skipped worker gets no adjustment; the regular worker's row is recomputed, not preserved.
+    const rows = await adjustmentRows(org.id);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].employeeId, prior.employeeId);
+    assert.notEqual(rows[0].id, prior.id, "the regular worker's row is replaced by the recalculation");
+    assert.ok(!rows.some((row) => row.employeeId === mweWorker.id), "no adjustment row for the skipped MWE");
+    // The audit receipt names the skipped worker, so the gap is not silent.
+    const audit = await db.select().from(auditEvents).where(and(
+      eq(auditEvents.organizationId, org.id),
+      eq(auditEvents.action, "Year-end annualization computed"),
+    ));
+    assert.equal(audit.length, 1);
+    const meta = audit[0].metadata as { skippedEmployees?: number; skippedEmployeeIds?: number[] };
+    assert.equal(meta.skippedEmployees, 1);
+    assert.deepEqual(meta.skippedEmployeeIds, [mweWorker.id]);
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
