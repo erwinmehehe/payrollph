@@ -647,6 +647,12 @@ export async function runYearEndAnnualization(
     totalRefund: Number(refunds.reduce((sum, row) => sum + Math.abs(row.result.adjustment), 0).toFixed(2)),
     totalCollect: Number(collections.reduce((sum, row) => sum + row.result.adjustment, 0).toFixed(2)),
     skippedEmployees: skipped,
+    // The year-end route spreads this summary into its response, so the warning reaches the caller without a route change.
+    ...(skipped.length > 0
+      ? {
+          warning: `${skipped.length} employee(s) were NOT annualized and have no year-end adjustment: ${skipped.map((item) => item.employeeNo).join(", ")}. Imported history for a minimum wage earner has no statutory-wage breakdown; annualize them outside Linaw and record the verified adjustment before treating the year end as complete.`,
+        }
+      : {}),
     ruleVersion: ANNUALIZATION_RULE_VERSION,
     includedPayrollRunId: options.includePayrollRunId ?? null,
     boundPayrollRunId: options.bindToPayrollRunId ?? null,

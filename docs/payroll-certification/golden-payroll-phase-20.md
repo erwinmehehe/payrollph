@@ -65,8 +65,14 @@ statutory-wage versus taxable-supplementary breakdown), so it:
 - **still settles the colleague**: collect 1.60 on taxable 678,600, exactly as
   if the MWE were not there.
 
-The route warns in its response which workers were not annualized and that they
-must be annualized outside Linaw before the year end is treated as complete.
+The summary also carries a `warning` naming the skipped employee numbers and
+saying they must be annualized outside Linaw before the year end is treated as
+complete. The year-end route already spreads the summary into its response, so
+the warning and `skippedEmployees` reach the caller without a route change (the
+route is pinned by blob in the tenant proof manifest, so editing it would
+withdraw its receipts). One gap: if every worker is skipped, the route's own
+"no payroll runs eligible" warning replaces this one; `skippedEmployees` is still
+in the response.
 
 ## Employer C: an MWE hired after the switch
 
