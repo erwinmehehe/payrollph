@@ -60,7 +60,7 @@ permissions:
 
 jobs:
   browser-qa:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Supported by the pinned Playwright 1.55 Chromium headless shell.
     timeout-minutes: 25
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
