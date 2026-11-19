@@ -146,7 +146,7 @@ export async function verifyV1JournalTenantHttp() {
   const beforeVictim = await victimSnapshot(victim.org.id);
   const beforeVictimRuns = await runs(victim);
   const victimJournalEntries = () => db.select().from(schema.payrollEntries)
-    .where(eq(schema.payrollEntries.payrollRunId, victim.runId)).orderBy(asc(schema.payrollEntries.id));
+    .where(eq(schema.payrollEntries.payrollRunId, target.runId)).orderBy(asc(schema.payrollEntries.id));
   const beforeVictimEntries = await victimJournalEntries();
   assert.equal(beforeVictimEntries.length, 1, "The released victim journal must have its seeded entry");
   const beforeVictimKeys = await keyRows(victim);
