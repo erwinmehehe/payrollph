@@ -1,4 +1,5 @@
 import { verifyJournalRenewal } from "../scripts/qa/tenant-journal-renewal.mjs";
+import { timesheetProofKind, verifyTimesheetRenewal } from "../scripts/qa/timesheet-employer-credit.mjs";
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
 import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
@@ -318,6 +319,10 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
+  if (method.testedBy?.kind === timesheetProofKind) {
+    assert.equal(key, "src/app/api/workforce/timesheets/route.ts " + method.name);
+    return verifyTimesheetRenewal(liveManifest) === 2;
+  }
   if (method.status === "GAP" && method.reviewedUncertified?.kind === TIMESHEET_HOLD_KIND) {
     const at = key.lastIndexOf(" ");
     return verifiedTimesheetHoldKeys(liveManifest).has(key.slice(at + 1) + " " + key.slice(0, at));
@@ -4960,6 +4965,11 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if (method.testedBy?.kind === timesheetProofKind) {
+        assert.equal(path, "src/app/api/workforce/timesheets/route.ts");
+        assert.equal(verifyTimesheetRenewal(liveManifest), 2);
+        continue;
+      }
       if (method.testedBy?.kind === "released-journal-philhealth-pg16") {
         assert.equal(path, "src/app/api/v1/journal-entries/route.ts");
         assert.equal(method.name, "GET");

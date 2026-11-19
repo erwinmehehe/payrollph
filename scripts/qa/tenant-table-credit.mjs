@@ -25,6 +25,11 @@ import { reviewedFamilySelection } from "./tenant-family-reconciliation.mjs";
 import { protectedWageCreditKeys } from "./wage-registry-credit-holds.mjs";
 import {protectedDocumentCreditKeys} from './document-source-accounting.mjs';
 
+if (process.argv.includes("--timesheet-employer")) {
+  const { creditTimesheets } = await import("./timesheet-employer-credit.mjs");
+  creditTimesheets(process.argv.slice(2));
+  process.exit(0);
+}
 if (process.argv.includes("--root-planning")) {
   const {creditRoot}=await import("./tenant-root-planning-credit.mjs");
   creditRoot(process.argv.slice(2));process.exit(0);
