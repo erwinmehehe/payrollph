@@ -1,0 +1,52 @@
+{
+  "version": "phase25-final-pay-vs-year-end-non-taxable-allowance-2026-11-19",
+  "toleranceCentavos": 0,
+  "description": "PROOF-ONLY phase. Year end (fixed in #2033) and final pay (the Separation API) must agree on the tax of the same worker in the same year. The Separation API builds its year-to-date gross as the sum of (gross pay - 13th month paid) over the released payroll rows (src/app/api/separation/route.ts, ordinaryGrossYtd). That sum includes an allowance the cutoff exempted, and nothing in final pay exempts it again, so final pay taxes what the cutoff and year end both treat as exempt. Two workers hired at the switch on the same salary: a control, and a worker with a 12,000 non-taxable allowance in cutoff 23. Both run through the real engine for cutoffs 13-24, then the real year end, then the real computeFinalPay() fed the year-to-date inputs exactly as the Separation API derives them. The 'correct' column is what year end proves; the 'routeDerived' column is what the Separation API's derivation produces today. The phase certifies the correct values for year end and DOCUMENTS the final-pay discrepancy; it does not fix it, because the Separation route is pinned in the tenant manifest.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000). RR 11-2018 section 2.79(B)(5)(b): a terminated employee's tax is annualized with the same exempt items as year end.",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e))."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist. An ordinary cutoff: gross 30,000; SSS 875, PhilHealth 750, Pag-IBIG 100 (1,725); withholding 3,259.10. The allowance is approved supplementary compensation in cutoff 23: gross 42,000, withholding still 3,259.10.",
+    "Final pay is computed for a last day of 2026-12-31 after all 12 cutoffs were released, with no unpaid basic salary, no leave, separation or retirement pay, no other benefits and no loans, so final pay is exactly the year-end settlement plus the unpaid 13th month.",
+    "The Separation API inputs, derived from the released rows exactly as the route does: releasedBasicYtd = sum of BASIC lines = 360,000; thirteenthPaidYtd = 0; grossCompensationYtd = sum over rows of (gross pay - 13th month paid) = 360,000 (control) and 372,000 (allowance worker); statutoryContributionsYtd = 20,700; taxWithheldYtd = 12 x 3,259.10 = 39,109.20. The 13th month due is 360,000 / 12 = 30,000.",
+    "computeFinalPay: gross for annualization = grossCompensationYtd + 13th month due; non-taxable = 30,000 pool + contributions 20,700 (the allowance is not an input); taxable = gross - non-taxable; tax = 15% x (taxable - 250,000); tax adjustment = withheld - tax due (positive = refund)."
+  ],
+  "employees": {
+    "noAllowanceControl": {
+      "description": "No allowance. Year end: gross 390,000, non-taxable 50,700, taxable 339,300, tax 13,395.00, refund 25,714.20. Final pay inputs give the same: gross 360,000 + 30,000 = 390,000; tax 13,395.00; tax adjustment +25,714.20; gross final pay 30,000.00; net final pay 30,000.00 + 25,714.20 = 55,714.20.",
+      "supplementary": [],
+      "cutoffs": {},
+      "yearEnd": {
+        "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      },
+      "finalPayInputs": { "releasedBasicYtd": 360000, "grossCompensationYtd": 360000, "statutoryContributionsYtd": 20700, "taxWithheldYtd": 39109.2 },
+      "finalPayCorrect": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 13395, "taxAdjustment": 25714.2, "netFinalPay": 55714.2 },
+      "finalPayRouteDerived": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 13395, "taxAdjustment": 25714.2, "netFinalPay": 55714.2 }
+    },
+    "nonTaxableAllowance": {
+      "description": "A 12,000 allowance marked non-taxable in cutoff 23: gross 42,000, withholding 3,259.10. Year end exempts it: gross 402,000, non-taxable 30,000 + 12,000 + 20,700 = 62,700, taxable 339,300, tax 13,395.00, refund 25,714.20, identical to the control. Final pay, derived as the Separation API derives it, has grossCompensationYtd 372,000 and no input that exempts the 12,000: gross 372,000 + 30,000 = 402,000, non-taxable 50,700, taxable 351,300, tax 15,195.00 (1,800.00 more than year end), tax adjustment 39,109.20 - 15,195.00 = +23,914.20, net final pay 30,000.00 + 23,914.20 = 53,914.20. The correct final pay is the year-end settlement: tax 13,395.00, adjustment +25,714.20, net 55,714.20; the route-derived figures under-pay the employee by 1,800.00.",
+      "supplementary": [
+        { "cutoff": 23, "earningType": "taxable_allowance", "label": "Non-taxable allowance", "amount": 12000, "taxable": false }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 42000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 37015.9, "status": "Ready", "poolFlag": false }
+      },
+      "yearEnd": {
+        "grossCompensation": 402000, "thirteenthMonth": 30000, "nonTaxable": 62700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      },
+      "finalPayInputs": { "releasedBasicYtd": 360000, "grossCompensationYtd": 372000, "statutoryContributionsYtd": 20700, "taxWithheldYtd": 39109.2 },
+      "finalPayCorrect": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 13395, "taxAdjustment": 25714.2, "netFinalPay": 55714.2 },
+      "finalPayRouteDerived": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 15195, "taxAdjustment": 23914.2, "netFinalPay": 53914.2 }
+    }
+  },
+  "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 25015.9, "status": "Ready", "poolFlag": false },
+  "limitations": [
+    "The Separation API cannot be called from a harness (it needs a signed-in session and request checks), so the route's year-to-date derivation is reproduced in the harness from the same helper the route uses (readBasicAndThirteenth) and the same expression (gross pay - 13th month paid). tests/final-pay-route-derivation-pin.test.ts fails if that expression in the route changes, so this proof cannot silently go stale.",
+    "Only the non-taxable allowance is exercised. A pay-policy premium marked non-taxable and an exempt leave conversion reach the same derivation and are expected to be affected the same way, but are not exercised.",
+    "One salary, 'split' timing, a worker hired at the switch, a last day at year end with nothing unpaid.",
+    "The Separation route is pinned in the tenant manifest (3 methods with provisional credit); changing it is a reviewed decision and is not made here."
+  ]
+}
