@@ -1,0 +1,100 @@
+{
+  "version": "phase26-year-end-benefit-and-wage-advance-deductions-are-not-contributions-2026-11-19",
+  "toleranceCentavos": 0,
+  "description": "A benefit plan deduction and an earned wage advance recovery are deductions from net pay, not statutory contributions. Year-end annualization reads contributions from payslip lines; Phase 24 excluded the LOAN-, EWA- and BEN- code families before the label is read but proved only loans end to end. A voluntary savings plan is labelled 'Benefit, <plan name>' (code BEN-<plan id>), and a plan named after an agency ('Pag-IBIG MP2 Savings', 'SSS WISP Flexi-Fund') matched the contribution label test, so before the Phase 24 exclusion its deductions were summed as contributions, a non-taxable bucket, and inflated the refund. Phase 26 certifies the behaviour through the real engine with three workers hired at the switch on the same salary: a control, a worker on two agency-named voluntary savings plans, and a worker whose earned wage advance is recovered every cutoff. Every worker's year-end settlement must equal the control's.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000). Only the employee's mandatory SSS, PhilHealth and Pag-IBIG contributions are excluded from taxable compensation (NIRC Sec. 32(B)(7)(f)). A voluntary savings plan contribution and the recovery of an advance already paid are the employee's own money and are not such contributions.",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e))."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 30,000; SSS 875, PhilHealth 750, Pag-IBIG 100 (1,725); taxable 30,000 - 1,725 = 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10. Benefit shares and advance recoveries are taken from net pay after tax, so they change net pay and nothing else in the cutoff.",
+    "A benefit employee share is the enrolment's monthly contribution divided by two per cutoff (capped by the plan cap, which is above the contribution here). An advance is recovered all-or-nothing as requested amount plus fee; disposable pay never limits either deduction.",
+    "A fresh advance is approved before every cutoff and marked repaid after it, which is what release settlement does; the release approval workflow itself is not part of this certification.",
+    "Year end for a worker with no 13th month paid: entries 12 x 30,000; entitlement = basic earned 360,000 / 12 = 30,000 is accrued unpaid and added to gross compensation; contributions 12 x 1,725 = 20,700 and ONLY those; the 30,000 sits inside the 90,000 pool; non-taxable = exempt pool + contributions; taxable = gross - non-taxable; tax = 15% x (taxable - 250,000); withheld = the sum of the WHT lines only; a refund is a negative adjustment."
+  ],
+  "employees": {
+    "noDeductionControl": {
+      "description": "No benefit plan and no advance. Net pay 25,015.90 in every cutoff. Year end: gross 360,000 + 30,000 accrued = 390,000; non-taxable 30,000 + 20,700 = 50,700; taxable 339,300; tax 15% x 89,300 = 13,395.00; withheld 12 x 3,259.10 = 39,109.20; refund 25,714.20.",
+      "plans": [],
+      "advance": null,
+      "cutoffNet": 25015.9,
+      "yearEnd": {
+        "grossCompensation": 390000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 50700,
+        "statutoryContributions": 20700,
+        "taxableIncome": 339300,
+        "taxDue": 13395,
+        "taxWithheld": 39109.2,
+        "adjustment": -25714.2,
+        "outcome": "refund"
+      }
+    },
+    "agencyNamedSavingsPlans": {
+      "description": "Two voluntary savings plans named after an agency: 'Pag-IBIG MP2 Savings' at 1,000.00 a month (500.00 a cutoff) and 'SSS WISP Flexi-Fund' at 600.00 a month (300.00 a cutoff), 800.00 a cutoff and 9,600.00 over the 12 cutoffs. Cutoff net pay 25,015.90 - 800.00 = 24,215.90; gross, SSS, PhilHealth, Pag-IBIG and withholding are the control's. Year end must equal the control: statutory contributions 20,700 (NOT 30,300), non-taxable 50,700, taxable 339,300, tax 13,395.00, refund 25,714.20. If the savings deductions were counted as contributions: non-taxable 60,300, taxable 329,700, tax 15% x 79,700 = 11,955.00 and a refund 1,440.00 too large (27,154.20).",
+      "plans": [
+        {
+          "name": "Pag-IBIG MP2 Savings",
+          "category": "voluntary",
+          "monthlyContribution": 1000,
+          "cap": 2000
+        },
+        {
+          "name": "SSS WISP Flexi-Fund",
+          "category": "voluntary",
+          "monthlyContribution": 600,
+          "cap": 1000
+        }
+      ],
+      "advance": null,
+      "cutoffNet": 24215.9,
+      "yearEnd": {
+        "grossCompensation": 390000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 50700,
+        "statutoryContributions": 20700,
+        "taxableIncome": 339300,
+        "taxDue": 13395,
+        "taxWithheld": 39109.2,
+        "adjustment": -25714.2,
+        "outcome": "refund"
+      }
+    },
+    "wageAdvanceEveryCutoff": {
+      "description": "An approved earned wage advance of 2,000.00 plus a 50.00 fee is recovered in every cutoff 13-24 (2,050.00 a cutoff, 24,600.00 in all). Cutoff net pay 25,015.90 - 2,050.00 = 22,965.90. The recovery line is labelled 'Earned wage advance recovery' under the code EWA-<id>; year end must equal the control: contributions 20,700, taxable 339,300, tax 13,395.00, refund 25,714.20. The recovered amount is never a contribution and never reduces taxable income.",
+      "plans": [],
+      "advance": {
+        "requestedAmount": 2000,
+        "fee": 50
+      },
+      "cutoffNet": 22965.9,
+      "yearEnd": {
+        "grossCompensation": 390000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 50700,
+        "statutoryContributions": 20700,
+        "taxableIncome": 339300,
+        "taxDue": 13395,
+        "taxWithheld": 39109.2,
+        "adjustment": -25714.2,
+        "outcome": "refund"
+      }
+    }
+  },
+  "steadyCutoff": {
+    "grossPay": 30000,
+    "sss": 875,
+    "philHealth": 750,
+    "pagIbig": 100,
+    "withholding": 3259.1,
+    "status": "Ready",
+    "poolFlag": false
+  },
+  "limitations": [
+    "Benefit plans are exercised only as voluntary employee-share deductions with no dependants and no employer share; an HMO, an insurance plan or a benefit that credits the 90,000 pool is not exercised.",
+    "An earned wage advance is exercised only as a full recovery in every cutoff; a deferred recovery (disposable pay too low) and the settlement transaction itself are not exercised.",
+    "One salary, 'split' timing, a worker hired at the switch (no imported history), deductions that are never limited by disposable pay.",
+    "Final pay (separation) reads contributions by exact code and is not affected by the label defect; it is not exercised here.",
+    "Year-end rows already computed under an older rule are replaced only when year end is recomputed."
+  ]
+}
