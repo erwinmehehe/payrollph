@@ -19,8 +19,11 @@ export function historicalJournalPromotionView(manifest) {
 // This fixed catalogue preserves the reviewed route identities, exact proof
 // anchors and historical workflow receipts. It does not execute HTTP or grant
 // acceptance, and must never be extended merely to make a new credit pass.
-export function verifyPromotionCredits(manifest, read=path=>readFileSync(path==='scripts/qa/tenant-v1-journal-http.mjs'
-  ? 'tests/fixtures/tenant-v1-journal-1484.mjs.txt' : path,'utf8')) {
+export function readPromotionSource(path) {
+ return readFileSync(path==='scripts/qa/tenant-v1-journal-http.mjs'
+  ? 'tests/fixtures/tenant-v1-journal-1484.mjs.txt' : path,'utf8');
+}
+export function verifyPromotionCredits(manifest, read=readPromotionSource) {
  manifest=historicalJournalPromotionView(manifest);
  const actual=Object.values(manifest.allApiRouteFiles).flatMap(r=>r.methods
   .filter(m=>m.testedBy?.verifiedMainCommit===base)
