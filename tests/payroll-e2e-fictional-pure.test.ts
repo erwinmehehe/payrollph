@@ -123,10 +123,10 @@ test("S01/S02: monthly basis on semi-monthly cutoff reconciles deductions, net, 
   const lines = buildReleasedPayrollJournal([{
     id: 101, organizationId: 9000, legalEntityId: 100,
     status: "Released", periodLabel: "Fictional cutoff", payDate: "2026-10-15",
-    grossPay: "11000.00", netPay: "10075.00",
+    grossPay: "11000.00", netPay: "10075.00", employerPhilHealth: "275.00",
   }]);
-  assert.equal(lines.reduce((sum, row) => sum + row.debitCentavos, 0), 1100000);
-  assert.equal(lines.reduce((sum, row) => sum + row.creditCentavos, 0), 1100000);
+  assert.equal(lines.reduce((sum, row) => sum + row.debitCentavos, 0), 1127500);
+  assert.equal(lines.reduce((sum, row) => sum + row.creditCentavos, 0), 1127500);
   assert.equal(lines.find((row) => row.accountCode === "2100")?.creditCentavos, 92500);
 });
 
@@ -459,6 +459,6 @@ test("journal refund control is an OPEN integration gap: preserve original fail-
   assert.throws(() => buildReleasedPayrollJournal([{
     id: 201, organizationId: 9000, legalEntityId: 100,
     status: "Released", periodLabel: "Fictional refund", payDate: "2026-10-15",
-    grossPay: result.gross.toFixed(2), netPay: result.net.toFixed(2),
+    grossPay: result.gross.toFixed(2), netPay: result.net.toFixed(2), employerPhilHealth: "0.00",
   }]), /gross\/net/, "Unverified refund provenance must NOT weaken original journal export protection");
 });

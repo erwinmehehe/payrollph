@@ -14,6 +14,7 @@ on:
       - 'src/lib/api-auth.ts'
       - 'src/lib/api-keys.ts'
       - 'src/lib/payroll-journal-export.ts'
+      - 'src/lib/payroll-journal-evidence.ts'
       - 'src/lib/csv.ts'
       - 'src/db/**'
       - 'scripts/qa/tenant-table-http.mjs'

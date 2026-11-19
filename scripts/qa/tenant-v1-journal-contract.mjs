@@ -36,6 +36,7 @@ export function fictionalJournalAmounts(rank) {
     grossPay: (1000 + rank * 100).toFixed(2),
     netPay: (800 + rank * 75).toFixed(2),
     deductions: (200 + rank * 25).toFixed(2),
+    employerPhilHealth: `125.0${rank}`,
   };
 }
 
@@ -126,6 +127,8 @@ export function proveJournalResponse(response, expected) {
     [...common, "6000", "Payroll expense", amount.grossPay, "0.00"],
     [...common, "2100", "Payroll deductions control", "0.00", amount.deductions],
     [...common, "2200", "Net payroll payable", "0.00", amount.netPay],
+    [...common, "philhealth_employer_expense", "Employer PhilHealth Expense", amount.employerPhilHealth, "0.00"],
+    [...common, "philhealth_employer_payable", "PhilHealth Employer Contributions Payable", "0.00", amount.employerPhilHealth],
   ], "CSV must bind exactly one own released run and centavo-exact balanced entries");
   return rows;
 }
@@ -154,7 +157,7 @@ export function assertJournalAuditIncrement(before, after, { orgId, entityId, ke
     assert.equal(row.resource, "payroll-journal");
     assert.deepEqual(row.metadata, {
       startDate: JOURNAL_WINDOW.startDate, endDate: JOURNAL_WINDOW.endDate,
-      legalEntityId: entityId, runCount: 1, lineCount: 3,
+      legalEntityId: entityId, runCount: 1, lineCount: 5,
     });
   }
 }

@@ -9,7 +9,7 @@ import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 
 const run = { id: 12, organizationId: 4, legalEntityId: 9, status: "Released",
   payDate: "2026-10-10", periodLabel: "First half of October",
-  grossPay: "12345.67", netPay: "10999.99" };
+  grossPay: "12345.67", netPay: "10999.99", employerPhilHealth: "0.00" };
 
 test("released journal produces balanced centavo-exact debit and credits", () => {
   const rows = buildReleasedPayrollJournal([run]);
@@ -18,6 +18,15 @@ test("released journal produces balanced centavo-exact debit and credits", () =>
   assert.equal(rows.reduce((sum, row) => sum + row.creditCentavos, 0), 1234567);
   assert.equal(rows[1].creditCentavos, 134568);
   assert.equal(rows.every(row => row.legalEntityId === 9), true);
+});
+
+test("employer PhilHealth posts only the released amount on both sides", () => {
+  const rows = buildReleasedPayrollJournal([{ ...run, employerPhilHealth: "128.02" }]);
+  assert.deepEqual(rows.slice(3).map(r => [r.accountCode, r.debitCentavos, r.creditCentavos]), [
+    ["philhealth_employer_expense", 12802, 0], ["philhealth_employer_payable", 0, 12802],
+  ]);
+  assert.equal(rows[1].creditCentavos, 134568);
+  assert.throws(() => buildReleasedPayrollJournal([{ ...run, employerPhilHealth: null }]), /evidence/);
 });
 
 test("journal forbids draft payroll, missing entity, reversed money and excess precision", () => {

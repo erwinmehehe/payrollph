@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+import {verifyJournalRenewal} from '../../scripts/qa/tenant-journal-renewal.mjs';
 import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 import {reviewedTimesheetSourceHold} from "../../scripts/qa/timesheet-source-accounting.mjs";
 import {wageHeldPriorProof} from '../../scripts/qa/wage-registry-credit-holds.mjs';
@@ -40,6 +42,14 @@ export function assertWageLedgerDelta(assert,manifest){
   let withdrawn=0;
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
     const previous=prior.allApiRouteFiles[path];
+    if(path==='src/app/api/v1/journal-entries/route.ts' && file.methods[0]?.testedBy?.kind==='released-journal-philhealth-pg16'){
+      verifyJournalRenewal(liveManifest);
+      const digest=record=>createHash('sha256').update(JSON.stringify(record)).digest('hex');
+      assert.equal(digest(file),'32a9d411ef8babca27cb99a5284099da7a9407559924550e8a7b607d48592663');
+      assert.ok(['6f8bd2c760040fd33f829bd4f093563f3be12a98251f553c90228ceb42499c80',digest(file)].includes(digest(previous)),
+        'Only the original journal credit or its verified renewal is an eligible base');
+      continue;
+    }
     if(file.methods.length>0&&file.methods.every(row=>otherWithdrawals.has(row.name+" "+path)))continue;
     const currentRoute={...file},previousRoute={...previous};
     delete currentRoute.methods;delete previousRoute.methods;
