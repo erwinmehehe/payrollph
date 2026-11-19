@@ -14,6 +14,8 @@ on:
       - 'src/lib/ph-statutory-rule-packs.ts'
       - 'src/lib/pay-basis.ts'
       - 'src/lib/payroll-journal-export.ts'
+      - 'src/lib/payroll-journal-evidence.ts'
+      - 'src/app/api/v1/journal-entries/route.ts'
       - 'src/lib/annualization.ts'
       - 'src/lib/wage-orders.ts'
 permissions:

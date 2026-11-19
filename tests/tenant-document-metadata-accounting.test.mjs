@@ -9,7 +9,7 @@ const load=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-man
 
 test('only the exact metadata methods and two dependent security writes may lose source-current credits',()=>{
  const m=load(),before=structuredClone(m);
- assert.equal(reviewedDocumentSourceHoldCount(m),paths.length*2+2+1);
+ assert.equal(reviewedDocumentSourceHoldCount(m),paths.length*2+2+1+1);
  const base=baseTenantManifest().manifest;
  const newlyWithdrawn=[...protectedDocumentCreditKeys(m)].filter(key=>{
    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
@@ -26,7 +26,7 @@ test('only the exact metadata methods and two dependent security writes may lose
 });
 
 test('restored credits, false execution, changed receipt and removed guards cannot borrow the hold',()=>{
- for(const path of paths)for(const mutate of [
+ for(const path of [...paths,"src/app/api/v1/journal-entries/route.ts"])for(const mutate of [
   f=>{f.methods[0].status='COVERED';},
   f=>{f.methods[0].testedBy={file:'fabricated.mjs'};},
   f=>{f.methods[0].reviewedUncertified.coverageCredits=1;},

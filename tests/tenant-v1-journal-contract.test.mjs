@@ -200,8 +200,10 @@ test("dedicated source preserves production API and has separately reconciled pr
   const record = Object.values(manifest.allApiRouteFiles)
     .find(item => item.route === "v1/journal-entries");
   const evidence = record?.methods?.find(m => m.name === "GET");
-  assert.equal(evidence?.status, "COVERED", "exact-head PG16 bearer-key proof was separately reviewed");
-  assert.equal(evidence?.testedBy?.file, "scripts/qa/tenant-v1-journal-http.mjs");
-  assert.equal(evidence?.testedBy?.prNumber, 1484);
-  assert.match(evidence?.testedBy?.evidence ?? "", /actions\/runs\/40514472303/);
+  assert.equal(evidence?.status, "GAP");
+  assert.equal(evidence?.testedBy, null);
+  const previous = evidence?.reviewedUncertified?.previousMethodProof;
+  assert.equal(previous?.file, "scripts/qa/tenant-v1-journal-http.mjs");
+  assert.equal(previous?.prNumber, 1484);
+  assert.match(previous?.evidence ?? "", /actions\/runs\/40514472303/);
 });

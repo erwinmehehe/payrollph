@@ -82,7 +82,7 @@ export async function verifyV1JournalTenantHttp() {
         scopeOrgUnitId: e.unit.id,
         periodLabel, periodStart: "2026-09-01", periodEnd: "2026-09-15",
         payDate: JOURNAL_WINDOW.payDate, status: "Released",
-        grossPay: amounts.grossPay, netPay: amounts.netPay,
+        employeeCount: 1, grossPay: amounts.grossPay, netPay: amounts.netPay,
       },
       {
         organizationId: e.org.id, legalEntityId: e.entity.id,
@@ -104,6 +104,11 @@ export async function verifyV1JournalTenantHttp() {
       assert.equal(item.organizationId, e.org.id);
       assert.equal(item.legalEntityId, e.entity.id);
     }
+    await db.insert(schema.payrollEntries).values({
+      payrollRunId: released.id, employeeId: e.worker.id,
+      grossPay: amounts.grossPay, deductions: amounts.deductions, netPay: amounts.netPay,
+      trace: { inputs: ["philHealthEmployerCutoff=0.00"] },
+    });
     const token = mintApiKey();
     const [key] = await db.insert(apiKeys).values({
       organizationId: e.org.id, name: "Fictional journal token",
