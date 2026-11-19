@@ -13,7 +13,7 @@ import {verifyFilingPatchCredit} from '../scripts/qa/tenant-filing-patch-credit.
 import { readFileSync } from "node:fs";
 import { assertLiveTenantCounts } from "./helpers/tenant-counts.mjs";
 import { verifyOracleSourceHolds } from "../scripts/qa/payroll-run-oracle-hold.mjs";
-import { verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
+import { historicalJournalPromotionView, readPromotionSource, verifyPromotionCredits } from "../scripts/qa/tenant-gap-promotion-verify.mjs";
 import { verifyFollowOnCredits, assertWorkflowUsesOnlyLoopbackUrls } from "../scripts/qa/tenant-follow-on-credit-verify.mjs";
 import { verifyMoreCredits } from "../scripts/qa/tenant-more-credit-verify.mjs";
 import { verifyStaffingPolicyGetCredit } from "../scripts/qa/tenant-staffing-policy-get-credit.mjs";
@@ -54,10 +54,10 @@ test("credit sweep only updates 16 distinct verified GAP methods with four sourc
   assert.equal(verifyPromotionCredits(historicalWageCatalog(manifest)), targets.length);
   const credited = [...methods].filter(([, method]) =>
     method.testedBy?.verifiedMainCommit === base);
-  const archived=historicalWageCatalog(manifest);
+  const archived=historicalJournalPromotionView(historicalWageCatalog(manifest));
   const held=verifiedWageCreditHolds(manifest);
   const heldTargets=targets.filter(([key])=>{const at=key.indexOf(" ");return held.has(key.slice(0,at)+" src/app/api/"+key.slice(at+1)+"/route.ts");});
-  assert.equal(credited.length, targets.length-heldTargets.length, "Held historical citations are not active credits");
+  assert.equal(credited.length, targets.length-heldTargets.length-Number(manifest.allApiRouteFiles["src/app/api/v1/journal-entries/route.ts"].methods[0].testedBy?.kind === "released-journal-philhealth-pg16"), "Held historical citations are not active credits");
   for (const [key, pr, run] of targets) {
     const at=key.indexOf(" "),path="src/app/api/"+key.slice(at+1)+"/route.ts";
     const method = archived.allApiRouteFiles[path].methods.find(x=>x.name===key.slice(0,at));
@@ -71,7 +71,7 @@ test("credit sweep only updates 16 distinct verified GAP methods with four sourc
     assert.equal(evidence.line, evidence.ownPositiveLine);
     assert.match(evidence.evidence,
       new RegExp("/actions/runs/" + run + "(?:\\D|$)"));
-    const source = readFileSync(evidence.file, "utf8").split("\n");
+    const source = readPromotionSource(evidence.file).split("\n");
     for (const pin of ["ownPositiveLine", "foreignDenialLine",
       "unchangedDbLine", "forgedSelectorLine"]) {
       const line = evidence[pin];

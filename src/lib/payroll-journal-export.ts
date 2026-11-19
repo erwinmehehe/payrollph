@@ -9,6 +9,7 @@ export type ReleasedJournalRun = {
   periodLabel: string;
   grossPay: string | number;
   netPay: string | number;
+  employerPhilHealth: string | null;
 };
 
 export type JournalLine = {
@@ -50,6 +51,8 @@ export function buildReleasedPayrollJournal(runs: readonly ReleasedJournalRun[])
     const gross = journalMoneyCentavos(run.grossPay);
     const net = journalMoneyCentavos(run.netPay);
     if (net > gross) throw new Error("Payroll journal gross/net control is inconsistent.");
+    if (run.employerPhilHealth == null) throw new Error("Released payroll lacks complete employer PhilHealth evidence.");
+    const employerPhilHealth = journalMoneyCentavos(run.employerPhilHealth);
     const deductions = gross - net;
     const base = {
       runId: run.id, legalEntityId: run.legalEntityId as number,
@@ -67,6 +70,15 @@ export function buildReleasedPayrollJournal(runs: readonly ReleasedJournalRun[])
       ...base, accountCode: "2200", accountName: "Net payroll payable",
       debitCentavos: 0, creditCentavos: net,
     });
+    if (employerPhilHealth > 0) {
+      lines.push({
+        ...base, accountCode: "philhealth_employer_expense", accountName: "Employer PhilHealth Expense",
+        debitCentavos: employerPhilHealth, creditCentavos: 0,
+      }, {
+        ...base, accountCode: "philhealth_employer_payable", accountName: "PhilHealth Employer Contributions Payable",
+        debitCentavos: 0, creditCentavos: employerPhilHealth,
+      });
+    }
   }
   const debit = lines.reduce((amount, row) => amount + BigInt(row.debitCentavos), BigInt(0));
   const credit = lines.reduce((amount, row) => amount + BigInt(row.creditCentavos), BigInt(0));

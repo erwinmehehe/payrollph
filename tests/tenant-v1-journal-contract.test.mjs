@@ -1,3 +1,4 @@
+import { verifyJournalRenewal } from "../scripts/qa/tenant-journal-renewal.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -26,6 +27,8 @@ function rowsFor(x) {
     [...common, "6000", "Payroll expense", amounts.grossPay, "0.00"],
     [...common, "2100", "Payroll deductions control", "0.00", amounts.deductions],
     [...common, "2200", "Net payroll payable", "0.00", amounts.netPay],
+    [...common, "philhealth_employer_expense", "Employer PhilHealth Expense", amounts.employerPhilHealth, "0.00"],
+    [...common, "philhealth_employer_payable", "PhilHealth Employer Contributions Payable", "0.00", amounts.employerPhilHealth],
   ];
 }
 function response(x = a) {
@@ -68,11 +71,11 @@ test("strict disposable GitHub Actions/PG16/localhost config refuses false or mi
 
 test("fixture is an integer-centavo balanced source and discriminates real employer ranks", () => {
   assert.deepEqual(fictionalJournalAmounts(1),
-    { grossPay: "1100.00", netPay: "875.00", deductions: "225.00" });
+    { grossPay: "1100.00", netPay: "875.00", deductions: "225.00", employerPhilHealth: "125.01" });
   assert.deepEqual(fictionalJournalAmounts(2),
-    { grossPay: "1200.00", netPay: "950.00", deductions: "250.00" });
+    { grossPay: "1200.00", netPay: "950.00", deductions: "250.00", employerPhilHealth: "125.02" });
   assert.deepEqual(fictionalJournalAmounts(4),
-    { grossPay: "1400.00", netPay: "1100.00", deductions: "300.00" });
+    { grossPay: "1400.00", netPay: "1100.00", deductions: "300.00", employerPhilHealth: "125.04" });
   for (const rank of [1, 2, 4]) {
     const v = fictionalJournalAmounts(rank);
     assert.equal(Math.round(Number(v.grossPay) * 100),
@@ -164,7 +167,7 @@ test("audit source requires exact own key, employer, legal entity and no early w
     action: "API payroll accounting journal exported",
     resource: "payroll-journal",
     metadata: { startDate: JOURNAL_WINDOW.startDate, endDate: JOURNAL_WINDOW.endDate,
-      legalEntityId: 11, runCount: 1, lineCount: 3 } };
+      legalEntityId: 11, runCount: 1, lineCount: 5 } };
   const before = [old];
   const created = { ...structuredClone(old), id: 11 };
   const after = [structuredClone(old), created];
@@ -200,8 +203,6 @@ test("dedicated source preserves production API and has separately reconciled pr
   const record = Object.values(manifest.allApiRouteFiles)
     .find(item => item.route === "v1/journal-entries");
   const evidence = record?.methods?.find(m => m.name === "GET");
-  assert.equal(evidence?.status, "COVERED", "exact-head PG16 bearer-key proof was separately reviewed");
-  assert.equal(evidence?.testedBy?.file, "scripts/qa/tenant-v1-journal-http.mjs");
-  assert.equal(evidence?.testedBy?.prNumber, 1484);
-  assert.match(evidence?.testedBy?.evidence ?? "", /actions\/runs\/40514472303/);
+  assert.equal(evidence?.status, "COVERED");
+  assert.equal(verifyJournalRenewal(manifest), 1);
 });

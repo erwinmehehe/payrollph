@@ -230,11 +230,13 @@ test("FICTIONAL PG: actual two-tenant, 51-worker cutoff -> review/rerun -> paysl
       bRows.map(report).sort((a, b) => a.employeeId - b.employeeId),
       "Released entry and payslip money cannot be silently rewritten");
     assert.equal((await slips(beta.id)).length, 2);
-    const ledger = buildReleasedPayrollJournal([await runHeader(runB.id)]);
+    const { releasedEmployerPhilHealth } = await import("../src/lib/payroll-journal-evidence");
+    const [ph] = await db.select({ employerPhilHealth: releasedEmployerPhilHealth }).from(payrollRuns).where(eq(payrollRuns.id, runB.id));
+    const ledger = buildReleasedPayrollJournal([{ ...await runHeader(runB.id), ...ph }]);
     const debits = ledger.reduce((n, line) => n + line.debitCentavos, 0);
     const credits = ledger.reduce((n, line) => n + line.creditCentavos, 0);
     assert.equal(debits, credits);
-    assert.equal(debits, 2200000);
+    assert.equal(debits, 2200000 + cents(ph.employerPhilHealth!));
     assert.equal(ledger.find((line) => line.accountCode === "2100")?.creditCentavos, 185000);
     assert.equal(ledger.find((line) => line.accountCode === "2200")?.creditCentavos, 2015000);
     const releaseAudit = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, beta.id));

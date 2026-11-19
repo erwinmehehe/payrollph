@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { releasedEmployerPhilHealth } from "@/lib/payroll-journal-evidence";
 import { db } from "@/db";
 import { payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     id: payrollRuns.id, organizationId: payrollRuns.organizationId,
     legalEntityId: payrollRuns.legalEntityId, status: payrollRuns.status,
     payDate: payrollRuns.payDate, periodLabel: payrollRuns.periodLabel,
-    grossPay: payrollRuns.grossPay, netPay: payrollRuns.netPay,
+    grossPay: payrollRuns.grossPay, netPay: payrollRuns.netPay, employerPhilHealth: releasedEmployerPhilHealth,
   }).from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, gate.auth.organizationId),
     eq(payrollRuns.status, "Released"),

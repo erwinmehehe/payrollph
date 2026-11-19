@@ -1,0 +1,43 @@
+{
+  "route": "src/app/api/v1/journal-entries/route.ts",
+  "method": "GET",
+  "proof": {
+    "kind": "released-journal-philhealth-pg16",
+    "file": "scripts/qa/tenant-v1-journal-http.mjs",
+    "line": 205,
+    "ownPositiveLine": 205,
+    "foreignDenialLine": 219,
+    "unchangedDbLine": 276,
+    "forgedSelectorLine": 226,
+    "victimEntryLine": 272,
+    "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44523562673/job/135561687162",
+    "postgresMajor": 16,
+    "prNumber": 2045,
+    "workflowRunId": 44523562673,
+    "testedCommit": "5a71eb3801012393f42d76da0b406ea4b6470473",
+    "pullRequestHead": "ad865b016087f681b11c15542928f159e32fcbeb"
+  },
+  "sourcePins": {
+    "src/app/api/v1/journal-entries/route.ts": "e8aa75219f74976b599fb33cb169322a9b5c3499",
+    "scripts/qa/tenant-v1-journal-http.mjs": "5af6e0155bcbe3e039c77265e802fd16fe4b3f66",
+    "scripts/qa/tenant-v1-journal-contract.mjs": "0d6e80af0f04bbc7547f9461ad40e973ef0b810e",
+    "src/lib/payroll-journal-export.ts": "95666725d8d0d82d7e3a3b71c58e159a1c55bef6",
+    "src/lib/payroll-journal-evidence.ts": "ca12e583efe71cc1ca041da771ea4319e6b4e59f",
+    ".github/workflows/tenant-v1-journal-http.yml": "012c130dafba9432a67b5e3f625750511cca51f4",
+    "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
+    "src/lib/api-v1-extended.ts": "e856773edb4f6ed2d9976dd5af4ed0ab4c65e639",
+    "src/lib/public-api-v1-extended.ts": "6bd1ede30c41e7ee235e3c89e6335236fa1fa154",
+    "src/lib/api-auth.ts": "eac6c92c5e875c3267b7d7d6c0053bfeee93900a",
+    "src/lib/api-keys.ts": "673df1ea849971f042f1286d47d744f1fab6f054"
+  },
+  "observed": {
+    "attackers": 2,
+    "realHigherIdVictim": 1,
+    "positiveOwn": 5,
+    "denied": 10,
+    "forgedOrganizationStayedWithKey": true,
+    "victimPayrollAndTokensUnchanged": true,
+    "csvCentavosBalanced": true,
+    "moneyMoved": false
+  }
+}

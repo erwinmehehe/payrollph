@@ -35076,27 +35076,29 @@
       ]
     },
     "src/app/api/v1/journal-entries/route.ts": {
-      "gitBlobSha": "4073d3eec381f91b0da9460207a58947b289b6de",
+      "gitBlobSha": "e8aa75219f74976b599fb33cb169322a9b5c3499",
       "route": "v1/journal-entries",
       "methods": [
         {
           "name": "GET",
-          "line": 10,
+          "line": 11,
           "status": "COVERED",
-          "reason": "Provisional method-only tenant-isolation proof: executed own-positive, genuine victim isolation, unchanged victim PostgreSQL and forged-selector containment at PR #1484 exact head. No global acceptance, production activation, payout, agency or provider authorization. See https://github.com/erwinmehehe/payrollph/actions/runs/40514472303.",
+          "reason": "SOLO_VERIFIED_DEV_RECOVERY. Two bearer-key employers exported distinct five-line journals over localhost HTTP on disposable PG16. Foreign legal employers were denied; the forged organization selector stayed with the key owner. Victim payroll entries, runs, keys and audit matched their original state.",
           "testedBy": {
+            "kind": "released-journal-philhealth-pg16",
             "file": "scripts/qa/tenant-v1-journal-http.mjs",
-            "line": 196,
-            "ownPositiveLine": 196,
-            "foreignDenialLine": 210,
-            "unchangedDbLine": 265,
-            "forgedSelectorLine": 217,
-            "scope": "Bearer-key CSV journal own Released-run exact-centavo positives with actor-bound export audit; genuine higher-ID victim legal entity 403 and forged organization selector cannot switch key owner; victim sources and keys unchanged.",
-            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/40514472303 (PR #1484 exact-head fictional PostgreSQL 16/localhost HTTP)",
+            "line": 205,
+            "ownPositiveLine": 205,
+            "foreignDenialLine": 219,
+            "unchangedDbLine": 276,
+            "forgedSelectorLine": 226,
+            "victimEntryLine": 272,
+            "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44523562673/job/135561687162",
             "postgresMajor": 16,
-            "prNumber": 1484,
-            "workflowRunId": 40514472303,
-            "verifiedMainCommit": "a7dc1f5184f59f3c5ac348e37b4ca88810f10651"
+            "prNumber": 2045,
+            "workflowRunId": 44523562673,
+            "testedCommit": "5a71eb3801012393f42d76da0b406ea4b6470473",
+            "pullRequestHead": "ad865b016087f681b11c15542928f159e32fcbeb"
           }
         }
       ],
@@ -35110,21 +35112,13 @@
       "guards": [],
       "callerSuppliedIds": [
         {
-          "line": 21,
+          "line": 22,
           "token": "params.get(\"legalEntityId\")"
         }
       ],
       "businessIds": [
         {
-          "line": 21,
-          "token": "legalEntityId"
-        },
-        {
-          "line": 21,
-          "token": "legalEntityId"
-        },
-        {
-          "line": 21,
+          "line": 22,
           "token": "legalEntityId"
         },
         {
@@ -35132,47 +35126,55 @@
           "token": "legalEntityId"
         },
         {
-          "line": 26,
-          "token": "organizationId"
+          "line": 22,
+          "token": "legalEntityId"
         },
         {
-          "line": 26,
-          "token": "organizationId"
-        },
-        {
-          "line": 27,
+          "line": 23,
           "token": "legalEntityId"
         },
         {
           "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 27,
+          "token": "organizationId"
+        },
+        {
+          "line": 28,
           "token": "legalEntityId"
         },
         {
-          "line": 31,
-          "token": "organizationId"
-        },
-        {
-          "line": 31,
-          "token": "organizationId"
-        },
-        {
-          "line": 34,
+          "line": 28,
           "token": "legalEntityId"
         },
         {
-          "line": 34,
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 32,
+          "token": "organizationId"
+        },
+        {
+          "line": 35,
           "token": "legalEntityId"
         },
         {
-          "line": 46,
+          "line": 35,
+          "token": "legalEntityId"
+        },
+        {
+          "line": 47,
           "token": "organizationId"
         },
         {
-          "line": 46,
+          "line": 47,
           "token": "organizationId"
         },
         {
-          "line": 48,
+          "line": 49,
           "token": "legalEntityId"
         }
       ]
