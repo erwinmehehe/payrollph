@@ -135,6 +135,27 @@ try {
     await request(actor, entity, decide(otherSheet, "rejected"), 404);
   }
   assert.deepEqual(await state(), beforeTransferred);
+  // Offboard both managers from this workspace while keeping their sessions
+  // and their memberships in a separate fictional workspace active.
+  const next = await seedEmployer("ATTB", randomUUID().slice(0, 8), standaloneMakeSession);
+  for (const actor of actors) {
+    await db.insert(s.userOrganizations).values({ organizationId: next.org.id, userId: actor.id, role: "hr", active: true });
+    await db.insert(s.userLegalEntityGrants).values({ organizationId: next.org.id, userId: actor.id, legalEntityId: next.entity.id });
+    await db.update(s.userOrganizations).set({ active: false }).where(and(
+      eq(s.userOrganizations.organizationId, org.id), eq(s.userOrganizations.userId, actor.id)));
+  }
+  const beforeOffboarded = await state();
+  for (const actor of actors) {
+    const own = await standaloneRequest("/api/workforce/timesheets?" + new URLSearchParams({
+      organizationId: next.org.id, legalEntityId: next.entity.id, ...period }), { cookie: actor.cookie });
+    assert.equal(own.status, 200);
+    assert.deepEqual(own.json.employees.map(x => x.id), [next.worker.id]);
+    await request(actor, entity, null, 403);
+    await request(actor, entity, policy, 403);
+    await request(actor, entity, submit(worker), 403);
+    await request(actor, entity, decide(owned, "approved"), 403);
+  }
+  assert.deepEqual(await state(), beforeOffboarded);
   const receipt = { label: "SOLO_VERIFIED_DEV_RECOVERY", head: git("rev-parse", "HEAD"), postgres: identity.version,
     managers: 2, legalEmployers: 2, steps, unchangedAfterReads: true, unchangedAfterDenials: true, unchangedAfterTransferChecks: true };
   writeFileSync("outputs/timesheet-employer-result.json", JSON.stringify(receipt, null, 2) + "\n", { flag: "wx" });
