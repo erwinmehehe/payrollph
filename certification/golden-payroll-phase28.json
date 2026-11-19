@@ -1,0 +1,97 @@
+{
+  "version": "phase28-year-end-company-premium-pay-2026-11-19",
+  "toleranceCentavos": 0,
+  "description": "A company premium (a PREM- line from an employee-scoped pay policy with a worked-time rule) is taxed at year end exactly as the cutoff taxed it. The cutoff withholds on a premium whose rule says taxable: false as if it were not paid, and on a taxable one as ordinary pay. Year-end annualization must do the same: a PREM- line whose notes say 'Taxable: no' joins the non-taxable bucket (otherNonTaxable). Phase 28 certifies it through the real engine with three workers hired at the switch on the same salary, each with the same complete 8-hour worked Monday in every cutoff 13-24: a control with no policy, a taxable 25.00 an hour premium (200.00 a cutoff) and a non-taxable one. The control's settlement is the Phase 24 control's, and the non-taxable worker's must equal it.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000). Only the employee's mandatory SSS, PhilHealth and Pag-IBIG contributions are excluded from taxable compensation (NIRC Sec. 32(B)(7)(f)). Whether an employer-granted premium is taxable is the policy's own classification; the engine honours the rule's taxable flag.",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e)). A company premium is not basic salary and does not enter the 13th month."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 30,000; SSS 875, PhilHealth 750, Pag-IBIG 100 (1,725); taxable 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10; net 25,015.90.",
+    "Every worker has one complete 09:00-18:00 punch with a 12:00-13:00 break (480 worked minutes) on a plain Monday in each cutoff, so the monthly salary is paid in full and the only difference between workers is the policy. The premium is a worked-time rule of 0 percent plus 25.00 an hour: 8 x 25.00 = 200.00 a cutoff, 2,400.00 over the 12 cutoffs. It is included in the SSS base and excluded from the Pag-IBIG base, and neither moves a contribution because 60,000 is already at the SSS and Pag-IBIG ceilings.",
+    "Taxable premium cutoff: gross 30,200, taxable 30,200 - 1,725 = 28,475, withholding 937.50 + 0.20 x (28,475 - 16,667) = 3,299.10, net 30,200 - 1,725 - 3,299.10 = 25,175.90. Non-taxable premium cutoff: taxable 30,200 - 200 - 1,725 = 28,275, withholding 3,259.10, net 30,200 - 1,725 - 3,259.10 = 25,215.90.",
+    "Year end for a worker with no 13th month paid: entries 12 x 30,000 plus the premiums; entitlement = basic earned 360,000 / 12 = 30,000 accrued unpaid and added to gross compensation; contributions 12 x 1,725 = 20,700; the 30,000 sits inside the 90,000 pool; non-taxable = pool + contributions + non-taxable premiums; taxable = gross - non-taxable; tax = 15% x (taxable - 250,000); withheld = the sum of the WHT lines only; a refund is a negative adjustment."
+  ],
+  "employees": {
+    "noPolicyControl": {
+      "description": "No pay policy. Gross 30,000, withholding 3,259.10 and net 25,015.90 in every cutoff. Year end: gross 390,000; non-taxable 50,700; taxable 339,300; tax 13,395.00; withheld 39,109.20; refund 25,714.20.",
+      "premium": null,
+      "cutoff": {
+        "grossPay": 30000,
+        "withholding": 3259.1,
+        "netPay": 25015.9
+      },
+      "yearEnd": {
+        "grossCompensation": 390000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 50700,
+        "statutoryContributions": 20700,
+        "taxableIncome": 339300,
+        "taxDue": 13395,
+        "taxWithheld": 39109.2,
+        "adjustment": -25714.2,
+        "outcome": "refund"
+      }
+    },
+    "taxablePremium": {
+      "description": "A taxable 25.00 an hour premium: 200.00 a cutoff. Cutoff gross 30,200, withholding 3,299.10, net 25,175.90. Year end: gross 360,000 + 2,400 + 30,000 = 392,400; non-taxable 50,700; taxable 341,700; tax 15% x 91,700 = 13,755.00; withheld 12 x 3,299.10 = 39,589.20; refund 25,834.20.",
+      "premium": {
+        "taxable": true,
+        "amountPerHour": 25
+      },
+      "cutoff": {
+        "grossPay": 30200,
+        "withholding": 3299.1,
+        "netPay": 25175.9
+      },
+      "yearEnd": {
+        "grossCompensation": 392400,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 50700,
+        "statutoryContributions": 20700,
+        "taxableIncome": 341700,
+        "taxDue": 13755,
+        "taxWithheld": 39589.2,
+        "adjustment": -25834.2,
+        "outcome": "refund"
+      }
+    },
+    "nonTaxablePremium": {
+      "description": "A non-taxable 25.00 an hour premium: 200.00 a cutoff. The cutoff withholds as if it were not paid: gross 30,200, withholding 3,259.10, net 25,215.90. Year end must exclude it too: gross 392,400; non-taxable 30,000 + 20,700 + 2,400 = 53,100; taxable 339,300; tax 13,395.00; withheld 39,109.20; refund 25,714.20, identical to the control. If year end taxed it the refund would be 360.00 too small.",
+      "premium": {
+        "taxable": false,
+        "amountPerHour": 25
+      },
+      "cutoff": {
+        "grossPay": 30200,
+        "withholding": 3259.1,
+        "netPay": 25215.9
+      },
+      "yearEnd": {
+        "grossCompensation": 392400,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 53100,
+        "statutoryContributions": 20700,
+        "taxableIncome": 339300,
+        "taxDue": 13395,
+        "taxWithheld": 39109.2,
+        "adjustment": -25714.2,
+        "outcome": "refund"
+      }
+    }
+  },
+  "steadyCutoff": {
+    "sss": 875,
+    "philHealth": 750,
+    "pagIbig": 100,
+    "status": "Ready",
+    "poolFlag": false
+  },
+  "limitations": [
+    "Only the worked-time premium family (PREM-) is exercised, with a flat hourly amount. Holiday and rest-day (DAYPREM-), overtime (OTPREM-) and night differential (NDPREM-) premium lines reach the same year-end rule by code prefix and are not exercised separately.",
+    "Only an employee-scoped policy with one rule, one worked day per cutoff and a premium that is never limited. Percent-of-rate premiums, rate-table tiers and stacked policies are not exercised.",
+    "One salary, 'split' timing, a worker hired at the switch (no imported history), contributions at their ceilings.",
+    "Final pay (separation) derives year-to-date gross from released gross pay and is not exercised here; see Phase 25.",
+    "Year-end rows already computed under an older rule are replaced only when year end is recomputed."
+  ]
+}
