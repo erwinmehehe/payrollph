@@ -130,9 +130,14 @@ export function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
     // Contributions and withholding are deductions, which payroll always stores as NEGATIVE lines. The label match
     // alone is not enough: an earning called "Taxable allowance" or "SSS anniversary bonus" is positive and must not be
     // counted as tax withheld or as a contribution.
+    // A loan repayment ("Loan, SSS Salary Loan"), an earned wage advance recovery and a benefit plan deduction are
+    // deductions too, but they are not statutory contributions even when their label names an agency. The engine gives
+    // each its own code family, so those are excluded before the label is read.
+    const otherDeduction = /^(LOAN|EWA|BEN)-/.test(code);
     if (
       signedAmount < 0
       && code !== "HDMF_VOL"
+      && !otherDeduction
       && (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig"))
     ) {
       contributions += amount;
