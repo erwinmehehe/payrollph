@@ -107,7 +107,7 @@ export async function verifyV1JournalTenantHttp() {
     await db.insert(schema.payrollEntries).values({
       payrollRunId: released.id, employeeId: e.worker.id,
       grossPay: amounts.grossPay, deductions: amounts.deductions, netPay: amounts.netPay,
-      trace: { inputs: ["philHealthEmployerCutoff=0.00"] },
+      trace: { inputs: [`philHealthEmployerCutoff=${amounts.employerPhilHealth}`] },
     });
     const token = mintApiKey();
     const [key] = await db.insert(apiKeys).values({
