@@ -9,6 +9,7 @@ on:
       - '.github/workflows/tenant-wps01-scenarios-http.yml'
       - 'scripts/qa/tenant-wps01-scenarios-*.mjs'
       - 'tests/tenant-wps01-scenarios-contract.test.mjs'
+      - 'tests/tenant-wps01-credit-receipt.test.mjs'
       - 'docs/qa/tenant-wps01-scenarios.md'
       - 'src/app/api/workforce-planning/scenarios/route.ts'
       - 'src/lib/workforce-forecast-server.ts'
@@ -30,6 +31,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-credit-receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: node --test tests/tenant-wps01-credit-receipt.test.mjs
   fictional-workforce-scenario-post:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
