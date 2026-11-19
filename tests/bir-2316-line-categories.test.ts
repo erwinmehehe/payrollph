@@ -14,20 +14,20 @@ const poolEarning = (code: string, type: string, amount: number) =>
 const line = (code: string, amount: number, label = code): Bir2316Line => ({ code, label, amount });
 
 // An ordinary taxpayer's year. Every figure below is derived by hand.
-//   gross = 360,000 basic + 12,000 OT + 1,500 ND + 3,000 holiday + 2,000 hazard + 100,000 bonus + 30,000 13th + 20,000 commission
-//           + 6,000 taxable allowance + 9,000 de minimis = 543,500 (the 5,000 reimbursement is not compensation).
+//   gross = 360,000 basic + 12,000 OT + 1,500 ND + 3,000 holiday + 100,000 bonus + 30,000 13th + 20,000 commission
+//           + 6,000 taxable allowance + 9,000 de minimis = 541,500 (the 5,000 reimbursement is not compensation).
 //   pool = 100,000 + 30,000 + 1,000 de minimis excess = 131,000: exempt 90,000 (item 34), taxable 41,000 (item 48).
 //   de minimis exempt 8,000 (item 35); contributions 10,500 + 9,000 + 2,400 = 21,900 (item 36), carved out of basic pay.
-//   item 39 = 360,000 - 21,900 = 338,100. Non-taxable 90,000 + 8,000 + 21,900 = 119,900; taxable 543,500 - 119,900 = 423,600.
+//   item 39 = 360,000 - 21,900 = 338,100. Non-taxable 90,000 + 8,000 + 21,900 = 119,900; taxable 541,500 - 119,900 = 421,600.
 const ordinaryLines: Bir2316Line[] = [
-  line("BASIC", 360000), line("OT", 12000), line("ND", 1500), line("HOLIDAY", 3000), line("CALAMITY", 2000),
+  line("BASIC", 360000), line("OT", 12000), line("ND", 1500), line("HOLIDAY", 3000),
   poolEarning("EARN-1", "bonus", 100000), poolEarning("EARN-2", "13th_month", 30000),
   earning("EARN-3", "commission", 20000, "taxable"), earning("EARN-4", "taxable_allowance", 6000, "taxable"),
   { code: "DM-uniformClothing", label: "De minimis", amount: 9000, periodOtherBenefitsPool: 1000 },
   line("SSS", -10500), line("PHIC", -9000), line("HDMF", -2400),
   line("HDMF_VOL", -600), line("WHT", -60000), line("LOAN-1", -3000), line("EXP-1", 5000), line("YE-TAX-1", -100),
 ];
-const ordinaryAnnual = annualize({ grossCompensation: 543500, thirteenthMonth: 30000, otherBenefits: 100000, deMinimis: 8000, deMinimisExcess: 1000, statutoryContributions: 21900, taxWithheld: 27220, mwe: false });
+const ordinaryAnnual = annualize({ grossCompensation: 541500, thirteenthMonth: 30000, otherBenefits: 100000, deMinimis: 8000, deMinimisExcess: 1000, statutoryContributions: 21900, taxWithheld: 27220, mwe: false });
 
 test("an ordinary taxpayer's lines land in exactly the 2316 items the arithmetic requires", () => {
   const result = categorizeBir2316Lines(ordinaryLines, { mwe: false });
@@ -35,7 +35,7 @@ test("an ordinary taxpayer's lines land in exactly the 2316 items the arithmetic
   assert.deepEqual(result.unmapped, []);
   assert.deepEqual(result.items, {
     "34": "90000.00", "35": "8000.00", "36": "21900.00", "39": "338100.00", "44A": "6000.00", "45": "20000.00",
-    "48": "41000.00", "49": "2000.00", "50": "12000.00", "51A": "1500.00", "51B": "3000.00",
+    "48": "41000.00", "50": "12000.00", "51A": "1500.00", "51B": "3000.00",
   });
   assert.deepEqual(result.descriptions, { "44A": "Taxable allowance", "51A": "Night differential", "51B": "Holiday and rest-day premium" });
   assert.deepEqual(result.basis["50"], ["OT"]);
@@ -46,14 +46,14 @@ test("an ordinary taxpayer's lines land in exactly the 2316 items the arithmetic
 
 test("the categorised items reconcile to the real annualization result and satisfy the real 2316 reviewer", () => {
   assert.equal(ordinaryAnnual.nonTaxable, 119900);
-  assert.equal(ordinaryAnnual.taxableIncome, 423600);
+  assert.equal(ordinaryAnnual.taxableIncome, 421600);
   const result = categorizeBir2316Lines(ordinaryLines, { mwe: false });
   assert.deepEqual(reconcileBir2316Categories(result, ordinaryAnnual), []);
   assert.ok(result.detailItems, "a complete result yields every item, zeros included");
   assert.equal(result.detailItems!["29"], "0.00");
   assert.equal(Object.keys(result.detailItems!).length, 24);
   const review = reviewBir2316Summary({
-    grossCompensation: "543500.00", nonTaxable: "119900.00", taxableIncome: "423600.00", taxDue: ordinaryAnnual.taxDue.toFixed(2),
+    grossCompensation: "541500.00", nonTaxable: "119900.00", taxableIncome: "421600.00", taxDue: ordinaryAnnual.taxDue.toFixed(2),
     withheldBeforeYearEnd: "27220.00", yearEndAdjustment: "0.00",
   }, { detailItems: result.detailItems!, previousEmployer: { status: "none-confirmed" }, actualPresentWithheld: "27220.00", appliedAdjustment: "0.00", peraCredit: "0.00" });
   const codes = review.issues.map((issue) => issue.code);
@@ -62,28 +62,38 @@ test("the categorised items reconcile to the real annualization result and satis
   }
 });
 
-// An MWE hired at the switch (the Phase 22 shape): basic 105,600, OT 4,000, ND 12.50, holiday 240, contributions 9,315, accrued 13th 8,800.
-//   gross = 105,600 + 4,252.50 + 8,800 accrued = 118,652.50. Basic is carved by contributions: 29 = 105,600 - 9,315 = 96,285.
-test("an MWE's basic pay and premiums are exempt items 29-33 and the accrued unpaid 13th month joins the pool", () => {
-  const lines = [line("BASIC", 105600), line("OT", 4000), line("ND", 12.5), line("HOLIDAY", 240), line("SSS", -5475), line("PHIC", -2640), line("HDMF", -1200)];
+// Gross is basic 105,600, OT 4,000, night differential 12.50 and accrued 13th month 8,800.
+test("an MWE's basic pay net of contributions, statutory OT and night differential reconcile", () => {
+  const lines = [line("BASIC", 105600), line("OT", 4000), line("ND", 12.5), line("SSS", -5475), line("PHIC", -2640), line("HDMF", -1200)];
   const result = categorizeBir2316Lines(lines, { mwe: true, accruedUnpaidThirteenth: 8800 });
   assert.deepEqual(result.issues, []);
-  assert.deepEqual(result.items, { "29": "96285.00", "30": "240.00", "31": "4000.00", "32": "12.50", "34": "8800.00", "36": "9315.00" });
+  assert.deepEqual(result.items, { "29": "96285.00", "31": "4000.00", "32": "12.50", "34": "8800.00", "36": "9315.00" });
   assert.equal(result.tiers["32"], "direct", "an MWE's night differential has its own item");
   assert.deepEqual(result.descriptions, {}, "an MWE needs no description for these items");
-  const annual = annualize({ grossCompensation: 118652.5, thirteenthMonth: 8800, statutoryContributions: 9315, taxWithheld: 0, mwe: true });
+  const annual = annualize({ grossCompensation: 118412.5, thirteenthMonth: 8800, statutoryContributions: 9315, taxWithheld: 0, mwe: true });
   assert.deepEqual(reconcileBir2316Categories(result, annual), []);
 });
 
-test("an ordinary taxpayer's overtime, night, holiday and hazard pay are taxable items, never exempt", () => {
+test("an ordinary taxpayer's overtime, night and holiday premiums map to taxable items", () => {
   assert.deepEqual(classifyBir2316Line(line("OT", 1), false), { to: "item", item: "50", tier: "direct" });
   assert.deepEqual(classifyBir2316Line(line("OT", 1), true), { to: "item", item: "31", tier: "direct" });
-  assert.deepEqual(classifyBir2316Line(line("CALAMITY", 1), false), { to: "item", item: "49", tier: "direct" });
-  assert.deepEqual(classifyBir2316Line(line("CALAMITY", 1), true), { to: "item", item: "33", tier: "direct" });
-  for (const code of ["OT", "ND", "HOLIDAY", "CALAMITY"]) {
+  for (const code of ["OT", "ND", "HOLIDAY"]) {
     const target = classifyBir2316Line(line(code, 1), false);
     assert.ok(target.to === "item" && Number(target.item.replace(/\D/g, "")) >= 39, code + " must be a taxable item for an ordinary taxpayer");
   }
+});
+
+test("combined premium buckets require evidence before using the BIR holiday or hazard items", () => {
+  const premiums = [line("CALAMITY", 200, "Calamity / hazard premium"), line("HOLIDAY", 240, "Holiday / rest-day premium")];
+  const mwe = categorizeBir2316Lines(premiums, { mwe: true });
+  assert.deepEqual(mwe.unmapped.map(({ code }) => code), ["CALAMITY", "HOLIDAY"]);
+  assert.deepEqual(mwe.items, {});
+  assert.equal(mwe.detailItems, null);
+  const ordinary = categorizeBir2316Lines(premiums, { mwe: false });
+  assert.deepEqual(ordinary.unmapped.map(({ code }) => code), ["CALAMITY"]);
+  assert.deepEqual(ordinary.items, { "51B": "240.00" });
+  assert.equal(ordinary.detailItems, null);
+  assert.ok(categorizeBir2316Lines([line("CALAMITY", 0), line("HOLIDAY", 0)], { mwe: true }).detailItems);
 });
 
 test("lines that need a legal reading are refused with a reason, never guessed or zero-filled", () => {

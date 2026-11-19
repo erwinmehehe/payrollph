@@ -12,7 +12,7 @@
  *   "convention" a defensible placement that a reviewer must confirm (night differential and the holiday premium of an
  *                ordinary taxpayer have no 2316 line of their own, so they go to "Others" 51A / 51B with a description).
  *   "review"     not mapped.
- * Two structural conventions are also assumed and must be confirmed against the 2316 instructions:
+ * Two structural mappings are supported by the BIR 1604-C Alphalist. See the 2316 mapping review in docs/payroll-certification:
  *   1. Employee contributions (item 36) are carved OUT of basic pay, so item 39 (item 29 for an MWE) is basic pay less
  *      contributions. That is what makes items 29-37 + 39-51B add up to gross compensation.
  *   2. The shared PHP 90,000 pool (13th month, bonuses, de minimis excess) is exempt up to the cap in item 34 and the excess
@@ -96,9 +96,9 @@ export function classifyBir2316Line(line: Bir2316Line, mwe: boolean): Target {
   for (const [prefix, why] of SKIP_PREFIX) if (code.startsWith(prefix)) return { to: "skip", why };
   if (code === "BASIC" || code === "HOLIDAY_UNWORKED" || code.startsWith("LEAVE-") || code.startsWith("RETRO-")) return { to: "basic" };
   if (code === "OT") return { to: "item", item: mwe ? "31" : "50", tier: "direct" };
-  if (code === "CALAMITY") return { to: "item", item: mwe ? "33" : "49", tier: "direct" };
+  if (code === "CALAMITY") return { to: "review", why: "combined calamity/hazard premium: verify that it is hazard pay and establish eligibility before mapping to item 33 or 49" };
   if (code === "HOLIDAY") return mwe
-    ? { to: "item", item: "30", tier: "direct" }
+    ? { to: "review", why: "combined holiday/rest-day premium: separate qualifying MWE holiday pay before mapping to item 30" }
     : { to: "item", item: "51B", tier: "convention", description: "Holiday and rest-day premium" };
   if (code === "ND") return mwe
     ? { to: "item", item: "32", tier: "direct" }
@@ -151,7 +151,8 @@ export function categorizeBir2316Lines(lines: readonly Bir2316Line[], ctx: Ctx):
       if (target.to !== "skip") unmapped.push({ code, label: String(line.label ?? ""), amount: String(line.amount), reason: "amount is not an exact centavo value" });
       continue;
     }
-    if (amount === 0 && target.to !== "review") continue;
+    // The engine emits these combined buckets even when no premium was paid.
+    if (amount === 0 && (target.to !== "review" || code === "CALAMITY" || code === "HOLIDAY")) continue;
     switch (target.to) {
       case "skip": break;
       case "review": unmapped.push({ code, label: String(line.label ?? ""), amount: money(amount), reason: target.why }); break;
