@@ -1,0 +1,65 @@
+{
+  "version": "phase31-loan-priority-deferral-and-balance-caps-2026-11-20",
+  "toleranceCentavos": 0,
+  "description": "Phase 30 proved the deduction waterfall at a salary where withholding is zero. Phase 31 proves three further rules at a taxed salary (30,000 monthly, withholding 503.70 a cutoff): government loans (a loan type naming SSS, Pag-IBIG, HDMF or calamity) are deducted before any other loan whatever their ids, so when pay is short the company loan takes the shortfall; a benefit share that does not fit is deferred whole while the deductions after it still proceed; and a loan never deducts more than its own remaining balance, which is not a shortfall and raises no review flag. Four workers hired at the switch on the same salary: a control, a worker whose older company loan sits behind a newer SSS loan, a worker whose benefit share is deferred, and a worker whose loan is capped by its balance. Year end must settle exactly like the control for all four.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt). Only the employee's mandatory SSS, PhilHealth and Pag-IBIG contributions are excluded from taxable compensation (NIRC Sec. 32(B)(7)(f)).",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e)).",
+    "waterfall": "The priority order and the government-loan-first rule are the product's own money-integrity rules in the payroll engine, not statutes. The phase certifies the implementation against them."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 30,000 (15,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 15,000; SSS 5% of the 30,000 salary credit = 1,500 a month = 750 a cutoff; PhilHealth 5% = 1,500 split evenly, employee 750 a month = 375 a cutoff; Pag-IBIG 100 a cutoff (1,225 in all); taxable 15,000 - 1,225 = 13,775; withholding 15% x (13,775 - 10,417) = 503.70; net 13,271.30.",
+    "Disposable pay before optional deductions: 15,000 - 1,225 - 503.70 = 13,271.30.",
+    "Loans are ordered government first (type names SSS, Pag-IBIG, HDMF or calamity), then by id. A loan asks for the smaller of its cutoff deduction and its remaining balance, and receives the smaller of that and what is left. A benefit share is taken whole if it fits and is otherwise deferred whole. A deferred or limited amount raises a review flag (status Exception); a deduction that is merely smaller because the balance is smaller does not.",
+    "Harness loans carry the stated balance and the harness marks runs Released without settling them, so a balance never falls during the twelve cutoffs; the same amounts therefore recur in every cutoff.",
+    "Year end for a worker with no 13th month paid: entries 12 x 15,000 = 180,000; entitlement = basic earned 180,000 / 12 = 15,000 accrued unpaid = gross compensation 195,000; contributions 12 x 1,225 = 14,700 and ONLY those; the 15,000 sits inside the 90,000 pool; non-taxable = 15,000 + 14,700 = 29,700; taxable = 165,300; tax 0.00 (below 250,000); withheld 12 x 503.70 = 6,044.40; the adjustment is -6,044.40, a refund. Optional deductions never move any of it."
+  ],
+  "employees": {
+    "noDeductionControl": {
+      "description": "No optional deduction. Net pay 13,271.30 in every cutoff, status Ready.",
+      "voluntaryMonthly": 0,
+      "plans": [],
+      "loans": [],
+      "advance": null,
+      "cutoff": { "pagIbigVoluntary": 0, "benefit": 0, "advance": 0, "loans": {}, "netPay": 13271.3, "status": "Ready" },
+      "yearEnd": { "grossCompensation": 195000, "thirteenthMonth": 15000, "nonTaxable": 29700, "statutoryContributions": 14700, "taxableIncome": 165300, "taxDue": 0, "taxWithheld": 6044.4, "adjustment": -6044.4, "outcome": "refund" }
+    },
+    "governmentLoanFirst": {
+      "description": "A Company Emergency Loan of 8,000.00 created first (lower id) and an SSS Salary Loan of 8,000.00 created second. Disposable pay is 13,271.30. The government loan goes first despite its higher id: SSS Salary Loan 8,000.00 leaves 5,271.30; the company loan asks 8,000.00 and gets 5,271.30 (limited), leaving 0.00. Net pay 0.00 and the payslip is an Exception for the limited loan.",
+      "voluntaryMonthly": 0,
+      "plans": [],
+      "loans": [
+        { "loanType": "Company Emergency Loan", "referenceNo": "P31-CO-1", "principal": 96000, "cutoffDeduction": 8000 },
+        { "loanType": "SSS Salary Loan", "referenceNo": "P31-SSS-1", "principal": 96000, "cutoffDeduction": 8000 }
+      ],
+      "advance": null,
+      "cutoff": { "pagIbigVoluntary": 0, "benefit": 0, "advance": 0, "loans": { "SSS Salary Loan": 8000, "Company Emergency Loan": 5271.3 }, "netPay": 0, "status": "Exception" },
+      "yearEnd": { "grossCompensation": 195000, "thirteenthMonth": 15000, "nonTaxable": 29700, "statutoryContributions": 14700, "taxableIncome": 165300, "taxDue": 0, "taxWithheld": 6044.4, "adjustment": -6044.4, "outcome": "refund" }
+    },
+    "benefitShareDeferred": {
+      "description": "Voluntary Pag-IBIG 500.00, a benefit plan share of 15,000.00 (30,000.00 a month) and a Company Emergency Loan of 6,000.00. Waterfall on 13,271.30: voluntary 500.00 leaves 12,771.30; the benefit share needs 15,000.00, does not fit and is deferred whole (no benefit line); the loan fits (6,000.00) and leaves 6,771.30. Net pay 6,771.30 and the payslip is an Exception for the deferred benefit share. Later deductions are not held back for the deferred one.",
+      "voluntaryMonthly": 1000,
+      "plans": [{ "name": "Golden Premium Health Plan", "category": "voluntary", "monthlyContribution": 30000, "cap": 40000 }],
+      "loans": [{ "loanType": "Company Emergency Loan", "referenceNo": "P31-CO-2", "principal": 72000, "cutoffDeduction": 6000 }],
+      "advance": null,
+      "cutoff": { "pagIbigVoluntary": 500, "benefit": 0, "advance": 0, "loans": { "Company Emergency Loan": 6000 }, "netPay": 6771.3, "status": "Exception" },
+      "yearEnd": { "grossCompensation": 195000, "thirteenthMonth": 15000, "nonTaxable": 29700, "statutoryContributions": 14700, "taxableIncome": 165300, "taxDue": 0, "taxWithheld": 6044.4, "adjustment": -6044.4, "outcome": "refund" }
+    },
+    "loanCappedByBalance": {
+      "description": "A Company Emergency Loan with a cutoff deduction of 4,000.00 but only 2,500.00 left to repay. The loan asks for the smaller, 2,500.00, and pay is ample, so it is deducted in full: net pay 13,271.30 - 2,500.00 = 10,771.30. Nothing was short, so there is no review flag and the status is Ready.",
+      "voluntaryMonthly": 0,
+      "plans": [],
+      "loans": [{ "loanType": "Company Emergency Loan", "referenceNo": "P31-CO-3", "principal": 10000, "cutoffDeduction": 4000, "remainingBalance": 2500 }],
+      "advance": null,
+      "cutoff": { "pagIbigVoluntary": 0, "benefit": 0, "advance": 0, "loans": { "Company Emergency Loan": 2500 }, "netPay": 10771.3, "status": "Ready" },
+      "yearEnd": { "grossCompensation": 195000, "thirteenthMonth": 15000, "nonTaxable": 29700, "statutoryContributions": 14700, "taxableIncome": 165300, "taxDue": 0, "taxWithheld": 6044.4, "adjustment": -6044.4, "outcome": "refund" }
+    }
+  },
+  "steadyCutoff": { "grossPay": 15000, "sss": 750, "philHealth": 375, "pagIbig": 100, "withholding": 503.7, "poolFlag": false },
+  "limitations": [
+    "One taxed salary, 'split' timing. Only an SSS loan is exercised as a government loan; a Pag-IBIG, HDMF or calamity loan type reaches the same rule by name match and is not exercised separately. Several government loans ordered among themselves (by id) are not exercised.",
+    "Release settlement (the loan's remaining balance falling, repaid status) is not exercised; the harness marks runs Released directly, so the capped balance recurs every cutoff.",
+    "An earned wage advance is not exercised here (see Phase 30).",
+    "Final pay (separation) is not exercised; see Phase 25."
+  ]
+}
