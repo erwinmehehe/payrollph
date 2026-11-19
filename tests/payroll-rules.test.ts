@@ -131,6 +131,22 @@ test("PhilHealth splits the capped five percent premium and reconciles odd centa
 });
 
 
+test("PhilHealth rounds a half-centavo before dividing the monthly premium", () => {
+  for (const [base, total, employee, employer] of [
+    [10_240.89, 512.04, 256.02, 256.02],
+    [10_240.90, 512.05, 256.02, 256.03],
+    [10_240.91, 512.05, 256.02, 256.03],
+    [10_245.90, 512.30, 256.15, 256.15],
+  ]) assert.deepEqual(computePhilHealth(base, "2026-09-30"), { base, total, employee, employer });
+});
+
+test("a split cutoff receives the upper centavo first and reconciles the released amount second", () => {
+  const input = { monthlyTarget: 256.03, priorCollected: 0, timing: "split" as const, isSecondCutoff: false };
+  const first = computeCutoffStatutoryDeduction(input);
+  assert.equal(first, 128.02);
+  assert.equal(computeCutoffStatutoryDeduction({ ...input, priorCollected: first, isSecondCutoff: true }), 128.01);
+});
+
 test("PhilHealth boundary matrix covers the floor, ceiling and odd-centavo split", () => {
   assert.deepEqual(computePhilHealth(9_999.99), { base: 10_000, total: 500, employee: 250, employer: 250 });
   assert.deepEqual(computePhilHealth(10_000), { base: 10_000, total: 500, employee: 250, employer: 250 });

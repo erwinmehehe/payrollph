@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {readSecurityEvidence,verifySecurityCredits,SECURITY_RECEIPT,SECURITY_TARGETS} from '../scripts/qa/tenant-security-write-credit.mjs';
-import {historicalDocumentSecurityFixture} from '../scripts/qa/document-source-accounting.mjs';
+import {historicalDocumentSecurityFixture} from './helpers/document-security-fixture.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
 test('changed document dependency invalidates all three current credits while preserving the historical PG16 receipt',()=>{
  assert.throws(()=>verifySecurityCredits(manifest()),/Security source\/proof drift/);

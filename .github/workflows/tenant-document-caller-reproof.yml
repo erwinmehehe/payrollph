@@ -4,6 +4,7 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
+      - 'src/lib/payroll-rules.ts'
       - '.github/workflows/tenant-document-caller-reproof.yml'
       - 'scripts/qa/tenant-document-caller-reproof-http.mjs'
       - 'scripts/qa/tenant-second-pass-http.mjs'

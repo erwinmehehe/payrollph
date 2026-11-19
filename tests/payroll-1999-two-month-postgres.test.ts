@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
-import {MONTHS,WORKERS,cents,pesos,extra,expectedCutoff} from './fixtures/payroll-1999-reference';
+import {MONTHS,WORKERS as pilotWorkers,PHILHEALTH_HALF_CENTAVO_WORKER,cents,pesos,extra,expectedCutoff} from './fixtures/payroll-1999-reference';
 import {requirePhase15Database,requirePhase15Environment} from '../scripts/qa/golden-phase15-safety';
+const halfCentavoCase = process.env.PAYROLL_1999_CASE === 'philhealth-half-centavo';
+const WORKERS = halfCentavoCase ? [PHILHEALTH_HALF_CENTAVO_WORKER] : pilotWorkers;
+const outputDirectory = halfCentavoCase ? 'outputs/philhealth-half-centavo' : 'outputs/payroll-1999';
 const mode=process.env.PAYROLL_1999_DISPOSABLE;
 const local=mode==='local-disposable-pg16-only';
 const enabled=local||mode==='github-actions-only';
@@ -20,7 +23,7 @@ function guard(){
  for(const key of OFF)assert.equal(process.env[key],'false',key+' must remain OFF');
 }
 type Row={month:string;cutoff:number;worker:string;component:string;expectedCentavos:number;actualCentavos:number;deltaCentavos:number;status:string;source:string};
-test('1999: two completed months / four actual engine cutoffs / eight workers / released records and exports',{
+test('1999: two completed months / four actual engine cutoffs / released records and exports',{
  skip:enabled?false:'NOT RUN: requires explicit disposable PostgreSQL mode',
 },async()=>{
  guard();
@@ -111,6 +114,7 @@ test('1999: two completed months / four actual engine cutoffs / eight workers / 
     for(const key of Object.keys(actual) as Array<keyof typeof actual>)check(month,cutoff,w.key,key,actual[key],expected[key]);
     const slip=slipRows.find(s=>s.payrollEntryId===entry.id);assert.ok(slip);
     for(const [label,key]of [['Gross','gross'],['Deductions','deductions'],['Net pay','net']] as const)assert.ok(slip.content.includes(label+': PHP '+pesos(actual[key])),'Persisted payslip differs from actual register');
+    if (halfCentavoCase) assert.ok(slip.content.includes("PhilHealth contribution: PHP -"+pesos(expected.ph)), "Payslip must show the exact employee premium deduction");
     assert.equal(lines.reduce((n,x)=>n+cents(x.amount),0),actual.net,'Signed actual line items must reconcile');
    }
    const [calculated]=await db.select().from(payrollRuns).where(eq(payrollRuns.id,run.id));assert.ok(calculated);
@@ -143,7 +147,7 @@ test('1999: two completed months / four actual engine cutoffs / eight workers / 
    return {month,component,workerCount:rows.length,expectedCentavos:rows.reduce((n,r)=>n+r.expectedCentavos,0),actualCentavos:rows.reduce((n,r)=>n+r.actualCentavos,0),deltaCentavos:rows.reduce((n,r)=>n+r.deltaCentavos,0),status:rows.some(r=>r.status==='NOT RUN')?'NOT RUN':rows.some(r=>r.status==='DISAGREES')?'DISAGREES':component.startsWith('ph')?'SOURCE NOT VERIFIED':'AGREES'};
   }));
   const result={kind:'PAYROLL_1999_TWO_MONTH',label:'SOLO_VERIFIED_DEV_RECOVERY',sourceHead,months:MONTHS,workers:WORKERS.length,workerInputs:WORKERS,sourceMatrix:'docs/payroll-certification/two-month-2026-1999.md',collectionPolicy:'split; separate reference arithmetic; no agency timing certification',runIds,recordsReleasedOnly:true,humanApprovalTested:false,providerCalls:0,productionAccepted:false,agencyAcceptance:false,protectedFlags:'OFF',ledger,monthlyTotals:totals,employerTotals,journals,structuralFailures:structural,holds:['Original PhilHealth 2026 advisory and odd-cent EE/ER policy','MWE/source-class acceptance','Year-boundary and final-pay interactions','Employer PhilHealth posting verified; other statutory liabilities and employer-specific account mappings remain outside this check','Qualified payroll review; real-employer evidence separate'],knownWorkExcluded:['#2006 SSS bracket and odd-cent basic correction vectors']};
-  mkdirSync('outputs/payroll-1999',{recursive:true});writeFileSync('outputs/payroll-1999/result.json',JSON.stringify(result,null,2)+'\n');
+  mkdirSync(outputDirectory,{recursive:true});writeFileSync(outputDirectory+'/result.json',JSON.stringify(result,null,2)+'\n');
   console.log('PAYROLL_1999_TWO_MONTH_RESULT '+JSON.stringify({sourceHead,months:MONTHS,workers:WORKERS.length,runs:runIds.length,comparisons:ledger.length,disagreements:ledger.filter(r=>r.deltaCentavos!==0),structuralFailures:structural,sourceUnverified:ledger.filter(r=>r.status==='SOURCE NOT VERIFIED').length}));
   await pool.end();
  }

@@ -39,6 +39,7 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
   assert.equal(receipt.job, 128589939228);
   assert.equal(receipt.credits, 0);
 
+  const changedInputs = [];
   let changedRouteCount = 0;
   let reviewedUncreditedPageCount = 0;
   let reviewedStudioScopeCount = 0;
@@ -73,9 +74,10 @@ export function verifyDocumentCallerReproof(reference, read = readFileSync) {
     } else if (file === "scripts/qa/tenant-table-rows/read/path-id.mjs") {
       assertOracleCallerCompatible(file, pinned, read);
     } else {
-      assert.equal(current, pinned, "Executed caller input changed: " + file);
+      if (current !== pinned) changedInputs.push(file);
     }
   }
+  assert.equal(changedInputs.length, 0, changedInputs.map(file => "Executed caller input changed: " + file).join("\n"));
   assert.ok(changedRouteCount <= 1, "Only one HCM route source is eligible for replacement");
   assert.ok(reviewedStudioScopeCount <= 1, "Only exact narrowed Studio recovery scope may differ");
   assert.ok(reviewedUncreditedPageCount <= 1, "Only the explicitly pinned uncredited HR queue page may differ");

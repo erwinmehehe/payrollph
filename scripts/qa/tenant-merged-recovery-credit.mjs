@@ -16,6 +16,28 @@ export const RECOVERY_TARGETS=Object.freeze([
 const normalized=x=>x.toString().replaceAll('\r\n','\n');
 const digest=x=>createHash('sha256').update(normalized(x)).digest('hex');
 const blob=x=>{const b=Buffer.from(normalized(x));return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');};
+// The original receipt and manifest citations remain immutable. Both HTTP jobs
+// ran again on the same checkout after the shared payroll rules changed.
+function verifyRoundingReproof(prior, read) {
+  const raw = read('scripts/qa/tenant-merged-recovery-rounding-receipt.json');
+  assert.equal(blob(raw), 'f7a7b05ae6faf9bf68ebcd0a11ea7490af2619b1', 'Rounding receipt changed');
+  const receipt = JSON.parse(raw);
+  assert.equal(receipt.execution, 'github-actions-pg16-http');
+  assert.equal(receipt.label, prior.label);
+  assert.equal(receipt.profile, 'compliance-posts');
+  assert.equal(receipt.newCredits, 0);
+  assert.equal(receipt.productionCertified, false);
+  assert.notEqual(receipt.jobs.totp.job, receipt.jobs.scenarios.job);
+  for (const family of ['totp', 'scenarios']) {
+    const job = receipt.jobs[family];
+    assert.equal(job.checkout, receipt.checkout);
+    assert.deepEqual(job.result, prior.runs[family].result);
+  }
+  for (const file of Object.keys(prior.pins)) assert.ok(Object.hasOwn(receipt.sourcePins, file), file);
+  for (const [file, expected] of Object.entries(receipt.sourcePins)) {
+    assert.equal(blob(read(file)), expected, 'Recovery source/proof drift: ' + file);
+  }
+}
 export function readRecoveryEvidence(read=readFileSync){
   const raw=read(RECOVERY_RECEIPT,'utf8');assert.equal(digest(raw),SEALED_DIGEST,'Executed recovery receipt changed');
   const r=JSON.parse(raw);assert.equal(r.label,'SOLO_VERIFIED_DEV_RECOVERY');assert.equal(r.productionCertified,false);
@@ -41,6 +63,10 @@ export function readRecoveryEvidence(read=readFileSync){
     }
     else if(file==='src/lib/automation.ts') verifySessionSourceCompatibility(sha,blob(read(file)),read);
     else if(file==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(file),sha,read);
+    else if (file === 'src/lib/payroll-rules.ts' && blob(read(file)) !== sha) {
+      assert.equal(sha, '4bf8c0482a0f4439cd8b175a97b589f7d9945baa');
+      verifyRoundingReproof(r, read);
+    }
     else assert.equal(blob(read(file)),sha,'Recovery source/proof drift: '+file);
   }
   for(const target of r.targets){
@@ -60,22 +86,22 @@ export function verifyRecoveryCredits(manifest,read=readFileSync){
   }return r.targets.length;
 }
 function closure(doc,m){
-  const start=doc.indexOf('### Current 406-method frozen batch queue — 2026-10-29'),end=doc.indexOf('### Three narrowly promoted API methods',start);
-  assert.ok(start>=0&&end>start);const sections=('### Batch DL-01 —'+doc.split('### Batch DL-01 —')[1].split('## Page and server-action closure')[0]).split('### Batch ').slice(1);
+  const start=doc.indexOf('### Current 406-method frozen batch queue â€” 2026-10-29'),end=doc.indexOf('### Three narrowly promoted API methods',start);
+  assert.ok(start>=0&&end>start);const sections=('### Batch DL-01 â€”'+doc.split('### Batch DL-01 â€”')[1].split('## Page and server-action closure')[0]).split('### Batch ').slice(1);
   const counts=new Map(),total={COVERED:0,GAP:0,'PUBLIC-BY-DESIGN':0};
   for(const section of sections){const id=section.split(' ')[0],c={COVERED:0,GAP:0,'PUBLIC-BY-DESIGN':0};
-    for(const line of section.split('\n').filter(x=>x.startsWith('- `')&&x.includes(' — [source](../../src/app/api/'))){
-      const verb=line.split('`')[1].split(' ')[0],path=line.split(' — [source](../../')[1].split('#L')[0],status=m.allApiRouteFiles[path].methods.find(x=>x.name===verb).status;c[status]++;total[status]++;}
+    for(const line of section.split('\n').filter(x=>x.startsWith('- `')&&x.includes(' â€” [source](../../src/app/api/'))){
+      const verb=line.split('`')[1].split(' ')[0],path=line.split(' â€” [source](../../')[1].split('#L')[0],status=m.allApiRouteFiles[path].methods.find(x=>x.name===verb).status;c[status]++;total[status]++;}
     counts.set(id,c);
   }assert.equal(total.COVERED+total.GAP+total['PUBLIC-BY-DESIGN'],406);
   let table=doc.slice(start,end).split('\n').map(line=>{
-    for(const [id,c] of counts)if(line.startsWith('| ')&&line.includes('**'+id+'**')){const cells=line.split('|');cells[4]=' '+c.COVERED+' ';cells[5]=' '+c['PUBLIC-BY-DESIGN']+' ';cells[6]=' '+c.GAP+' ';cells[7]=c.GAP?' INCOMPLETE ':' PROVISIONAL — NOT ACCEPTED ';return cells.join('|');}return line;
+    for(const [id,c] of counts)if(line.startsWith('| ')&&line.includes('**'+id+'**')){const cells=line.split('|');cells[4]=' '+c.COVERED+' ';cells[5]=' '+c['PUBLIC-BY-DESIGN']+' ';cells[6]=' '+c.GAP+' ';cells[7]=c.GAP?' INCOMPLETE ':' PROVISIONAL â€” NOT ACCEPTED ';return cells.join('|');}return line;
   }).join('\n');
   table=table.replace(/\d+ COVERED \+ \d+ PUBLIC-BY-DESIGN \+ \d+ GAP = 406/,`${total.COVERED} COVERED + ${total['PUBLIC-BY-DESIGN']} PUBLIC-BY-DESIGN + ${total.GAP} GAP = 406`);
   const incomplete=[...counts.values()].filter(c=>c.GAP>0).length;
   const complete=[...counts].filter(([,c])=>!c.GAP).map(([id])=>id);
-  table=table.replace(/Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL — NOT ACCEPTED\./,
-    `${incomplete} batches remain INCOMPLETE; ${complete.join(', ')} remain PROVISIONAL — NOT ACCEPTED.`);
+  table=table.replace(/Ten batches remain INCOMPLETE; DL-02 and WRK-01 remain PROVISIONAL â€” NOT ACCEPTED\./,
+    `${incomplete} batches remain INCOMPLETE; ${complete.join(', ')} remain PROVISIONAL â€” NOT ACCEPTED.`);
   return doc.slice(0,start)+table+doc.slice(end);
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
@@ -104,7 +130,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){
       let doc=readFileSync(file,'utf8');
       if(file.includes('closure-plan'))doc=closure(doc,m);else doc=doc.replace(`| coveredAfter | ${before.coveredAfter} |`,`| coveredAfter | ${m.metrics.coveredAfter} |`).replace(`| gap | ${before.gap} |`,`| gap | ${m.metrics.gap} |`);
-      doc=`> **Merged-proof recovery — SOLO_VERIFIED_DEV_RECOVERY:** ${m.metrics.methods} methods = ${m.metrics.coveredAfter} COVERED + ${m.metrics.publicByDesign} PUBLIC-BY-DESIGN + ${m.metrics.gap} GAP. Three distinct methods; independent security review PENDING; NOT ACCEPTED for production.\n\n`+doc;
+      doc=`> **Merged-proof recovery â€” SOLO_VERIFIED_DEV_RECOVERY:** ${m.metrics.methods} methods = ${m.metrics.coveredAfter} COVERED + ${m.metrics.publicByDesign} PUBLIC-BY-DESIGN + ${m.metrics.gap} GAP. Three distinct methods; independent security review PENDING; NOT ACCEPTED for production.\n\n`+doc;
       writeFileSync(file,doc);
     }
     console.log(JSON.stringify({credited:3,before:{covered:before.coveredAfter,gap:before.gap},after:{covered:m.metrics.coveredAfter,gap:m.metrics.gap}}));
