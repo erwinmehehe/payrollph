@@ -5,7 +5,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 const enabled = (() => { try { const u = new URL(process.env.DATABASE_URL ?? ""); return process.env.CI === "true" && process.env.BIR_2316_POSTGRES_QA === "true" && ["127.0.0.1", "localhost"].includes(u.hostname) && u.pathname === "/app_db"; } catch { return false; } })();
 test("disposable PostgreSQL: source isolation, immutable final pay and default-off readers execute read-only", { skip: !enabled }, async () => {
   const { db, pool } = await import("../src/db");
-  const { organizations, legalEntities, employees, payrollRuns, payrollEntries, historicalPayrollEntries, yearEndAdjustments, separationRecords, users } = await import("../src/db/schema");
+  const { organizations, legalEntities, employees, payrollRuns, payrollEntries, historicalPayrollEntries, yearEndAdjustments, separationRecords, supplementaryEarnings, users } = await import("../src/db/schema");
   const { loadYearEnd2316Withholding, loadFinalPay2316Withholding } = await import("../src/lib/bir-2316-withholding-server");
   const { load2316CertificateSource } = await import("../src/lib/bir-2316-certificate-server");
   const { computeFinalPay } = await import("../src/lib/final-pay");
@@ -22,9 +22,14 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     }
     const [run] = await db.insert(payrollRuns).values({ organizationId: orgIds[0], legalEntityId: entities[0].id, periodLabel: "Fictional December", periodStart: "2025-12-01", periodEnd: "2025-12-31", payDate: "2025-12-31", status: "Released" }).returning();
     const [annual] = await db.insert(yearEndAdjustments).values({ organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2025, grossCompensation: "10000.00", taxWithheld: "1000.00", adjustment: "200.00", payrollRunId: run.id, status: "settled" }).returning();
+    const [allowance] = await db.insert(supplementaryEarnings).values({
+      organizationId: orgIds[0], employeeId: people[0].id, payrollRunId: run.id, status: "settled",
+      earningType: "allowance", label: "Fictional supplementary allowance", taxable: true, amount: "400.00", effectiveDate: "2025-12-15",
+    }).returning();
     const lines = [
-      { code: "BASIC", amount: "9400.00" },
-      { code: "EARN-1", label: "Fictional allowance", amount: "100.00", notes: ["Type: recurring_allowance", "Tax treatment: non-taxable"] },
+      { code: "BASIC", amount: "9000.00" },
+      { code: "COMP-1", label: "Fictional allowance", amount: "100.00", notes: ["Type: recurring_allowance", "Tax treatment: non-taxable"] },
+      { code: "EARN-" + allowance.id, label: allowance.label, amount: "400.00", notes: ["Type: allowance", "Tax treatment: taxable"] },
       { code: "LEAVE_CONV-1", label: "Leave Conversion (vacation 1d)", amount: "500.00", notes: ["1 days @ daily rate 500", "Tax treatment: exempt"] },
       { code: "WHT", amount: "-1000.00" }, { code: "YE-TAX-" + annual.id, amount: "-200.00" },
     ];
@@ -92,6 +97,11 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     const preview = certificate.mappingPreview;
     assert.equal(preview?.periods[0]?.mwe, false);
     assert.equal(preview?.allowances[0]?.amount, "100.00");
+    assert.deepEqual(preview?.proposed.find(item => item.item === "51A"),
+      { item: "51A", amount: "400.00", description: "Taxable supplementary allowances" });
+    await db.update(supplementaryEarnings).set({ amount: "399.99" }).where(eq(supplementaryEarnings.id, allowance.id));
+    assert.equal((await load2316CertificateSource(scope)).mappingPreview?.proposed.some(item => item.item === "51A"), false);
+    await db.update(supplementaryEarnings).set({ amount: allowance.amount }).where(eq(supplementaryEarnings.id, allowance.id));
     assert.equal(preview?.leaveConversions[0]?.detail, "1 days @ daily rate 500");
     const [historical] = await db.insert(historicalPayrollEntries).values({
       organizationId: orgIds[0], employeeId: people[0].id, sourceReference: "fictional-import",
