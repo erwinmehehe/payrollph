@@ -1,3 +1,4 @@
+import { verifyJournalRenewal } from "../scripts/qa/tenant-journal-renewal.mjs";
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
 import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
@@ -4954,6 +4955,12 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
+      if (method.testedBy?.kind === "released-journal-philhealth-pg16") {
+        assert.equal(path, "src/app/api/v1/journal-entries/route.ts");
+        assert.equal(method.name, "GET");
+        assert.equal(verifyJournalRenewal(manifest), 1);
+        continue;
+      }
       if(isVerifiedOracleRenewal(manifest,path,method.name))continue; // Separate complete executed/source-sealed cohort.
       if(path==='src/app/api/hcm/worker-360/route.ts'&&method.name==='GET'){
         assert.equal(verifyWorker360LegalEmployerCredits(historicWorker360ProofView(manifest)),2);

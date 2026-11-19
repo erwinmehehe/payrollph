@@ -1,3 +1,4 @@
+import { verifyJournalRenewal } from './tenant-journal-renewal.mjs';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
@@ -6,14 +7,11 @@ const base='a7dc1f5184f59f3c5ac348e37b4ca88810f10651';
 // Restore only the historical journal receipt for catalogue inspection.
 export function historicalJournalPromotionView(manifest) {
  const path='src/app/api/v1/journal-entries/route.ts';
- const current=manifest.allApiRouteFiles[path];
- if(current?.methods[0]?.reviewedUncertified?.kind!=='philhealth-journal-source-hold')return manifest;
- const archive=JSON.parse(readFileSync(new URL('./philhealth-journal-source-hold.json',import.meta.url)));
- assert.deepEqual(current,archive.records[path]);
+ const current=manifest.allApiRouteFiles[path]?.methods[0];
+ if(current?.testedBy?.kind!=='released-journal-philhealth-pg16')return manifest;
+ verifyJournalRenewal(manifest);
  const view=structuredClone(manifest);
- const row=view.allApiRouteFiles[path].methods[0];
- row.status='COVERED';
- row.testedBy=row.reviewedUncertified.previousMethodProof;
+ view.allApiRouteFiles[path].methods[0].testedBy=structuredClone(pins.records.find(r=>r.key==='GET v1/journal-entries').proof);
  return view;
 }
 // This fixed catalogue preserves the reviewed route identities, exact proof

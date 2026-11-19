@@ -4,7 +4,7 @@
  * The earlier inventory guard continues to pin all route blobs/method exports.
  */
 import assert from "node:assert/strict";
-import {reviewedDocumentSourceHoldCount,sourceHoldArchive} from '../scripts/qa/document-source-accounting.mjs';
+import {reviewedDocumentSourceHoldCount,DOCUMENT_ACCOUNTING_ARCHIVE} from '../scripts/qa/document-source-accounting.mjs';
 import {verifyWageRenewalMethod} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -141,7 +141,7 @@ test("closure plan schedules every original GAP exactly once in priority order",
   assert.equal(supplemental.size, 22, "All 22 distinct supplemental methods retain their history without duplicate credits");
   const documentHolds = new Set();
   if (reviewedDocumentSourceHoldCount(manifest)) {
-    const archive=sourceHoldArchive();
+    const archive=JSON.parse(readFileSync(DOCUMENT_ACCOUNTING_ARCHIVE));
     for(const variant of archive.variants)for(const [path,record]of Object.entries(variant.records)) {
       if(manifest.allApiRouteFiles[path]?.gitBlobSha!==record.gitBlobSha)continue;
       for(const row of record.methods) {

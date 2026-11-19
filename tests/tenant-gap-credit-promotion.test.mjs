@@ -57,7 +57,7 @@ test("credit sweep only updates 16 distinct verified GAP methods with four sourc
   const archived=historicalJournalPromotionView(historicalWageCatalog(manifest));
   const held=verifiedWageCreditHolds(manifest);
   const heldTargets=targets.filter(([key])=>{const at=key.indexOf(" ");return held.has(key.slice(0,at)+" src/app/api/"+key.slice(at+1)+"/route.ts");});
-  assert.equal(credited.length, targets.length-heldTargets.length-Number(protectedDocumentCreditKeys(manifest).has("GET src/app/api/v1/journal-entries/route.ts")), "Held historical citations are not active credits");
+  assert.equal(credited.length, targets.length-heldTargets.length-Number(manifest.allApiRouteFiles["src/app/api/v1/journal-entries/route.ts"].methods[0].testedBy?.kind === "released-journal-philhealth-pg16"), "Held historical citations are not active credits");
   for (const [key, pr, run] of targets) {
     const at=key.indexOf(" "),path="src/app/api/"+key.slice(at+1)+"/route.ts";
     const method = archived.allApiRouteFiles[path].methods.find(x=>x.name===key.slice(0,at));
