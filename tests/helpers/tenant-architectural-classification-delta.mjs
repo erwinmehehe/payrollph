@@ -8,6 +8,7 @@ import {reviewedWageRegistrySourceWithdrawals} from '../../scripts/qa/wage-regis
 import {reviewedTransitiveWageWithdrawals} from '../../scripts/qa/wage-registry-transitive-source-hold.mjs';
 import {reviewedSealedWageWithdrawals} from '../../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs';
 import {reviewedDocumentSourceWithdrawals} from '../../scripts/qa/document-source-accounting.mjs';
+import {reviewedTimesheetSourceHold} from '../../scripts/qa/timesheet-source-accounting.mjs';
 import {verifySamlPublicClassification} from '../../scripts/qa/tenant-saml-metadata-public-classification-verify.mjs';
 import {SAML_PUBLIC_PATH} from '../../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {verifySsoResolveClassification} from '../../scripts/qa/tenant-sso-resolve-public-classification.mjs';
@@ -190,6 +191,7 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
     ...reviewedTransitiveWageWithdrawals(beforeManifest,afterManifest,read),
     ...reviewedSealedWageWithdrawals(beforeManifest,afterManifest,read),
   ]);
+  const timesheetHolds = reviewedTimesheetSourceHold(beforeManifest,afterManifest);
   const changes = { gapRelabels: 0, publicByDesign: 0, privilegedTokenOnly: 0 };
   for (const [key, old] of before) {
     const current = after.get(key);
@@ -211,7 +213,8 @@ export function verifyArchitecturalRelabelDelta(assert, beforeManifest, afterMan
     // Exact source withdrawals are neither public classifications nor credits.
     if (old.method.status === "COVERED" && current.method.status === "GAP" && oracleHolds.has(key)) continue;
     if (old.method.status === 'COVERED' && current.method.status === 'GAP' &&
-        (wageHolds.has(key) || reviewedDocumentSourceWithdrawals(beforeManifest,afterManifest,read).has(key))) continue;
+        (wageHolds.has(key) || timesheetHolds.has(key) ||
+          reviewedDocumentSourceWithdrawals(beforeManifest,afterManifest,read).has(key))) continue;
     if (YEAR_END_KEYS.has(key) && old.method.status === "COVERED" && current.method.status === "GAP" && yearEndHoldDelta(beforeManifest, afterManifest) === 2) continue;
     const target = allowed.has(key) ? "PUBLIC-BY-DESIGN"
       : key === WORKER ? "PRIVILEGED-OPERATIONS-TOKEN-ONLY" : null;
