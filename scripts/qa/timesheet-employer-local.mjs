@@ -11,8 +11,12 @@ for (const file of [".env", ".env.local", ".env.production", ".env.production.lo
 for (const name of [...ABSENT, "VERCEL", "GITHUB_ACTIONS", "SMTP_HOST", "CRON_SECRET", "WORKER_TOKEN"])
   assert.ok(!process.env[name], "External credential or hosted environment configured: " + name);
 const keyPath = "outputs/timesheet-local-keys.json";
-if (command === "build" && !existsSync(keyPath))
-  writeFileSync(keyPath, JSON.stringify(Object.fromEntries(["PII_ENCRYPTION_KEY", "BANK_DATA_ENCRYPTION_KEY", "TOTP_ENCRYPTION_KEY"].map(name => [name, randomBytes(32).toString("hex")]))), {flag:"wx",mode:0o600});
+if (command === "build") {
+  // Reserve the file atomically. Refuse to reuse keys from an earlier build.
+  const names = ["PII_ENCRYPTION_KEY", "BANK_DATA_ENCRYPTION_KEY", "TOTP_ENCRYPTION_KEY"];
+  const keys = Object.fromEntries(names.map(name => [name, randomBytes(32).toString("hex")]));
+  writeFileSync(keyPath, JSON.stringify(keys), { flag: "wx", mode: 0o600 });
+}
 const env = { ...process.env, ...TENANT_TABLE_BASE_ENV, ...TENANT_TABLE_PROFILES["compliance-posts"],
   ...JSON.parse(readFileSync(keyPath)), ...Object.fromEntries(OFF.map(name => [name, "false"])),
   GOLDEN_PHASE15_DISPOSABLE: "local-disposable-pg16-only", GOLDEN_PHASE15_LOCAL_CONFIRM: "fresh-empty-fictional-database",
