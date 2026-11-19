@@ -61,7 +61,7 @@ test("only a dedicated, provider-off disposable PostgreSQL 16 job may run",()=>{
 });
 test("Form 2316 PDF inputs remain source-pinned; provisional SSR stays unaccepted",()=>{
   assert.equal(verifyBrowserPdfSources(),true);
-  assert.equal(Object.keys(CURRENT_SOURCE).length,8);
+  assert.equal(Object.keys(CURRENT_SOURCE).length,12);
   const m=JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json","utf8"));
   const page=m.scopedPages.find(x=>x.path==="src/app/workspace/2316/page.tsx");
   assert.equal(verifySixPageCredits(m), 6);

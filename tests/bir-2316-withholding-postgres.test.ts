@@ -5,7 +5,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 const enabled = (() => { try { const u = new URL(process.env.DATABASE_URL ?? ""); return process.env.CI === "true" && process.env.BIR_2316_POSTGRES_QA === "true" && ["127.0.0.1", "localhost"].includes(u.hostname) && u.pathname === "/app_db"; } catch { return false; } })();
 test("disposable PostgreSQL: source isolation, immutable final pay and default-off readers execute read-only", { skip: !enabled }, async () => {
   const { db, pool } = await import("../src/db");
-  const { organizations, legalEntities, employees, payrollRuns, payrollEntries, yearEndAdjustments, separationRecords, users } = await import("../src/db/schema");
+  const { organizations, legalEntities, employees, payrollRuns, payrollEntries, historicalPayrollEntries, yearEndAdjustments, separationRecords, users } = await import("../src/db/schema");
   const { loadYearEnd2316Withholding, loadFinalPay2316Withholding } = await import("../src/lib/bir-2316-withholding-server");
   const { load2316CertificateSource } = await import("../src/lib/bir-2316-certificate-server");
   const { computeFinalPay } = await import("../src/lib/final-pay");
@@ -22,8 +22,15 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     }
     const [run] = await db.insert(payrollRuns).values({ organizationId: orgIds[0], legalEntityId: entities[0].id, periodLabel: "Fictional December", periodStart: "2025-12-01", periodEnd: "2025-12-31", payDate: "2025-12-31", status: "Released" }).returning();
     const [annual] = await db.insert(yearEndAdjustments).values({ organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2025, grossCompensation: "10000.00", taxWithheld: "1000.00", adjustment: "200.00", payrollRunId: run.id, status: "settled" }).returning();
-    const lines = [{ code: "WHT", amount: "-1000.00" }, { code: "YE-TAX-" + annual.id, amount: "-200.00" }];
-    const [entry] = await db.insert(payrollEntries).values({ payrollRunId: run.id, employeeId: people[0].id, grossPay: "10000", deductions: "1200", netPay: "8800", lineItems: lines }).returning();
+    const lines = [
+      { code: "BASIC", amount: "9400.00" },
+      { code: "EARN-1", label: "Fictional allowance", amount: "100.00", notes: ["Type: recurring_allowance", "Tax treatment: non-taxable"] },
+      { code: "LEAVE_CONV-1", label: "Leave Conversion (vacation 1d)", amount: "500.00", notes: ["1 days @ daily rate 500", "Tax treatment: exempt"] },
+      { code: "WHT", amount: "-1000.00" }, { code: "YE-TAX-" + annual.id, amount: "-200.00" },
+    ];
+    const [entry] = await db.insert(payrollEntries).values({ payrollRunId: run.id, employeeId: people[0].id, grossPay: "10000", deductions: "1200", netPay: "8800", lineItems: lines,
+      trace: { inputs: ["mwe=false", "region=NCR"] },
+    }).returning();
     // An intentionally inconsistent foreign-tenant run must not enter tenant A's totals.
     const [foreignRun] = await db.insert(payrollRuns).values({ organizationId: orgIds[1], legalEntityId: entities[1].id, periodLabel: "Foreign fictional run", periodStart: "2025-12-01", periodEnd: "2025-12-31", payDate: "2025-12-31", status: "Released" }).returning();
     await db.insert(payrollEntries).values({ payrollRunId: foreignRun.id, employeeId: people[0].id, grossPay: "1000", deductions: "999", netPay: "1", lineItems: [{ code: "WHT", amount: "-999.00" }] });
@@ -82,6 +89,18 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     const certificate = await load2316CertificateSource(scope);
     assert.equal(certificate.employerTin, "123456789-0000");
     assert.equal(certificate.withholding?.actualPresentWithheld, "1200.00");
+    const preview = certificate.mappingPreview;
+    assert.equal(preview?.periods[0]?.mwe, false);
+    assert.equal(preview?.allowances[0]?.amount, "100.00");
+    assert.equal(preview?.leaveConversions[0]?.detail, "1 days @ daily rate 500");
+    const [historical] = await db.insert(historicalPayrollEntries).values({
+      organizationId: orgIds[0], employeeId: people[0].id, sourceReference: "fictional-import",
+      periodLabel: "Fictional November", payDate: "2025-11-30", grossPay: "2000.00", netPay: "1800.00",
+    }).returning();
+    const importedPreview = (await load2316CertificateSource(scope)).mappingPreview;
+    assert.deepEqual(importedPreview?.imported, [{ id: historical.id, payDate: "2025-11-30", grossPay: "2000.00", basicSalary: null }]);
+    assert.deepEqual(importedPreview?.proposed, []);
+    await db.delete(historicalPayrollEntries).where(eq(historicalPayrollEntries.id, historical.id));
     await assert.rejects(load2316CertificateSource({ ...scope, organizationId: orgIds[1] }), /SOURCE_NOT_FOUND/);
     const [newEntity] = await db.insert(legalEntities).values({ organizationId: orgIds[0], code: "NEW", legalName: "New employer after transfer", displayName: "New employer", birTin: "987654321", birBranchCode: "0002" }).returning();
     await db.update(employees).set({ legalEntityId: newEntity.id }).where(eq(employees.id, people[0].id));
@@ -89,6 +108,7 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     const historicalCertificate = await load2316CertificateSource({ ...scope, separationId: separation.id });
     assert.equal(historicalCertificate.employerTin, "123456789-0000", "frozen employer wins over today's assignment and inactive state");
     assert.equal(historicalCertificate.employerName, "Fictional");
+    assert.equal(historicalCertificate.mappingPreview, undefined);
     assert.ok(historicalCertificate.withholding?.issues.includes("UNSETTLED_ADJUSTMENT"));
     await assert.rejects(load2316CertificateSource(scope), /SINGLE_LEGAL_EMPLOYER_REQUIRED/);
     assert.ok(readTransactions >= 9);
