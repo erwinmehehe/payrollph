@@ -98,7 +98,7 @@ function traceNumber(trace: unknown, prefix: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
+export function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
   const items = Array.isArray(lineItems) ? (lineItems as LineItem[]) : [];
   let contributions = 0;
   let tax = 0;
@@ -107,6 +107,7 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
   let deMinimisExempt = 0;
   let deMinimisExcess = 0;
   let otherBenefits = 0;
+  let otherNonTaxable = 0;
   let mweTaxableSupplementaryCompensation = traceNumber(trace, "mweTaxableSupplementaryCompensation=");
 
   for (const item of items) {
@@ -126,8 +127,12 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
       || label.includes("13th month")
       || label.includes("thirteenth month");
 
+    // Contributions and withholding are deductions, which payroll always stores as NEGATIVE lines. The label match
+    // alone is not enough: an earning called "Taxable allowance" or "SSS anniversary bonus" is positive and must not be
+    // counted as tax withheld or as a contribution.
     if (
-      code !== "HDMF_VOL"
+      signedAmount < 0
+      && code !== "HDMF_VOL"
       && (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig"))
     ) {
       contributions += amount;
@@ -136,7 +141,7 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
       // collection = negative line, refund = positive line. Reconstruct actual
       // tax withheld net of refunds rather than taking an absolute value.
       tax += -signedAmount;
-    } else if (label.includes("withholding") || label.includes("tax")) {
+    } else if (signedAmount < 0 && (code === "WHT" || label.includes("withholding"))) {
       tax += amount;
     }
 
@@ -156,6 +161,25 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
       reimbursements += Math.max(0, signedAmount);
     }
 
+    // Lines the cutoff already exempted from withholding. Gross compensation includes them, but no other non-taxable
+    // bucket recognises them, so annualization would tax what the cutoff did not. Reimbursements (EXP-) are already
+    // removed from gross, de minimis has its own bucket, and the shared pool is allocated separately.
+    if (!code.startsWith("EXP-") && !code.startsWith("DM-") && !isThirteenth) {
+      const treatment = (item.notes ?? [])
+        .find((note) => String(note).startsWith("Tax treatment: "))
+        ?.slice("Tax treatment: ".length)
+        .trim()
+        .toLowerCase();
+      const sharedPool = item.benefitPool90k === true || isSharedBenefitPoolEarningType(benefitKind);
+      const nonTaxableEarning = treatment === "non-taxable" && !sharedPool;
+      const nonTaxablePolicyPremium = /^(PREM|OTPREM|NDPREM|DAYPREM)-/.test(code)
+        && (item.notes ?? []).some((note) => String(note).includes("Taxable: no"));
+      const exemptLeaveConversion = code.startsWith("LEAVE_CONV-") && treatment === "exempt";
+      if (nonTaxableEarning || nonTaxablePolicyPremium || exemptLeaveConversion) {
+        otherNonTaxable += Math.max(0, signedAmount);
+      }
+    }
+
     if (code.startsWith("DM-")) {
       const poolAmount = Math.max(0, Number(item.periodOtherBenefitsPool ?? 0));
       deMinimisExcess += poolAmount;
@@ -172,6 +196,7 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
     deMinimisExempt,
     deMinimisExcess,
     otherBenefits,
+    otherNonTaxable,
     mweTaxableSupplementaryCompensation: Math.max(0, mweTaxableSupplementaryCompensation),
   };
 }
@@ -340,12 +365,13 @@ export async function runYearEndAnnualization(
     deMinimisExempt: number;
     deMinimisExcess: number;
     otherBenefits: number;
+    otherNonTaxable: number;
     mweTaxableSupplementaryCompensation: number;
     periods: number;
     importedPeriods: number;
   }>();
   for (const entry of entries) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, deMinimisExempt: 0, deMinimisExcess: 0, otherBenefits: 0, mweTaxableSupplementaryCompensation: 0, periods: 0, importedPeriods: 0 };
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, deMinimisExempt: 0, deMinimisExcess: 0, otherBenefits: 0, otherNonTaxable: 0, mweTaxableSupplementaryCompensation: 0, periods: 0, importedPeriods: 0 };
     const parsed = sumContributionsAndTax(entry.lineItems, entry.trace);
     const basic = readBasicAndThirteenth(entry.lineItems, {
       taxYear,
@@ -359,13 +385,14 @@ export async function runYearEndAnnualization(
     bucket.deMinimisExempt += parsed.deMinimisExempt;
     bucket.deMinimisExcess += parsed.deMinimisExcess;
     bucket.otherBenefits += parsed.otherBenefits;
+    bucket.otherNonTaxable += parsed.otherNonTaxable;
     bucket.mweTaxableSupplementaryCompensation += parsed.mweTaxableSupplementaryCompensation;
     bucket.periods += 1;
     totals.set(entry.employeeId, bucket);
   }
 
   for (const entry of importedHistory) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, deMinimisExempt: 0, deMinimisExcess: 0, otherBenefits: 0, mweTaxableSupplementaryCompensation: 0, periods: 0, importedPeriods: 0 };
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, deMinimisExempt: 0, deMinimisExcess: 0, otherBenefits: 0, otherNonTaxable: 0, mweTaxableSupplementaryCompensation: 0, periods: 0, importedPeriods: 0 };
     if (entry.basicSalary == null) {
       throw new Error(
         `Imported payroll history row #${entry.id} is missing basic salary earned. Re-import payroll history with Basic Salary Earned before running year-end annualization.`,
@@ -513,6 +540,7 @@ export async function runYearEndAnnualization(
       thirteenthMonth: annualThirteenth,
       otherBenefits: bucket.otherBenefits,
       deMinimis: bucket.deMinimisExempt,
+      otherNonTaxable: bucket.otherNonTaxable,
       deMinimisExcess: bucket.deMinimisExcess,
       statutoryContributions: bucket.contributions,
       taxWithheld: bucket.tax,

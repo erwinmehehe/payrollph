@@ -57,6 +57,12 @@ export type AnnualizationInput = {
   otherBenefits?: number;
   /** De minimis amounts within their category ceilings, fully exempt. */
   deMinimis?: number;
+  /**
+   * Compensation that is part of gross compensation but that payroll already exempted at the cutoff and that no other
+   * bucket here recognises: a non-taxable allowance, a pay-policy premium marked non-taxable, an exempt leave conversion.
+   * Without it annualization would tax what the cutoff did not. Omitted or 0 keeps the previous calculation.
+   */
+  otherNonTaxable?: number;
   /** Excess over de minimis category ceilings; joins the PHP 90,000 pool. */
   deMinimisExcess?: number;
   statutoryContributions: number;
@@ -77,6 +83,8 @@ export type AnnualizationResult = {
   taxableThirteenthMonth: number;
   otherBenefits: number;
   deMinimis: number;
+  /** Non-taxable compensation outside the pool, de minimis and contributions; see AnnualizationInput.otherNonTaxable. */
+  otherNonTaxable: number;
   deMinimisExcess: number;
   benefitPool: number;
   exemptBenefitPool: number;
@@ -135,7 +143,8 @@ export function annualize(input: AnnualizationInput): AnnualizationResult {
   // Tax is based on the combined pool above, not on this allocation.
   const exemptThirteenthMonth = round2(Math.min(thirteenthMonth, exemptBenefitPool));
   const taxableThirteenthMonth = round2(Math.max(0, thirteenthMonth - exemptThirteenthMonth));
-  const nonTaxable = round2(exemptBenefitPool + deMinimis + statutoryContributions);
+  const otherNonTaxable = round2(Math.max(0, input.otherNonTaxable ?? 0));
+  const nonTaxable = round2(exemptBenefitPool + deMinimis + otherNonTaxable + statutoryContributions);
 
   const taxableIncome = input.mwe
     ? round2(Math.max(
@@ -154,6 +163,7 @@ export function annualize(input: AnnualizationInput): AnnualizationResult {
     taxableThirteenthMonth,
     otherBenefits,
     deMinimis,
+    otherNonTaxable,
     deMinimisExcess,
     benefitPool,
     exemptBenefitPool,
