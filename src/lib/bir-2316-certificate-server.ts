@@ -10,6 +10,7 @@ import type { AnnualizationResult } from "./annualization";
 import { priorEvidenceEnabled, priorEmployeeScope, readPriorEvidence } from "./year-end-prior-evidence-server";
 import { readBir2316MappingPreview } from "./bir-2316-mapping-preview-server";
 import type { CertificateReviewSource } from "./bir-2316-mapping-preview";
+import { bir2316Centavos } from "./bir-2316-reconciliation";
 export const certificateDraftEnabled = () => criticalReleaseFlagEnabled("bir2316Certificate") && bir2316WithholdingEnabled();
 export class CertificateSourceError extends Error {}
 export async function load2316CertificateSource(scope: CertificateScope): Promise<CertificateReviewSource> {
@@ -51,8 +52,13 @@ export async function load2316CertificateSource(scope: CertificateScope): Promis
       withholding = await loadYearEnd2316Withholding({ ...scope, legalEntityId, adjustmentId: adjustment.id, before: adjustment.taxWithheld, expectedAdjustment: adjustment.adjustment }, tx);
       if (employer.ok && employee.legalEntityId === legalEntityId) {
         const breakdown = adjustment.breakdown as { thirteenthStillDue?: unknown } | null;
-        mappingPreview = await readBir2316MappingPreview(tx, { ...scope, legalEntityId },
-          { ...summary, mwe, unpaidThirteenth: breakdown?.thirteenthStillDue });
+        const checkOmittedWithholding = withholding?.issues.includes("WITHHOLDING_WHT_MISSING_OR_DUPLICATE") === true &&
+          adjustment.payrollRunId === null && bir2316Centavos(adjustment.taxWithheld) === 0 &&
+          bir2316Centavos(adjustment.adjustment, true) === 0;
+        const review = await readBir2316MappingPreview(tx, { ...scope, legalEntityId },
+          { ...summary, mwe, unpaidThirteenth: breakdown?.thirteenthStillDue }, checkOmittedWithholding);
+        mappingPreview = review.preview;
+        withholding = review.zeroWithholding ?? withholding;
       }
     }
     if (!employer.ok) throw new CertificateSourceError(employer.code);
