@@ -42787,7 +42787,7 @@
           "name": "GET",
           "line": 67,
           "status": "COVERED",
-          "reason": "SOLO_VERIFIED_DEV_RECOVERY: local PostgreSQL 16 HTTP on 74a4c8e68d758d3f8b40804e1cdf778b72c5e9c4. Two distinct home employers, same-workspace legal-employer selection, revoked membership, transferred-worker exclusion and unchanged persisted state. See scripts/qa/timesheet-employer-receipt.json",
+          "reason": "SOLO_VERIFIED_DEV_RECOVERY: local PostgreSQL 16 HTTP on b677663d97fccba085d1b92cfee159018a1bcae7. Two distinct home employers, same-workspace legal-employer selection, revoked membership, transferred-worker exclusion and unchanged persisted state. See scripts/qa/timesheet-employer-receipt.json",
           "testedBy": {
             "kind": "timesheet-legal-employer-pg16",
             "file": "scripts/qa/timesheet-employer-pg16.mjs",
@@ -42798,7 +42798,7 @@
             "unchangedDbLine": 118,
             "routeBlobSha": "88b225c992073e7f075062da18e6e2894073d719",
             "proofBlobSha": "8d76ce9bf0c0ceb2c527ce5357600e5d8ebd35b7",
-            "testedCommit": "74a4c8e68d758d3f8b40804e1cdf778b72c5e9c4",
+            "testedCommit": "b677663d97fccba085d1b92cfee159018a1bcae7",
             "postgresMajor": 16,
             "label": "SOLO_VERIFIED_DEV_RECOVERY"
           }
@@ -42807,7 +42807,7 @@
           "name": "POST",
           "line": 143,
           "status": "COVERED",
-          "reason": "SOLO_VERIFIED_DEV_RECOVERY: local PostgreSQL 16 HTTP on 74a4c8e68d758d3f8b40804e1cdf778b72c5e9c4. Two distinct home employers, same-workspace legal-employer selection, revoked membership, transferred-worker exclusion and unchanged persisted state. See scripts/qa/timesheet-employer-receipt.json",
+          "reason": "SOLO_VERIFIED_DEV_RECOVERY: local PostgreSQL 16 HTTP on b677663d97fccba085d1b92cfee159018a1bcae7. Two distinct home employers, same-workspace legal-employer selection, revoked membership, transferred-worker exclusion and unchanged persisted state. See scripts/qa/timesheet-employer-receipt.json",
           "testedBy": {
             "kind": "timesheet-legal-employer-pg16",
             "file": "scripts/qa/timesheet-employer-pg16.mjs",
@@ -42818,7 +42818,7 @@
             "unchangedDbLine": 172,
             "routeBlobSha": "88b225c992073e7f075062da18e6e2894073d719",
             "proofBlobSha": "8d76ce9bf0c0ceb2c527ce5357600e5d8ebd35b7",
-            "testedCommit": "74a4c8e68d758d3f8b40804e1cdf778b72c5e9c4",
+            "testedCommit": "b677663d97fccba085d1b92cfee159018a1bcae7",
             "postgresMajor": 16,
             "label": "SOLO_VERIFIED_DEV_RECOVERY"
           }

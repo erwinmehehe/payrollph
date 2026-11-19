@@ -1,6 +1,6 @@
 {
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
-  "head": "74a4c8e68d758d3f8b40804e1cdf778b72c5e9c4",
+  "head": "b677663d97fccba085d1b92cfee159018a1bcae7",
   "postgres": 160014,
   "managers": 2,
   "legalEmployers": 2,
@@ -224,7 +224,7 @@
   "unchangedAfterReads": true,
   "unchangedAfterDenials": true,
   "unchangedAfterTransferChecks": true,
-  "buildId": "ts4v5jGd9pVsWEb-C1_Zk",
+  "buildId": "Vg2Bsj4eI2Nco17rFb98U",
   "profile": "local-production-multi-entity",
   "route": "src/app/api/workforce/timesheets/route.ts",
   "proofs": {
@@ -238,7 +238,7 @@
       "unchangedDbLine": 118,
       "routeBlobSha": "88b225c992073e7f075062da18e6e2894073d719",
       "proofBlobSha": "8d76ce9bf0c0ceb2c527ce5357600e5d8ebd35b7",
-      "testedCommit": "74a4c8e68d758d3f8b40804e1cdf778b72c5e9c4",
+      "testedCommit": "b677663d97fccba085d1b92cfee159018a1bcae7",
       "postgresMajor": 16,
       "label": "SOLO_VERIFIED_DEV_RECOVERY"
     },
@@ -252,7 +252,7 @@
       "unchangedDbLine": 172,
       "routeBlobSha": "88b225c992073e7f075062da18e6e2894073d719",
       "proofBlobSha": "8d76ce9bf0c0ceb2c527ce5357600e5d8ebd35b7",
-      "testedCommit": "74a4c8e68d758d3f8b40804e1cdf778b72c5e9c4",
+      "testedCommit": "b677663d97fccba085d1b92cfee159018a1bcae7",
       "postgresMajor": 16,
       "label": "SOLO_VERIFIED_DEV_RECOVERY"
     }
@@ -278,7 +278,7 @@
     "scripts/qa/tenant-table-invariants.mjs": "52f9acded7750a722cb663b9eeb6ea0a709ecd9b",
     "scripts/qa/tenant-table-loader.mjs": "86660dc3b55b655d75429d04ef22c4d50a7df7fe",
     "scripts/qa/tenant-table-path.mjs": "aa84a05716961b2b01e4ab4d1e5e5dfd5a31d6f1",
-    "scripts/qa/timesheet-employer-local.mjs": "42bf82d113e4aa1fa72b0968aa7623f5bfec1ad5",
+    "scripts/qa/timesheet-employer-local.mjs": "4e9904ac5864d1e4a30e727bbb0177f707677c8a",
     "scripts/qa/timesheet-employer-pg16.mjs": "8d76ce9bf0c0ceb2c527ce5357600e5d8ebd35b7",
     "src/app/api/workforce/timesheets/route.ts": "88b225c992073e7f075062da18e6e2894073d719",
     "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",

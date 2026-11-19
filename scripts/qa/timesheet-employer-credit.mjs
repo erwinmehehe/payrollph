@@ -13,7 +13,7 @@ function blob(raw) {
 }
 function evidence(read) {
   const raw = read(receiptFile);
-  assert.equal(blob(raw), "f87f6e16245a97a6833823f8807561584b4c2473", "Timesheet receipt changed");
+  assert.equal(blob(raw), "c6d28801fba1d6b18c03b47518803acd3edd9b6e", "Timesheet receipt changed");
   const receipt = JSON.parse(raw);
   assert.equal(receipt.label, "SOLO_VERIFIED_DEV_RECOVERY");
   assert.equal(receipt.route, TIMESHEET_ROUTE);
@@ -29,7 +29,7 @@ function evidence(read) {
 export function verifyTimesheetRenewal(manifest, read = readFileSync) {
   const receipt = evidence(read);
   const route = manifest.allApiRouteFiles[TIMESHEET_ROUTE];
-  assert.equal(createHash("sha256").update(JSON.stringify(route)).digest("hex"), "4b7f13c211f11f2d438877da756ff37b27e761340695775968255eca13eb3166",
+  assert.equal(createHash("sha256").update(JSON.stringify(route)).digest("hex"), "aa47c211a323ee3dc4f8464eec531a699f2cc0f35a1a03c795ea0b5e942471d3",
     "Only the two reviewed timesheet citations may be counted");
   assert.equal(route.gitBlobSha, receipt.sourcePins[TIMESHEET_ROUTE]);
   for (const verb of verbs) {
