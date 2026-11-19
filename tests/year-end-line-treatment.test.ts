@@ -90,3 +90,18 @@ test("an exempt allowance never changes an MWE's taxable income", () => {
   assert.equal(annualize({ ...base, otherNonTaxable: 3000 }).taxableIncome, 0);
   assert.equal(annualize({ ...base, otherNonTaxable: 3000 }).nonTaxable, 21115);
 });
+
+test("a loan repayment, an earned wage advance recovery and a benefit plan deduction are not statutory contributions, whatever their label names", () => {
+  const parsed = sum([
+    { code: "SSS", label: "SSS contribution", amount: -875 }, { code: "PHIC", label: "PhilHealth contribution", amount: -750 }, { code: "HDMF", label: "Pag-IBIG mandatory contribution", amount: -100 },
+    { code: "LOAN-7", label: "Loan, SSS Salary Loan", amount: -500 },
+    { code: "LOAN-8", label: "Loan, Pag-IBIG Multi-Purpose Loan (MPL)", amount: -400 },
+    { code: "EWA-3", label: "Earned wage advance recovery SSS cutoff", amount: -1000 },
+    { code: "BEN-2", label: "PhilHealth top-up HMO", amount: -300 },
+  ]);
+  assert.equal(parsed.contributions, 1725, "only SSS, PHIC and HDMF count");
+});
+
+test("a statutory contribution still counts when the code is not one the engine writes today (older or imported lines)", () => {
+  assert.equal(sum([{ code: "", label: "SSS employee share", amount: -875 }, { code: "PAGIBIG", label: "Pag-IBIG", amount: -100 }]).contributions, 975);
+});
