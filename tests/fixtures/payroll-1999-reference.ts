@@ -14,7 +14,8 @@ export const WORKERS = [
   { key:'HOURLY', basis:'hourly', rate:12500, divisor:22 },
   { key:'BENEFITS', basis:'monthly', rate:3000000, divisor:22 },
 ] as const;
-export type Worker = typeof WORKERS[number];
+export const PHILHEALTH_HALF_CENTAVO_WORKER = { key: "PH_HALF_CENT", basis: "monthly", rate: 1024090, divisor: 10 } as const;
+export type Worker = typeof WORKERS[number] | typeof PHILHEALTH_HALF_CENTAVO_WORKER;
 export function cents(value:string|number):number {
  const s=String(value);if(!/^-?\d+(?:\.\d{1,2})?$/.test(s))throw Error('Invalid centavo input');
  const negative=s.startsWith('-'),[whole,fraction='']=s.replace('-','').split('.');

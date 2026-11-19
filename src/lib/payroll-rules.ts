@@ -66,14 +66,14 @@ export function computePhilHealth(monthlySalary: number, asOf = "2026-10-08") {
   const rule = resolveEffectiveRulePack(PHILHEALTH_RULE_PACKS, asOf, "PhilHealth");
   const { salaryFloor, salaryCeiling, premiumRate, employeeShare } = rule.params;
   const base = Math.min(salaryCeiling, Math.max(salaryFloor, monthlySalary));
-  const total = round(base * premiumRate);
+  // Convert the rate to centavos per peso before multiplying. A peso-space
+  // product can land just below a half-centavo (e.g. 10,240.90 at 5%).
+  const totalCentavos = Math.round(base * (premiumRate * 100));
   // Split the already-rounded statutory premium in centavos. When the total
   // has an odd centavo, keep the employee share at the lower centavo and put
   // the unavoidable one-centavo remainder on the employer share.
-  const totalCentavos = Math.round(total * 100);
-  const employee = Math.floor(totalCentavos * employeeShare) / 100;
-  const employer = round(total - employee);
-  return { base, total, employee, employer };
+  const employeeCentavos = Math.floor(totalCentavos * employeeShare);
+  return { base, total: totalCentavos / 100, employee: employeeCentavos / 100, employer: (totalCentavos - employeeCentavos) / 100 };
 }
 
 /**
@@ -106,7 +106,7 @@ export function computeCutoffStatutoryDeduction(input: {
   }
   return input.isSecondCutoff
     ? round(Math.max(0, target - prior))
-    : round(target / 2);
+    : Math.ceil(Math.round(target * 100) / 2) / 100;
 }
 
 export function computePagIbig(monthlySalary: number, asOf = "2026-10-08") {

@@ -23,13 +23,17 @@ concurrency:
   cancel-in-progress: true
 jobs:
   two-month:
-    name: Two-month real engine PG${{ matrix.postgres }}
+    name: Two-month real engine PG${{ matrix.postgres }} ${{ matrix.case }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         postgres: [16, 18]
+        case: [pilot]
+        include:
+          - postgres: 16
+            case: philhealth-half-centavo
     services:
       postgres:
         image: postgres:${{ matrix.postgres }}
@@ -44,6 +48,7 @@ jobs:
     env:
       TZ: Asia/Manila
       CI: 'true'
+      PAYROLL_1999_CASE: ${{ matrix.case }}
       PAYROLL_1999_DISPOSABLE: github-actions-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       DEMO_MODE: 'false'
@@ -93,7 +98,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: payroll-1999-pg${{ matrix.postgres }}
-          path: outputs/payroll-1999/result.json
+          name: ${{ matrix.case == 'pilot' && format('payroll-1999-pg{0}', matrix.postgres) || 'philhealth-half-centavo-pg16' }}
+          path: outputs/${{ matrix.case == 'pilot' && 'payroll-1999' || 'philhealth-half-centavo' }}/result.json
           if-no-files-found: error
           retention-days: 14
