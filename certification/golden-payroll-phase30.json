@@ -1,0 +1,53 @@
+{
+  "version": "phase30-deduction-waterfall-2026-11-19",
+  "toleranceCentavos": 0,
+  "description": "When pay runs out the payroll engine takes statutory and tax amounts first, then voluntary Pag-IBIG, benefit plan employee shares (each only if it fits), an earned wage advance (all or nothing, deferred if it does not fit) and finally loans (limited to whatever is left). Phase 30 certifies that order and its limits through the real engine with three workers hired at the switch on a 20,000 monthly salary: a control, a worker whose loan is limited to what is left after everything ahead of it, and a worker whose advance is deferred because it does not fit and whose loan then takes the money the advance could not. A deferred or limited deduction is never taken from a mandatory amount, gross pay never changes, and year end must settle exactly like the control however the waterfall resolved.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt). Only the employee's mandatory SSS, PhilHealth and Pag-IBIG contributions are excluded from taxable compensation (NIRC Sec. 32(B)(7)(f)).",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e)).",
+    "waterfall": "Priority order is the product's own documented money-integrity rule in the payroll engine (statutory/tax/attendance, then voluntary savings, benefit shares, wage-advance recovery, loans). It is a product rule, not a statute, and the phase certifies the implementation against that rule."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 20,000 (10,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 10,000; SSS 5% of the 20,000 salary credit = 1,000 a month = 500 a cutoff; PhilHealth 5% = 1,000 split evenly, employee 500 a month = 250 a cutoff; Pag-IBIG 2% of the 10,000 ceiling = 200 a month = 100 a cutoff (850 in all); taxable 10,000 - 850 = 9,150, inside the exempt bracket, so withholding 0.00; net 9,150.00.",
+    "Disposable pay before optional deductions is gross less statutory and tax: 10,000 - 850 - 0 = 9,150.00.",
+    "Each optional deduction is taken in full if it fits in what is left, otherwise it is deferred as a whole (benefit shares, wage advance) or, for a loan only, limited to what is left. A deferred or limited amount raises a review flag, so the payslip status is Exception, and it is never taken from the mandatory amounts.",
+    "Voluntary Pag-IBIG 1,000.00 a month = 500.00 a cutoff. A benefit plan share is its monthly contribution divided by two. Loans carry a balance of twelve of their repayments (or more) so the balance never limits a deduction. A fresh earned wage advance is approved before every cutoff and repaid after it, except a deferred one, which is approved once and stays outstanding.",
+    "Year end for a worker with no 13th month paid: entries 12 x 10,000 = 120,000; entitlement = basic earned 120,000 / 12 = 10,000 accrued unpaid and added to gross compensation = 130,000; contributions 12 x 850 = 10,200 and ONLY those; the 10,000 sits inside the 90,000 pool; non-taxable = 10,000 + 10,200 = 20,200; taxable = 109,800; tax 0.00 (below 250,000); withheld 0.00; the adjustment is 0.00 and the outcome balanced. Optional deductions never move any of it."
+  ],
+  "employees": {
+    "noDeductionControl": {
+      "description": "No optional deduction. Net pay 9,150.00 in every cutoff, status Ready.",
+      "voluntaryMonthly": 0,
+      "plans": [],
+      "loans": [],
+      "advance": null,
+      "cutoff": { "pagIbigVoluntary": 0, "benefit": 0, "advance": 0, "loan": 0, "netPay": 9150, "status": "Ready" },
+      "yearEnd": { "grossCompensation": 130000, "thirteenthMonth": 10000, "nonTaxable": 20200, "statutoryContributions": 10200, "taxableIncome": 109800, "taxDue": 0, "taxWithheld": 0, "adjustment": 0, "outcome": "balanced" }
+    },
+    "loanLimitedToWhatIsLeft": {
+      "description": "Voluntary Pag-IBIG 500.00, a benefit plan share of 2,000.00 (4,000.00 a month), an advance of 3,000.00 plus a 100.00 fee, and a loan repayment of 5,000.00. Waterfall on 9,150.00: voluntary 500.00 leaves 8,650.00; benefit 2,000.00 leaves 6,650.00; advance 3,100.00 leaves 3,550.00; the loan asks for 5,000.00 and gets 3,550.00 (limited), leaving 0.00. Net pay 0.00 and the payslip is an Exception for the limited loan. Gross, SSS, PhilHealth, Pag-IBIG and withholding are the control's.",
+      "voluntaryMonthly": 1000,
+      "plans": [{ "name": "Golden Health Savings Plan", "category": "voluntary", "monthlyContribution": 4000, "cap": 5000 }],
+      "loans": [{ "loanType": "Company Emergency Loan", "referenceNo": "P30-CO-1", "principal": 60000, "cutoffDeduction": 5000 }],
+      "advance": { "requestedAmount": 3000, "fee": 100, "mode": "everyCutoff" },
+      "cutoff": { "pagIbigVoluntary": 500, "benefit": 2000, "advance": 3100, "loan": 3550, "netPay": 0, "status": "Exception" },
+      "yearEnd": { "grossCompensation": 130000, "thirteenthMonth": 10000, "nonTaxable": 20200, "statutoryContributions": 10200, "taxableIncome": 109800, "taxDue": 0, "taxWithheld": 0, "adjustment": 0, "outcome": "balanced" }
+    },
+    "advanceDeferredLoanTakesRemainder": {
+      "description": "Voluntary Pag-IBIG 500.00, a benefit plan share of 2,500.00 (5,000.00 a month), an advance of 7,000.00 with no fee, and a loan repayment of 5,000.00. Waterfall on 9,150.00: voluntary 500.00 leaves 8,650.00; benefit 2,500.00 leaves 6,150.00; the advance needs 7,000.00 and is deferred whole (no recovery line, it stays outstanding); the loan asks for 5,000.00 and fits, leaving 1,150.00. Net pay 1,150.00 and the payslip is an Exception for the deferred advance. The loan is NOT held back for the advance.",
+      "voluntaryMonthly": 1000,
+      "plans": [{ "name": "Golden Health Savings Plan", "category": "voluntary", "monthlyContribution": 5000, "cap": 6000 }],
+      "loans": [{ "loanType": "Company Emergency Loan", "referenceNo": "P30-CO-2", "principal": 60000, "cutoffDeduction": 5000 }],
+      "advance": { "requestedAmount": 7000, "fee": 0, "mode": "outstanding" },
+      "cutoff": { "pagIbigVoluntary": 500, "benefit": 2500, "advance": 0, "loan": 5000, "netPay": 1150, "status": "Exception" },
+      "yearEnd": { "grossCompensation": 130000, "thirteenthMonth": 10000, "nonTaxable": 20200, "statutoryContributions": 10200, "taxableIncome": 109800, "taxDue": 0, "taxWithheld": 0, "adjustment": 0, "outcome": "balanced" }
+    }
+  },
+  "steadyCutoff": { "grossPay": 10000, "sss": 500, "philHealth": 250, "pagIbig": 100, "withholding": 0, "poolFlag": false },
+  "limitations": [
+    "One low salary, 'split' timing, one benefit plan, one loan and one advance per worker. Several loans competing for the remainder (their order), a plan that does not fit, and partial loan balances are not exercised.",
+    "Release settlement (balances, the loan's remaining balance and repaid status) is not exercised; the harness marks runs Released directly. The loan balance therefore never falls here.",
+    "Withholding is zero at this salary, so the interaction of the waterfall with a withholding amount is not exercised (Phases 24-29 cover optional deductions at a taxed salary).",
+    "Final pay (separation) is not exercised; see Phase 25."
+  ]
+}
