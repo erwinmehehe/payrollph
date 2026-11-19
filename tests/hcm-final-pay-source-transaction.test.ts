@@ -82,6 +82,17 @@ test("switching exact 13th-month rounding invalidates the frozen approval source
   } finally { if (before === undefined) delete process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED; else process.env.EXACT_THIRTEENTH_CENTAVOS_ENABLED = before; }
 });
 
+test("old pending exempt allowance packages require recomputation", () => {
+  const source = fixture();
+  source.released[0].lineItems = [{ code: "EARN-2", amount: "12000.00", benefitPool90k: false,
+    benefitPoolKind: "taxable_allowance", notes: ["Type: taxable_allowance", "Tax treatment: non-taxable"] }];
+  const current = finalPaySourceFingerprint(source);
+  const { releasedExemptAllowanceYtd, ...previous } = current;
+  assert.equal(releasedExemptAllowanceYtd, 12000);
+  assert.equal(sameFinalPaySource(current, previous), false);
+  assert.ok(!("releasedExemptAllowanceYtd" in finalPaySourceFingerprint(fixture())));
+});
+
 test("final-pay fingerprint is deterministically sorted without modifying source ordering", () => {
   const source = fixture();
   const releasedOrder = source.released.map(row => row.entryId);

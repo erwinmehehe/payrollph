@@ -6,6 +6,28 @@ import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { finalPaySignedBalance } from "./final-pay-signed-balance";
 
+/** Only settled payroll lines carry the engine's allowance type and tax decision. */
+export function releasedExemptAllowanceYtd(rows: ReadonlyArray<{ lineItems: unknown }>): number {
+  let cents = 0;
+  for (const { lineItems } of rows) {
+    if (!Array.isArray(lineItems)) continue;
+    for (const line of lineItems) {
+      if (!line || !/^EARN-\d+$/.test(line.code) || line.benefitPool90k !== false
+        || !["allowance", "taxable_allowance"].includes(line.benefitPoolKind) || !Array.isArray(line.notes)) continue;
+      const types = line.notes.filter((note: unknown) => typeof note === "string" && note.startsWith("Type: "));
+      const treatments = line.notes.filter((note: unknown) => typeof note === "string" && note.startsWith("Tax treatment: "));
+      if (types.length !== 1 || types[0] !== `Type: ${line.benefitPoolKind}`
+        || treatments.length !== 1 || treatments[0] !== "Tax treatment: non-taxable") continue;
+      const amount = storedMoneyCentavos(line.amount);
+      if (amount === null || amount < 0) throw new Error("Invalid released exempt allowance amount.");
+      cents += amount;
+    }
+  }
+  const pesos = verifiedPesosFromCentavos(cents);
+  if (pesos === null) throw new Error("Released exempt allowance total exceeds supported precision.");
+  return pesos;
+}
+
 export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
 /** Year of the original released payroll cutoff, not the later retro payout. */
@@ -136,6 +158,7 @@ export function computeFinalPay(input: {
   unpaidBasicSalary: number;
   thirteenthPaidYtd: number;
   grossCompensationYtd: number;
+  releasedExemptAllowanceYtd?: number;
   deMinimisYtd?: number;
   deMinimisExcessYtd?: number;
   statutoryContributionsYtd: number;
@@ -220,6 +243,11 @@ export function computeFinalPay(input: {
     }
   }
 
+  const allowance = input.releasedExemptAllowanceYtd ?? 0;
+  if (storedMoneyCentavos(allowance) === null || allowance < 0 || allowance > input.grossCompensationYtd) {
+    throw new Error("Released exempt allowance must be within ordinary year-to-date gross.");
+  }
+
   const grossForAnnualization = round2(
     Math.max(0, input.grossCompensationYtd)
       + Math.max(0, input.unpaidBasicSalary)
@@ -237,6 +265,7 @@ export function computeFinalPay(input: {
   );
   const singleEmployerAnnualized = annualize({
     grossCompensation: grossForAnnualization,
+    otherNonTaxable: allowance,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
     otherBenefits: Math.max(0, input.otherBenefits),
     deMinimis: Math.max(0, input.deMinimisYtd ?? 0) + leaveDeMinimis,
