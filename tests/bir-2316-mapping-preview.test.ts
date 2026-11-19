@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildBir2316MappingPreview } from "../src/lib/bir-2316-mapping-preview";
+import { proveOmittedZeroWithholding } from "../src/lib/bir-2316-mapping-preview-server";
 
 const scope = { organizationId: 1, employeeId: 2, legalEntityId: 3, taxYear: 2026 };
 const summary = {
@@ -16,6 +17,33 @@ const leave = {
   notes: ["2 days @ daily rate ₱750", "Tax treatment: exempt"],
 };
 const basic = { code: "BASIC", label: "Basic pay", amount: "30000.00" };
+
+test("only an exact, balanced released cutoff with corroborating engine evidence proves omitted zero WHT", () => {
+  const inputs = ["taxableCompensation=9000.00", "withholdingTable=BIR-RR11-2018-2023-TABLE",
+    "mandatoryUncollected=0.00", "uncollectedWithholding=0.00", "yearEndTaxAdjustment=0.00"];
+  const lineItems = [{ code: "BASIC", amount: "10000.00" }, { code: "SSS", amount: "-1000.00" }];
+  const entry = {
+    ...released(1, "2026-09-15", false, lineItems), grossPay: "10000.00", deductions: "1000.00", netPay: "9000.00",
+    trace: { ruleVersion: "PH-2026.09", inputs },
+  };
+  assert.equal(proveOmittedZeroWithholding(entry), true);
+  for (const insufficient of [
+    { ...entry, status: "Approved" },
+    { ...entry, trace: {} },
+    { ...entry, trace: { ...entry.trace, ruleVersion: "unreviewed" } },
+    { ...entry, trace: { ...entry.trace, inputs: [...inputs, "uncollectedWithholding=0.00"] } },
+    { ...entry, trace: { ...entry.trace, inputs: inputs.filter(value => !value.startsWith("uncollectedWithholding=")) } },
+    { ...entry, trace: { ...entry.trace, inputs: inputs.map(value => value.replace("uncollectedWithholding=0.00", "uncollectedWithholding=1.00")) } },
+    { ...entry, trace: { ...entry.trace, inputs: inputs.map(value => value.replace("BIR-RR11-2018-2023-TABLE", "wrong-table")) } },
+    { ...entry, grossPay: "11000.00", deductions: "100.00", netPay: "10900.00",
+      lineItems: [{ code: "BASIC", amount: "11000.00" }, { code: "SSS", amount: "-100.00" }],
+      trace: { ...entry.trace, inputs: inputs.map(value => value.replace("taxableCompensation=9000.00", "taxableCompensation=10900.00")) } },
+    { ...entry, netPay: "8999.99" },
+    { ...entry, lineItems: [...lineItems, { code: "WHT", amount: "0.00" }] },
+    { ...entry, lineItems: [...lineItems, { code: "YE-TAX-1", amount: "0.00" }] },
+    { ...entry, lineItems: [lineItems[0], { code: "SSS", amount: "-999.99" }] },
+  ]) assert.equal(proveOmittedZeroWithholding(insufficient), false);
+});
 function released(id: number, payDate: string, mwe: boolean, lineItems: unknown[]) {
   return {
     ...scope, id, runId: id + 100, payDate, periodStart: payDate, periodEnd: payDate, grossPay: "31100.00", status: "Released", lineItems,

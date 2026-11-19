@@ -101,6 +101,27 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     assert.deepEqual(importedPreview?.imported, [{ id: historical.id, payDate: "2025-11-30", grossPay: "2000.00", basicSalary: null }]);
     assert.deepEqual(importedPreview?.proposed, []);
     await db.delete(historicalPayrollEntries).where(eq(historicalPayrollEntries.id, historical.id));
+    const [zeroRun] = await db.insert(payrollRuns).values({
+      organizationId: orgIds[0], legalEntityId: entities[0].id, periodLabel: "Fictional zero withholding",
+      periodStart: "2026-01-01", periodEnd: "2026-01-15", payDate: "2026-01-15", status: "Released",
+    }).returning();
+    const [zeroEntry] = await db.insert(payrollEntries).values({
+      payrollRunId: zeroRun.id, employeeId: people[0].id, grossPay: "10000.00", deductions: "1000.00", netPay: "9000.00",
+      lineItems: [{ code: "BASIC", amount: "10000.00" }, { code: "SSS", amount: "-1000.00" }],
+      trace: { ruleVersion: "PH-2026.09", inputs: ["taxableCompensation=9000.00", "withholdingTable=BIR-RR11-2018-2023-TABLE",
+        "uncollectedWithholding=0.00", "mandatoryUncollected=0.00", "yearEndTaxAdjustment=0.00"] },
+    }).returning();
+    await db.insert(yearEndAdjustments).values({
+      organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2026, grossCompensation: "10000.00",
+      taxWithheld: "0.00", adjustment: "0.00",
+    });
+    const zeroScope = { organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2026 };
+    assert.deepEqual((await load2316CertificateSource(zeroScope)).withholding,
+      { actualPresentWithheld: "0.00", appliedAdjustment: "0.00", issues: [], entryIds: [zeroEntry.id] });
+    await db.update(payrollEntries).set({ netPay: "8999.99" }).where(eq(payrollEntries.id, zeroEntry.id));
+    const unproven = (await load2316CertificateSource(zeroScope)).withholding;
+    assert.equal(unproven?.actualPresentWithheld, null);
+    assert.deepEqual(unproven?.issues, ["WITHHOLDING_WHT_MISSING_OR_DUPLICATE"]);
     await assert.rejects(load2316CertificateSource({ ...scope, organizationId: orgIds[1] }), /SOURCE_NOT_FOUND/);
     const [newEntity] = await db.insert(legalEntities).values({ organizationId: orgIds[0], code: "NEW", legalName: "New employer after transfer", displayName: "New employer", birTin: "987654321", birBranchCode: "0002" }).returning();
     await db.update(employees).set({ legalEntityId: newEntity.id }).where(eq(employees.id, people[0].id));
