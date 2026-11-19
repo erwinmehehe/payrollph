@@ -98,17 +98,17 @@ jobs:
         run: node scripts/qa/apply-isolated-baseline.mjs
       - name: Verify year-end line treatment, including negative controls
         run: node --import tsx --test tests/year-end-line-treatment.test.ts
-      - name: Execute all 3 real-engine loan priority cases
+      - name: Execute all 4 real-engine loan priority cases
         run: npx tsx scripts/golden-payroll-phase31.ts
-      - name: Verify artifact has all three genuine passed cases
+      - name: Verify artifact has all four genuine passed cases
         run: |
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
           import {readFileSync} from "node:fs";
           const a=JSON.parse(readFileSync("qa-artifacts/golden-payroll-phase31-reconciliation.json","utf8"));
           assert.equal(a.status,"passed");
-          assert.equal(a.caseCount,3);
-          assert.equal(a.results.length,3);
+          assert.equal(a.caseCount,4);
+          assert.equal(a.results.length,4);
           assert.ok(a.results.every(r=>r.status==="passed" && r.part==="engine" && r.failures.length===0));
           NODE
       - name: Preserve synthetic observed discrepancies even on failure
