@@ -383,8 +383,8 @@ test("Phase 7 separation source re-inventory preserves existing tenant evidence,
   assert.equal(review.independentPhilippineTaxAndSecurityReview, "PENDING");
   assert.equal(review.productionCertified, false);
   assert.deepEqual(record.methods.map((m: { name: string; status: string }) => [m.name, m.status]),
-    [["GET", "COVERED"], ["POST", "COVERED"], ["PATCH", "COVERED"]],
-    "this source reconciliation must not inflate tenant-isolation method credits");
+    [["GET", "GAP"], ["POST", "GAP"], ["PATCH", "GAP"]],
+    "Phase 25 holds separation methods until renewed HTTP evidence");
   const tenantProof = readFileSync(review.priorTenantIsolationHttpProof, "utf8");
   for (const token of [
     "Actual Separation POST creates package", "Owned Separation GET",

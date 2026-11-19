@@ -1,0 +1,58 @@
+{
+  "version": "phase23-year-end-honours-cutoff-exemptions-2026-11-19",
+  "toleranceCentavos": 0,
+  "description": "Year-end annualization must treat compensation the same way the cutoff did. Two defects in src/lib/year-end.ts broke that: (1) a non-taxable supplementary earning (a non-taxable allowance, a pay-policy premium marked non-taxable, an exempt leave conversion) was counted in gross compensation but in no non-taxable bucket, so annualization taxed what the cutoff had exempted; (2) any line whose label contained 'tax' was summed as tax withheld, whatever its sign, so an earning called 'Taxable allowance' (or 'Non-taxable allowance') was counted as withholding and inflated the refund. Phase 23 certifies the corrected behaviour with three workers hired at the switch on the same salary: a control with no allowance, a worker with a 12,000 non-taxable allowance whose year end must equal the control, and a worker with a 12,000 TAXABLE allowance labelled 'Taxable allowance' whose year end must tax it and must not count it as withheld.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000).",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e))."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 30,000; SSS 875, PhilHealth 750, Pag-IBIG 100 (1,725); taxable 30,000 - 1,725 = 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10; net 25,015.90. The allowance is approved supplementary compensation effective in cutoff 23 (2026-12-01 to 2026-12-15) and is outside the SSS and Pag-IBIG bases.",
+    "Year end for a worker with no 13th month paid: entries 12 x 30,000; entitlement = basic earned 360,000 / 12 = 30,000 is accrued unpaid and added to gross compensation; contributions 12 x 1,725 = 20,700; the 30,000 sits inside the 90,000 pool; non-taxable = exempt pool + exempt allowance + contributions; taxable = gross - non-taxable; tax = 15% x (taxable - 250,000); withheld = the sum of the WHT lines only; a refund is a negative adjustment."
+  ],
+  "employees": {
+    "noAllowanceControl": {
+      "description": "No allowance. Every cutoff is ordinary. Year end: gross 360,000 + 30,000 accrued = 390,000; non-taxable 30,000 + 20,700 = 50,700; taxable 339,300; tax 15% x 89,300 = 13,395.00; withheld 12 x 3,259.10 = 39,109.20; refund 25,714.20.",
+      "supplementary": [],
+      "cutoffs": {},
+      "yearEnd": {
+        "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      }
+    },
+    "nonTaxableAllowance": {
+      "description": "A 12,000 allowance marked non-taxable in cutoff 23. The cutoff exempts it: gross 42,000, taxable still 28,275, withholding 3,259.10, net 42,000 - 1,725 - 3,259.10 = 37,015.90. Year end must exempt it too: gross 360,000 + 12,000 + 30,000 = 402,000; non-taxable 30,000 + 12,000 + 20,700 = 62,700; taxable 339,300; tax 13,395.00; and the label 'Non-taxable allowance' must NOT be counted as withholding: withheld 12 x 3,259.10 = 39,109.20; refund 25,714.20, identical to the control. Before the fix year end taxed it (taxable 351,300, tax 15,195.00) and counted it as 12,000 of withholding (withheld 51,109.20).",
+      "supplementary": [
+        { "cutoff": 23, "earningType": "taxable_allowance", "label": "Non-taxable allowance", "amount": 12000, "taxable": false }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 42000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 37015.9, "status": "Ready", "poolFlag": false }
+      },
+      "yearEnd": {
+        "grossCompensation": 402000, "thirteenthMonth": 30000, "nonTaxable": 62700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      }
+    },
+    "taxableAllowanceLabelledTaxable": {
+      "description": "A 12,000 allowance marked taxable and labelled 'Taxable allowance' in cutoff 23. The cutoff taxes it: taxable 30,000 + 12,000 - 1,725 = 40,275; withholding 4,270.70 + 0.25 x (40,275 - 33,333) = 6,006.20; gross 42,000; net 42,000 - 1,725 - 6,006.20 = 34,268.80. Year end must tax it and must not count the label as withholding: gross 402,000; non-taxable 30,000 + 20,700 = 50,700; taxable 351,300; tax 15% x 101,300 = 15,195.00; withheld 11 x 3,259.10 + 6,006.20 = 41,856.30; refund 15,195.00 - 41,856.30 = 26,661.30. Before the fix the label made year end count a further 12,000 as withheld (53,856.30) and understate the tax settlement by that amount.",
+      "supplementary": [
+        { "cutoff": 23, "earningType": "taxable_allowance", "label": "Taxable allowance", "amount": 12000, "taxable": true }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 42000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 6006.2, "netPay": 34268.8, "status": "Ready", "poolFlag": false }
+      },
+      "yearEnd": {
+        "grossCompensation": 402000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700,
+        "taxableIncome": 351300, "taxDue": 15195, "taxWithheld": 41856.3, "adjustment": -26661.3, "outcome": "refund"
+      }
+    }
+  },
+  "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 25015.9, "status": "Ready", "poolFlag": false },
+  "limitations": [
+    "Only a non-taxable supplementary allowance and the label defect are exercised end to end. A pay-policy premium marked non-taxable and an exempt leave conversion are fixed by the same change and covered by unit tests on the line parser, but not by a real-engine case here.",
+    "The label defect is certified for one label ('Taxable allowance') and one non-taxable label; any earning is now excluded from the contribution and withholding sums unless it is a negative (deduction) line.",
+    "One salary, 'split' timing, a worker hired at the switch (no imported history), one allowance amount and one cutoff.",
+    "Final pay (separation) builds its own year-to-date inputs from a different source and is not exercised here.",
+    "Year-end rows already computed under the old rule are replaced only when year end is recomputed; the stored rule version string is unchanged, and the new otherNonTaxable key in the stored breakdown marks rows computed under the corrected rule."
+  ]
+}

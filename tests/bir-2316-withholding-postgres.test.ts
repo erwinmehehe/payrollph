@@ -5,7 +5,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 const enabled = (() => { try { const u = new URL(process.env.DATABASE_URL ?? ""); return process.env.CI === "true" && process.env.BIR_2316_POSTGRES_QA === "true" && ["127.0.0.1", "localhost"].includes(u.hostname) && u.pathname === "/app_db"; } catch { return false; } })();
 test("disposable PostgreSQL: source isolation, immutable final pay and default-off readers execute read-only", { skip: !enabled }, async () => {
   const { db, pool } = await import("../src/db");
-  const { organizations, legalEntities, employees, payrollRuns, payrollEntries, yearEndAdjustments, separationRecords, users } = await import("../src/db/schema");
+  const { organizations, legalEntities, employees, payrollRuns, payrollEntries, historicalPayrollEntries, yearEndAdjustments, separationRecords, supplementaryEarnings, users } = await import("../src/db/schema");
   const { loadYearEnd2316Withholding, loadFinalPay2316Withholding } = await import("../src/lib/bir-2316-withholding-server");
   const { load2316CertificateSource } = await import("../src/lib/bir-2316-certificate-server");
   const { computeFinalPay } = await import("../src/lib/final-pay");
@@ -22,8 +22,20 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     }
     const [run] = await db.insert(payrollRuns).values({ organizationId: orgIds[0], legalEntityId: entities[0].id, periodLabel: "Fictional December", periodStart: "2025-12-01", periodEnd: "2025-12-31", payDate: "2025-12-31", status: "Released" }).returning();
     const [annual] = await db.insert(yearEndAdjustments).values({ organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2025, grossCompensation: "10000.00", taxWithheld: "1000.00", adjustment: "200.00", payrollRunId: run.id, status: "settled" }).returning();
-    const lines = [{ code: "WHT", amount: "-1000.00" }, { code: "YE-TAX-" + annual.id, amount: "-200.00" }];
-    const [entry] = await db.insert(payrollEntries).values({ payrollRunId: run.id, employeeId: people[0].id, grossPay: "10000", deductions: "1200", netPay: "8800", lineItems: lines }).returning();
+    const [allowance] = await db.insert(supplementaryEarnings).values({
+      organizationId: orgIds[0], employeeId: people[0].id, payrollRunId: run.id, status: "settled",
+      earningType: "allowance", label: "Fictional supplementary allowance", taxable: true, amount: "400.00", effectiveDate: "2025-12-15",
+    }).returning();
+    const lines = [
+      { code: "BASIC", amount: "9000.00" },
+      { code: "COMP-1", label: "Fictional allowance", amount: "100.00", notes: ["Type: recurring_allowance", "Tax treatment: non-taxable"] },
+      { code: "EARN-" + allowance.id, label: allowance.label, amount: "400.00", notes: ["Type: allowance", "Tax treatment: taxable"] },
+      { code: "LEAVE_CONV-1", label: "Leave Conversion (vacation 1d)", amount: "500.00", notes: ["1 days @ daily rate 500", "Tax treatment: exempt"] },
+      { code: "WHT", amount: "-1000.00" }, { code: "YE-TAX-" + annual.id, amount: "-200.00" },
+    ];
+    const [entry] = await db.insert(payrollEntries).values({ payrollRunId: run.id, employeeId: people[0].id, grossPay: "10000", deductions: "1200", netPay: "8800", lineItems: lines,
+      trace: { inputs: ["mwe=false", "region=NCR"] },
+    }).returning();
     // An intentionally inconsistent foreign-tenant run must not enter tenant A's totals.
     const [foreignRun] = await db.insert(payrollRuns).values({ organizationId: orgIds[1], legalEntityId: entities[1].id, periodLabel: "Foreign fictional run", periodStart: "2025-12-01", periodEnd: "2025-12-31", payDate: "2025-12-31", status: "Released" }).returning();
     await db.insert(payrollEntries).values({ payrollRunId: foreignRun.id, employeeId: people[0].id, grossPay: "1000", deductions: "999", netPay: "1", lineItems: [{ code: "WHT", amount: "-999.00" }] });
@@ -82,6 +94,44 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     const certificate = await load2316CertificateSource(scope);
     assert.equal(certificate.employerTin, "123456789-0000");
     assert.equal(certificate.withholding?.actualPresentWithheld, "1200.00");
+    const preview = certificate.mappingPreview;
+    assert.equal(preview?.periods[0]?.mwe, false);
+    assert.equal(preview?.allowances[0]?.amount, "100.00");
+    assert.deepEqual(preview?.proposed.find(item => item.item === "51A"),
+      { item: "51A", amount: "400.00", description: "Taxable supplementary allowances" });
+    await db.update(supplementaryEarnings).set({ amount: "399.99" }).where(eq(supplementaryEarnings.id, allowance.id));
+    assert.equal((await load2316CertificateSource(scope)).mappingPreview?.proposed.some(item => item.item === "51A"), false);
+    await db.update(supplementaryEarnings).set({ amount: allowance.amount }).where(eq(supplementaryEarnings.id, allowance.id));
+    assert.equal(preview?.leaveConversions[0]?.detail, "1 days @ daily rate 500");
+    const [historical] = await db.insert(historicalPayrollEntries).values({
+      organizationId: orgIds[0], employeeId: people[0].id, sourceReference: "fictional-import",
+      periodLabel: "Fictional November", payDate: "2025-11-30", grossPay: "2000.00", netPay: "1800.00",
+    }).returning();
+    const importedPreview = (await load2316CertificateSource(scope)).mappingPreview;
+    assert.deepEqual(importedPreview?.imported, [{ id: historical.id, payDate: "2025-11-30", grossPay: "2000.00", basicSalary: null }]);
+    assert.deepEqual(importedPreview?.proposed, []);
+    await db.delete(historicalPayrollEntries).where(eq(historicalPayrollEntries.id, historical.id));
+    const [zeroRun] = await db.insert(payrollRuns).values({
+      organizationId: orgIds[0], legalEntityId: entities[0].id, periodLabel: "Fictional zero withholding",
+      periodStart: "2026-01-01", periodEnd: "2026-01-15", payDate: "2026-01-15", status: "Released",
+    }).returning();
+    const [zeroEntry] = await db.insert(payrollEntries).values({
+      payrollRunId: zeroRun.id, employeeId: people[0].id, grossPay: "10000.00", deductions: "1000.00", netPay: "9000.00",
+      lineItems: [{ code: "BASIC", amount: "10000.00" }, { code: "SSS", amount: "-1000.00" }],
+      trace: { ruleVersion: "PH-2026.09", inputs: ["taxableCompensation=9000.00", "withholdingTable=BIR-RR11-2018-2023-TABLE",
+        "uncollectedWithholding=0.00", "mandatoryUncollected=0.00", "yearEndTaxAdjustment=0.00"] },
+    }).returning();
+    await db.insert(yearEndAdjustments).values({
+      organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2026, grossCompensation: "10000.00",
+      taxWithheld: "0.00", adjustment: "0.00",
+    });
+    const zeroScope = { organizationId: orgIds[0], employeeId: people[0].id, taxYear: 2026 };
+    assert.deepEqual((await load2316CertificateSource(zeroScope)).withholding,
+      { actualPresentWithheld: "0.00", appliedAdjustment: "0.00", issues: [], entryIds: [zeroEntry.id] });
+    await db.update(payrollEntries).set({ netPay: "8999.99" }).where(eq(payrollEntries.id, zeroEntry.id));
+    const unproven = (await load2316CertificateSource(zeroScope)).withholding;
+    assert.equal(unproven?.actualPresentWithheld, null);
+    assert.deepEqual(unproven?.issues, ["WITHHOLDING_WHT_MISSING_OR_DUPLICATE"]);
     await assert.rejects(load2316CertificateSource({ ...scope, organizationId: orgIds[1] }), /SOURCE_NOT_FOUND/);
     const [newEntity] = await db.insert(legalEntities).values({ organizationId: orgIds[0], code: "NEW", legalName: "New employer after transfer", displayName: "New employer", birTin: "987654321", birBranchCode: "0002" }).returning();
     await db.update(employees).set({ legalEntityId: newEntity.id }).where(eq(employees.id, people[0].id));
@@ -89,6 +139,7 @@ test("disposable PostgreSQL: source isolation, immutable final pay and default-o
     const historicalCertificate = await load2316CertificateSource({ ...scope, separationId: separation.id });
     assert.equal(historicalCertificate.employerTin, "123456789-0000", "frozen employer wins over today's assignment and inactive state");
     assert.equal(historicalCertificate.employerName, "Fictional");
+    assert.equal(historicalCertificate.mappingPreview, undefined);
     assert.ok(historicalCertificate.withholding?.issues.includes("UNSETTLED_ADJUSTMENT"));
     await assert.rejects(load2316CertificateSource(scope), /SINGLE_LEGAL_EMPLOYER_REQUIRED/);
     assert.ok(readTransactions >= 9);

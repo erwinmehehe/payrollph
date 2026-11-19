@@ -1,4 +1,6 @@
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 377 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 84 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 374 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 87 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+
+> **Phase 25 separation holds:** `GET separation`, `POST separation` and `PATCH separation` require fresh PG16 HTTP evidence on the changed route before renewal.
 
 > **Pilot timesheet hold:** `GET workforce/timesheets` and `POST workforce/timesheets` have zero credit pending exact-head verification of legal-employer scope and transferred-worker attribution. First-employer pilot records exclude transfers.
 
@@ -265,7 +267,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 15 | 11 | 6 | 1 | INCOMPLETE |
 | 6 | **EDG-02** | 33 | 22 | 1 | 5 | 5 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **317 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 60 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **60 COVERED + 8 PUBLIC-BY-DESIGN + 24 GAP**. 10 batches remain INCOMPLETE; PII-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **317 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 60 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **57 COVERED + 8 PUBLIC-BY-DESIGN + 27 GAP**. 10 batches remain INCOMPLETE; PII-01, WRK-02 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 

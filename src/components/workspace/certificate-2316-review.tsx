@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CERTIFICATE_ITEMS, CERTIFICATE_LABELS, CERTIFICATE_TEXT_FIELDS, type CertificateSource } from "@/lib/bir-2316-certificate";
+import { CERTIFICATE_ITEMS, CERTIFICATE_LABELS, CERTIFICATE_TEXT_FIELDS } from "@/lib/bir-2316-certificate";
+import type { CertificateReviewSource } from "@/lib/bir-2316-mapping-preview";
+import { Bir2316MappingReview } from "./bir-2316-mapping-review";
 export function Certificate2316Review({ organizationId, initialEmployeeId, initialTaxYear, separationId }: { organizationId: number; initialEmployeeId: string; initialTaxYear: string; separationId?: string }) {
   const [sourceDigest, setSourceDigest] = useState("");
   const [employeeId, setEmployeeId] = useState(initialEmployeeId), [year, setYear] = useState(initialTaxYear);
-  const [source, setSource] = useState<CertificateSource | null>(null), [text, setText] = useState<Record<string, string>>({});
+  const [source, setSource] = useState<CertificateReviewSource | null>(null), [text, setText] = useState<Record<string, string>>({});
   const [details, setDetails] = useState<Record<string, string>>({}), [previous, setPrevious] = useState<Record<string, string>>({ status: "" });
   const [pera, setPera] = useState(""), [type, setType] = useState(""), [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [download, setDownload] = useState("");
@@ -41,6 +43,7 @@ export function Certificate2316Review({ organizationId, initialEmployeeId, initi
     {!source && !busy && <p>Select an employee and year to begin. Recent MFA and company-wide payroll access are required.</p>}
     {source && <form onSubmit={generate}>
       <section className="certificate-summary" aria-label="Server payroll evidence"><h2>{source.employeeName}</h2><p>{source.employerName} · {source.periodFrom} to {source.periodTo}</p><p>Posted present-employer withholding: {source.withholding?.actualPresentWithheld ?? "UNVERIFIED"}</p><p>Source warnings: {source.withholding?.issues.join(", ") || "None reported"}</p><p>Review each figure against your source documents. Mapping entries never change payroll or the employee record.</p></section>
+      {source.mappingPreview && <Bir2316MappingReview preview={source.mappingPreview} />}
       <fieldset disabled={busy}><legend>2. Identity and supporting references</legend><div className="certificate-grid">
         {Object.entries(CERTIFICATE_TEXT_FIELDS).map(([key, name]) => label(name, key, text[key] ?? "", v => setText(s => ({ ...s, [key]: v })), !["foreignAddress", "44A", "44B", "51A", "51B"].includes(key)))}
         <div className="certificate-field"><label htmlFor="certificate-employer-type">Employer type</label><select id="certificate-employer-type" required value={type} onChange={e => { setType(e.target.value); setDownload(""); }}><option value="">Choose explicitly</option><option value="main">Main employer</option><option value="secondary">Secondary employer</option></select></div>

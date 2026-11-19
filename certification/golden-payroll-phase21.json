@@ -1,0 +1,102 @@
+{
+  "version": "phase21-imported-history-bonus-hold-2026-11-18",
+  "toleranceCentavos": 0,
+  "description": "Phases 15-18 certified the imported de minimis excess and the imported 13th month in the shared PHP 90,000 pool. The import has NO field for bonuses or other pool benefits, so the engine's prior pool is a verified lower bound. Phase 21 certifies what that means in practice for a bonus paid by the engine on top of imported history: the run is held for review whatever the amount (even when nothing is taxable), the 90,000 cap still applies, a bonus paid in an earlier engine cutoff is carried forward into a later cutoff's prior pool, an unrecorded imported bonus makes the cutoff under-withhold but year end settles it exactly, and a worker with no imported history is not held.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (over 10,417: 15%; over 16,667: 937.50 + 20%; over 33,333: 4,270.70 + 25%; over 83,333: 16,770.70 + 30% of the excess) and the annual table (250,000 to 400,000: 15% of the excess over 250,000; 400,000 to 800,000: 22,500 + 20% of the excess over 400,000).",
+    "thirteenthMonthAndBenefits": "NIRC Sec. 32(B)(7)(e): 13th-month pay and other benefits share one exemption of 90,000; the excess is taxable compensation.",
+    "sssPhilHealthPagIbig": "At a 60,000 monthly salary every contribution is at its cap: SSS 875, PhilHealth 750 and Pag-IBIG 100 per cutoff (1,725). A bonus does not change them."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff). Provider switch on 2026-07-01: January-June are six imported monthly rows per worker with imported history (basic 60,000, SSS 1,750, PhilHealth 1,500, Pag-IBIG 200, withholding 6,518.20), July-December are cutoffs 13-24 calculated by the engine. No imported row carries a 13th month or a de minimis amount, so the only imported pool input in this phase is none.",
+    "An ordinary cutoff: gross 30,000; contributions 875 + 750 + 100 = 1,725; taxable 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10; net 25,015.90.",
+    "Approved supplementary earnings of type bonus share the 90,000 pool. The engine's pool before a cutoff is the verified imported pool plus every earlier engine cutoff's pool benefit; the exempt part of the cutoff's pool is the lesser of the cutoff's pool and 90,000 minus that prior pool; the rest is taxable compensation in that cutoff. In a cutoff with a current pool benefit and imported history the run is held (status Exception, shared-pool flag). Every other cutoff is Ready with no flag.",
+    "Year end follows the Phase 10, 13, 17 and 18 convention: entries gross includes every paid amount and every imported amount, the accrued unpaid 13th month (entitlement = basic earned / 12) is added to gross compensation and joins the pool, non-taxable = the exempt pool (at most 90,000) + statutory contributions, an imported amount that is not a recognised exempt item stays taxable, and a refund is a negative adjustment. Contributions: 6 x 3,450 imported + 12 x 1,725 engine = 41,400 (20,700 for the half-year worker)."
+  ],
+  "employees": {
+    "bonusInsideRoomStillHeld": {
+      "description": "Imported history exists, nothing imported in the pool; the engine pays a 30,000 bonus in cutoff 23. Pool 30,000 sits inside the 90,000 room, so nothing is taxable, yet the run is still held because the import cannot prove the prior pool is empty. Cutoff 23: gross 30,000 + 30,000 = 60,000; taxable 30,000 - 1,725 = 28,275; withholding 3,259.10; net 60,000 - 1,725 - 3,259.10 = 55,015.90; Exception with the shared-pool flag. Year end: entries 6 x 60,000 + 11 x 30,000 + 60,000 = 750,000; no 13th month was paid, so the entitlement 60,000 is accrued: gross compensation 810,000; pool 60,000 + 30,000 = 90,000 is exactly the exemption; non-taxable 90,000 + 41,400 = 131,400; taxable 678,600; tax 22,500 + 0.20 x 278,600 = 78,220.00; withheld 6 x 6,518.20 + 12 x 3,259.10 = 78,218.40; collect 1.60.",
+      "importedHistory": true,
+      "importedBonusInJune": 0,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 30000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 60000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 55015.9, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 810000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 678600, "taxDue": 78220, "taxWithheld": 78218.4, "adjustment": 1.6, "outcome": "collect"
+      }
+    },
+    "bonusOverflowHeld": {
+      "description": "Imported history exists, nothing imported in the pool; the engine pays a 100,000 bonus in cutoff 23. Prior pool 0, room 90,000: exempt 90,000, taxable 10,000. Cutoff 23: gross 30,000 + 100,000 = 130,000; taxable 30,000 + 10,000 - 1,725 = 38,275; withholding 4,270.70 + 0.25 x (38,275 - 33,333) = 5,506.20; net 130,000 - 1,725 - 5,506.20 = 122,768.80; Exception with the shared-pool flag. Year end: entries 360,000 + 330,000 + 130,000 = 820,000; accrued 13th month 60,000: gross compensation 880,000; pool 60,000 + 100,000 = 160,000, exempt 90,000; non-taxable 131,400; taxable 748,600; tax 22,500 + 0.20 x 348,600 = 92,220.00; withheld 39,109.20 + 11 x 3,259.10 + 5,506.20 = 80,465.50; collect 11,754.50. The cutoff under-withholds because it does not yet see the year-end 13th-month accrual in the pool; year end settles it.",
+      "importedHistory": true,
+      "importedBonusInJune": 0,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 100000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 130000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 5506.2, "netPay": 122768.8, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 880000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 748600, "taxDue": 92220, "taxWithheld": 80465.5, "adjustment": 11754.5, "outcome": "collect"
+      }
+    },
+    "bonusSplitAcrossTwoCutoffs": {
+      "description": "Imported history exists, nothing imported in the pool; the engine pays a 60,000 bonus in cutoff 21 and another 60,000 in cutoff 23. Cutoff 21: prior pool 0, room 90,000, exempt 60,000, taxable 0; gross 90,000; taxable 28,275; withholding 3,259.10; net 90,000 - 1,725 - 3,259.10 = 85,015.90; Exception with the flag. Cutoff 23: the earlier engine bonus is carried forward, so the prior pool is 60,000 and the room is 30,000: exempt 30,000, taxable 30,000; gross 90,000; taxable 30,000 + 30,000 - 1,725 = 58,275; withholding 4,270.70 + 0.25 x (58,275 - 33,333) = 10,506.20; net 90,000 - 1,725 - 10,506.20 = 77,768.80; Exception with the flag. An engine that forgot cutoff 21 would see room 90,000 and tax nothing extra in cutoff 23. Year end: entries 360,000 + 10 x 30,000 + 90,000 + 90,000 = 840,000; accrued 13th month 60,000: gross compensation 900,000; pool 60,000 + 120,000 = 180,000, exempt 90,000; non-taxable 131,400; taxable 768,600; tax 22,500 + 0.20 x 368,600 = 96,220.00; withheld 39,109.20 + 10 x 3,259.10 + 3,259.10 + 10,506.20 = 85,465.50; collect 10,754.50.",
+      "importedHistory": true,
+      "importedBonusInJune": 0,
+      "supplementary": [
+        { "cutoff": 21, "earningType": "bonus", "label": "Mid-year bonus", "amount": 60000 },
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 60000 }
+      ],
+      "cutoffs": {
+        "21": { "grossPay": 90000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 85015.9, "status": "Exception", "poolFlag": true },
+        "23": { "grossPay": 90000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 10506.2, "netPay": 77768.8, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 900000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 768600, "taxDue": 96220, "taxWithheld": 85465.5, "adjustment": 10754.5, "outcome": "collect"
+      }
+    },
+    "importedBonusInvisibleToEngine": {
+      "description": "The previous provider paid a 50,000 bonus inside its June row (gross 110,000) but the import has no field for it, so the engine cannot see it: prior pool 0. In cutoff 23 the engine pays a 90,000 bonus: room 90,000, exempt 90,000, taxable 0, so the cutoff under-withholds against the true pool (50,000 + 90,000). The run is held. Cutoff 23: gross 30,000 + 90,000 = 120,000; taxable 28,275; withholding 3,259.10; net 120,000 - 1,725 - 3,259.10 = 115,015.90; Exception with the flag. Year end settles it exactly because an imported amount that is not a recognised exempt item stays taxable: entries 6 x 60,000 + 50,000 + 11 x 30,000 + 120,000 = 860,000; accrued 13th month 60,000: gross compensation 920,000; pool 60,000 + 90,000 = 150,000, exempt 90,000 (the imported 50,000 is taxable); non-taxable 131,400; taxable 788,600; tax 22,500 + 0.20 x 388,600 = 100,220.00; withheld 39,109.20 + 12 x 3,259.10 = 78,218.40; collect 22,001.60. The true pool (13th 60,000 + 50,000 + 90,000 = 200,000, exempt 90,000) gives the same taxable income.",
+      "importedHistory": true,
+      "importedBonusInJune": 50000,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 90000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 120000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 115015.9, "status": "Exception", "poolFlag": true }
+      },
+      "yearEnd": {
+        "grossCompensation": 920000, "thirteenthMonth": 60000, "nonTaxable": 131400, "statutoryContributions": 41400,
+        "taxableIncome": 788600, "taxDue": 100220, "taxWithheld": 78218.4, "adjustment": 22001.6, "outcome": "collect"
+      }
+    },
+    "noImportedHistoryControl": {
+      "description": "A worker hired on 2026-07-01 has no imported rows, so there is nothing the import could fail to identify: the same kind of bonus (50,000 in cutoff 23) is not held. Cutoff 23: prior pool 0, current 50,000 inside the room: exempt 50,000, taxable 0; gross 30,000 + 50,000 = 80,000; taxable 28,275; withholding 3,259.10; net 80,000 - 1,725 - 3,259.10 = 75,015.90; Ready with no flag. Year end: entries 12 x 30,000 + 50,000 = 410,000; entitlement = basic earned 360,000 / 12 = 30,000 accrued: gross compensation 440,000; pool 30,000 + 50,000 = 80,000 inside the 90,000 exemption; contributions 12 x 1,725 = 20,700; non-taxable 80,000 + 20,700 = 100,700; taxable 339,300; tax 15% x (339,300 - 250,000) = 13,395.00; withheld 12 x 3,259.10 = 39,109.20; refund 25,714.20.",
+      "importedHistory": false,
+      "importedBonusInJune": 0,
+      "supplementary": [
+        { "cutoff": 23, "earningType": "bonus", "label": "Year-end bonus", "amount": 50000 }
+      ],
+      "cutoffs": {
+        "23": { "grossPay": 80000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 75015.9, "status": "Ready", "poolFlag": false }
+      },
+      "yearEnd": {
+        "grossCompensation": 440000, "thirteenthMonth": 30000, "nonTaxable": 100700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      }
+    }
+  },
+  "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "netPay": 25015.9, "status": "Ready", "poolFlag": false },
+  "limitations": [
+    "A bonus or other pool benefit paid by the PREVIOUS provider is not read at all: the import has no field for it, so the prior pool stays a lower bound and the run stays held. This phase certifies the hold and the exact year-end settlement for one such bonus; it does not certify reading the amount.",
+    "The cutoff withholding is an estimate, not a correct figure, for a worker whose import hides a pool benefit: cutoff 23 under-withholds in those cases and only year end settles the difference.",
+    "One salary level (60,000, every contribution capped), the bonus earning type only, 'split' timing and one tax year. Other benefits in the shared pool are not exercised.",
+    "Whether the collection or refund is paid out is not certified."
+  ]
+}

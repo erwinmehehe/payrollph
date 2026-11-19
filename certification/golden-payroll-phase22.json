@@ -1,0 +1,111 @@
+{
+  "version": "phase22-overtime-night-holiday-provider-switch-2026-11-18",
+  "toleranceCentavos": 0,
+  "description": "Phase 3 certified the pay-rule premium families in an ordinary year, and Phase 20 listed overtime, night-differential and holiday premiums for a minimum wage earner (MWE) as not exercised. Phase 22 certifies them in a provider-switch year. In cutoff 23 two workers on the same salary and the same time records earn statutory overtime, night differential and special-holiday pay. The pay is identical; the tax is not: an MWE's statutory premiums are exempt (withholding 0) and an ordinary taxpayer's are taxable (249.83). The premiums also lift the SSS compensation base for the month but not the PhilHealth or Pag-IBIG base, and the SSS month is trued up in the second cutoff. At year end the MWE with imported history is skipped and reported, the ordinary worker is refunded the cutoff tax because the annual figure is below the exemption, and an MWE hired at the switch annualizes with taxable income 0.",
+  "sources": {
+    "laborCode": "Labor Code Art. 87 (overtime: 125% of the hourly rate on an ordinary day), Art. 86 (night shift differential: an additional 10% of the hourly rate, applied to the overtime hourly rate for overtime hours worked at night), Art. 94 and DOLE rules (special non-working day worked: 130% of the daily rate, so a 30% premium over the day's basic pay already included in a monthly salary).",
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; over 10,417: 15% of the excess); annual table (up to 250,000 exempt). RR 11-2018 Sec. 2.78.1(B)(2): a minimum wage earner's statutory minimum wage and the holiday pay, overtime pay, night shift differential pay and hazard pay received for work during that period are exempt.",
+    "sss": "SSS contribution schedule effective 2025: employee share 5% of the monthly salary credit; the credit is the compensation rounded to the nearest 500 (credit 17,500 for 17,250 to 17,749.99, 22,000 for 21,750 to 22,249.99, 26,000 for 25,750 to 26,249.99). Compensation includes overtime, night differential and holiday pay.",
+    "philHealthPagIbig": "PhilHealth 5% of the monthly basic salary shared equally with the employer (2.5%); Pag-IBIG employee share 200 a month (fund salary cap). Neither base includes overtime pay."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 17,600 for every worker (daily 800, hourly 100: 17,600 / 22 days / 8 hours). A cutoff's basic pay is 8,800. Provider switch on 2026-07-01: January to June are six imported monthly rows for the workers with imported history (basic 17,600, gross 17,600, SSS 875, PhilHealth 440, Pag-IBIG 200, withholding 0); July to December are cutoffs 13-24 calculated by the engine.",
+    "An ordinary cutoff: gross 8,800; SSS 437.50 (half of 5% x 17,500); PhilHealth 220 (5% x 17,600 / 2 / 2); Pag-IBIG 100; taxable 8,800 - 757.50 = 8,042.50 is inside the exempt first bracket, so withholding 0; net 8,042.50.",
+    "Cutoff 23 (2026-12-01 to 2026-12-15) work plan for every worker: shift 09:00-18:00 with a 12:00-13:00 break. Nine ordinary weekdays (Dec 1, 3, 4, 7, 9, 10, 11, 14, 15) work to 21:00 with 180 approved overtime minutes: 3 h x 100 x 1.25 = 375.00 each, 3,375.00. Dec 2 works to 23:00 with 300 approved overtime minutes: 5 h x 100 x 1.25 = 625.00, and its 22:00-23:00 hour is night differential: 1 h x 100 x 1.25 x 10% = 12.50. Dec 8 (a special non-working day) works the 8 hour shift to 18:00: 8 h x 100 x 30% = 240.00 holiday premium. So overtime 4,000.00, night differential 12.50, holiday premium 240.00 and gross 8,800 + 4,000 + 12.50 + 240 = 13,052.50.",
+    "SSS in cutoff 23 is the first-cutoff estimate: the engine projects the contracted monthly salary plus twice the extra remuneration, 17,600 + 2 x (13,052.50 - 8,800) = 26,105 (equal to twice the cutoff gross at a fixed monthly salary), credit 26,000, 5% = 1,300, half of it 650.00. The second cutoff of the month trues the month up: the month's compensation is 17,600 + 4,000 + 12.50 + 240 = 21,852.50, credit 22,000, 5% = 1,100, so cutoff 24 deducts 1,100 - 650 = 450.00. PhilHealth and Pag-IBIG stay 220 and 100 because their bases exclude overtime.",
+    "Cutoff 23 withholding for an ordinary taxpayer: taxable 13,052.50 - 650 - 220 - 100 = 12,082.50; 15% x (12,082.50 - 10,417) = 249.825 = 249.83. For an MWE the statutory premiums are exempt, the taxable supplementary compensation is 0, and withholding is 0.",
+    "Year end follows the Phase 10, 13, 17, 18 and 20 convention: gross compensation includes every paid amount and the accrued unpaid 13th month (entitlement = basic earned / 12); non-taxable = the exempt pool + statutory contributions; an MWE's taxable income is only its taxable supplementary compensation less contributions, floored at 0; a refund is a negative adjustment."
+  ],
+  "workPlans": {
+    "cutoff23": [
+      { "date": "2026-12-01", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-02", "timeOut": "23:00", "overtimeMinutes": 300 },
+      { "date": "2026-12-03", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-04", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-07", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-08", "timeOut": "18:00", "overtimeMinutes": 0 },
+      { "date": "2026-12-09", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-10", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-11", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-14", "timeOut": "21:00", "overtimeMinutes": 180 },
+      { "date": "2026-12-15", "timeOut": "21:00", "overtimeMinutes": 180 }
+    ]
+  },
+  "scenarios": {
+    "premiumsWithImportedHistory": {
+      "description": "Employer A. An MWE and an ordinary worker on the same salary and the same cutoff 23 time records, both with imported history. The pay is identical; only the tax differs. Year-end annualization must skip and report only the MWE and still settle the ordinary worker.",
+      "yearEnd": "skip",
+      "skipped": ["mweOvertimeWithImportedHistory"],
+      "skipMessage": "does not contain the statutory-wage versus taxable-supplementary breakdown"
+    },
+    "mweHireAnnualizes": {
+      "description": "Employer B. An MWE hired on 2026-07-01 (no imported rows) with the same cutoff 23 time records. Year-end annualization runs and shows the premiums staying exempt.",
+      "yearEnd": "annualize"
+    }
+  },
+  "employees": {
+    "mweOvertimeWithImportedHistory": {
+      "scenario": "premiumsWithImportedHistory",
+      "mwe": true,
+      "classification": "approved",
+      "monthlySalary": 17600,
+      "startDate": "2026-01-01",
+      "imported": true,
+      "workPlan": "cutoff23",
+      "description": "The MWE with imported history. Cutoff 23 earns 4,000.00 overtime + 12.50 night differential + 240.00 holiday premium: gross 13,052.50; SSS 650.00 (estimate), PhilHealth 220, Pag-IBIG 100; the statutory premiums are exempt so withholding is 0 and net is 13,052.50 - 970 = 12,082.50. Cutoff 24 trues SSS up to 450.00: net 8,800 - 450 - 220 - 100 = 8,030.00. Year end skips this worker (imported history has no statutory-wage breakdown).",
+      "steadyCutoff": { "grossPay": 8800, "sss": 437.5, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 8042.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {
+        "23": { "grossPay": 13052.5, "sss": 650, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 12082.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+        "24": { "grossPay": 8800, "sss": 450, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 8030, "status": "Ready", "poolFlag": false, "legacyMweFlag": false }
+      },
+      "skippedAtYearEnd": true
+    },
+    "regularOvertimeWithImportedHistory": {
+      "scenario": "premiumsWithImportedHistory",
+      "mwe": false,
+      "classification": "none",
+      "monthlySalary": 17600,
+      "startDate": "2026-01-01",
+      "imported": true,
+      "workPlan": "cutoff23",
+      "description": "The ordinary colleague with imported history and identical time records. Cutoff 23 pay and contributions equal the MWE's, but the premiums are taxable: taxable 12,082.50, withholding 15% x 1,665.50 = 249.83, net 12,082.50 - 249.83 = 11,832.67. Year end: entries imported 6 x 17,600 = 105,600 + engine 11 x 8,800 + 13,052.50 = 109,852.50, so 215,452.50; entitlement (105,600 + 105,600) / 12 = 17,600 accrued unpaid: gross compensation 233,052.50; contributions imported 6 x 1,515 = 9,090 + engine SSS 10 x 437.50 + 650 + 450 = 5,475, PhilHealth 2,640, Pag-IBIG 1,200 = 18,405; non-taxable 17,600 + 18,405 = 36,005; taxable 197,047.50 is under the 250,000 exemption so tax due 0; withheld 249.83 is refunded.",
+      "steadyCutoff": { "grossPay": 8800, "sss": 437.5, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 8042.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {
+        "23": { "grossPay": 13052.5, "sss": 650, "philHealth": 220, "pagIbig": 100, "withholding": 249.83, "netPay": 11832.67, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+        "24": { "grossPay": 8800, "sss": 450, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 8030, "status": "Ready", "poolFlag": false, "legacyMweFlag": false }
+      },
+      "yearEnd": {
+        "grossCompensation": 233052.5, "thirteenthMonth": 17600, "nonTaxable": 36005, "statutoryContributions": 18405,
+        "taxableIncome": 197047.5, "taxDue": 0, "taxWithheld": 249.83, "adjustment": -249.83, "outcome": "refund"
+      }
+    },
+    "mweOvertimeJulyHire": {
+      "scenario": "mweHireAnnualizes",
+      "mwe": true,
+      "classification": "approved",
+      "monthlySalary": 17600,
+      "startDate": "2026-07-01",
+      "imported": false,
+      "workPlan": "cutoff23",
+      "description": "An MWE hired at the switch with the same time records; every cutoff equals the MWE with imported history. Year end runs: entries 11 x 8,800 + 13,052.50 = 109,852.50; entitlement basic earned 12 x 8,800 = 105,600 / 12 = 8,800 accrued: gross compensation 118,652.50; contributions SSS 5,475 + PhilHealth 2,640 + Pag-IBIG 1,200 = 9,315; non-taxable 8,800 + 9,315 = 18,115; an MWE's taxable income is only its taxable supplementary compensation less contributions, so 0; tax due 0, nothing withheld: balanced. The 4,252.50 of overtime, night and holiday pay never becomes taxable.",
+      "steadyCutoff": { "grossPay": 8800, "sss": 437.5, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 8042.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+      "cutoffs": {
+        "23": { "grossPay": 13052.5, "sss": 650, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 12082.5, "status": "Ready", "poolFlag": false, "legacyMweFlag": false },
+        "24": { "grossPay": 8800, "sss": 450, "philHealth": 220, "pagIbig": 100, "withholding": 0, "netPay": 8030, "status": "Ready", "poolFlag": false, "legacyMweFlag": false }
+      },
+      "yearEnd": {
+        "grossCompensation": 118652.5, "thirteenthMonth": 8800, "nonTaxable": 18115, "statutoryContributions": 9315,
+        "taxableIncome": 0, "taxDue": 0, "taxWithheld": 0, "adjustment": 0, "outcome": "balanced"
+      }
+    }
+  },
+  "limitations": [
+    "This phase proves that MWE status removes the cutoff tax an ordinary worker owes on identical pay (0 against 249.83). It does NOT prove each premium is exempt on its own: at this salary the MWE's 4,252.50 of premiums less 970 of contributions is far inside the exempt first bracket, so counting the overtime as taxable supplementary compensation would still withhold 0 (a mutation that did exactly that was not caught). Only forcing the MWE status off fails the MWE cases.",
+    "Year-end annualization reads only the legacy employees.mwe flag, never the approved effective-dated classification that the cutoffs use. The fixtures set both, so this is not exercised; at these salaries the annual tax is 0 either way.",
+    "Only statutory (Labor Code) overtime, night differential and holiday premium are certified. A pay-policy premium (a collective bargaining or company rule) carries its own taxable flag, and for an MWE the engine counts only the premium the rule marks taxable; that flag is the policy author's declaration and is not exercised here.",
+    "One salary (17,600 a month, hourly 100), one cutoff of premiums, one special non-working day, one night hour. A regular holiday (200%), a rest-day or holiday-and-rest-day combination, a night shift that crosses midnight and hazard pay are not exercised.",
+    "The ordinary worker's cutoff tax (249.83) is refunded at year end only because the annual figure is under the exemption; a worker whose annual income is above it would keep the withholding. Only one ordinary salary is exercised.",
+    "The MWE classification rows are fixtures inserted as approved; the approval workflow and the rule that the evidenced daily wage must equal the statutory minimum wage are not exercised. The MWE with imported history is not annualized (it is skipped and reported, see Phase 20).",
+    "Whether the refund or collection is paid out is not certified."
+  ]
+}

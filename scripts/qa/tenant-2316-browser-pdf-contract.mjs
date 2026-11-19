@@ -14,8 +14,12 @@ export const PAGE = "/workspace/2316";
 export const API = "/api/year-end/2316-certificate";
 export const CURRENT_SOURCE = Object.freeze({
   "src/app/api/year-end/2316-certificate/route.ts": "df2fa42c9f3995f7ebb62a3141ba2c0c3140161d",
-  "src/components/workspace/certificate-2316-review.tsx": "8e384c18e4db3e5520c936343b1ede56a2bbfd4c",
-  "src/lib/bir-2316-certificate-server.ts": "34c7be32a808b9a6835ef54e40c7a9fabc695e16",
+  "src/components/workspace/certificate-2316-review.tsx": "77cb160bb8dfe249d0034bdaecbe98c7be773882",
+  "src/components/workspace/bir-2316-mapping-review.tsx": "9061cddd578cb2773af9f81ce0774b2446a51712",
+  "src/lib/bir-2316-certificate-server.ts": "529a78b2fc48fc4dfacb2d5d7b4ffd0e6e08923f",
+  "src/lib/bir-2316-mapping-preview.ts": "18270b77f13e610817d594cf39616a3e3dd53da7",
+  "src/lib/bir-2316-mapping-preview-server.ts": "8873135db135dfcbd2b7c2dd20d370722dbe4fca",
+  "src/lib/bir-2316-line-categories.ts": "ca04aebf77c30674f14f0f2a5586cd7df6337073",
   "src/lib/bir-2316-withholding-server.ts": "35219040fe695c461d028ecf06e4590eaa95b12f",
   "src/lib/bir-2316-withholding.ts": "e0246aad900d7dc95c49f4247a8d5f6ab1caf8dd",
   "src/lib/bir-2316-certificate.ts": "2ab2a208c9717e049566b84ab161d887b6e80900",
