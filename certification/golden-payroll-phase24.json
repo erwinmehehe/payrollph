@@ -1,0 +1,55 @@
+{
+  "version": "phase24-year-end-loan-repayments-are-not-contributions-2026-11-19",
+  "toleranceCentavos": 0,
+  "description": "A loan repayment is a deduction from net pay, not a statutory contribution. Year-end annualization read contributions by label text, so a repayment on 'SSS Salary Loan' or 'Pag-IBIG Multi-Purpose Loan' (the engine labels it 'Loan, <loan type>' under the code LOAN-<id>) was summed as an SSS or Pag-IBIG contribution. Contributions are a non-taxable bucket, so every repayment lowered taxable income and inflated the year-end refund. Phase 24 certifies the corrected behaviour with three workers hired at the switch on the same salary: a control with no loan, a worker repaying an SSS Salary Loan, and a worker repaying a Pag-IBIG Multi-Purpose Loan and a company loan. Both loan workers' year-end settlement must equal the control's.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000). Only the employee's mandatory SSS, PhilHealth and Pag-IBIG contributions are excluded from taxable compensation; a loan repayment is the employee's own money used to settle a debt and is not such a contribution (NIRC Sec. 32(B)(7)(f)).",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e))."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 30,000; SSS 875, PhilHealth 750, Pag-IBIG 100 (1,725); taxable 30,000 - 1,725 = 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10. Loan repayments are taken from net pay after tax, so they change net pay and nothing else in the cutoff.",
+    "Each loan is active with a remaining balance equal to twelve repayments, so the full cutoff deduction is taken in every cutoff 13-24 and the balance is never the limit.",
+    "Year end for a worker with no 13th month paid: entries 12 x 30,000; entitlement = basic earned 360,000 / 12 = 30,000 is accrued unpaid and added to gross compensation; contributions 12 x 1,725 = 20,700 and ONLY those; the 30,000 sits inside the 90,000 pool; non-taxable = exempt pool + contributions; taxable = gross - non-taxable; tax = 15% x (taxable - 250,000); withheld = the sum of the WHT lines only; a refund is a negative adjustment."
+  ],
+  "employees": {
+    "noLoanControl": {
+      "description": "No loan. Net pay 25,015.90 in every cutoff. Year end: gross 360,000 + 30,000 accrued = 390,000; non-taxable 30,000 + 20,700 = 50,700; taxable 339,300; tax 15% x 89,300 = 13,395.00; withheld 12 x 3,259.10 = 39,109.20; refund 25,714.20.",
+      "loans": [],
+      "cutoffNet": 25015.9,
+      "yearEnd": {
+        "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      }
+    },
+    "sssSalaryLoan": {
+      "description": "An 'SSS Salary Loan' repaid 500.00 a cutoff (6,000.00 over the 12 cutoffs). Cutoff net pay 25,015.90 - 500.00 = 24,515.90; gross, SSS, PhilHealth, Pag-IBIG and withholding are the control's. Year end must equal the control: statutory contributions 20,700 (NOT 26,700), non-taxable 50,700, taxable 339,300, tax 13,395.00, refund 25,714.20. Before the fix the repayments counted as 6,000 of SSS contributions: non-taxable 56,700, taxable 333,300, tax 12,495.00 and a refund 900.00 too large (26,614.20).",
+      "loans": [
+        { "loanType": "SSS Salary Loan", "referenceNo": "P24-SSS-1", "principal": 6000, "cutoffDeduction": 500 }
+      ],
+      "cutoffNet": 24515.9,
+      "yearEnd": {
+        "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      }
+    },
+    "pagibigAndCompanyLoans": {
+      "description": "A 'Pag-IBIG Multi-Purpose Loan (MPL)' repaid 400.00 a cutoff (4,800.00 over 12 cutoffs) and a 'Company Emergency Loan' repaid 250.00 a cutoff (3,000.00). Cutoff net pay 25,015.90 - 400.00 - 250.00 = 24,365.90. Year end must equal the control: contributions 20,700, taxable 339,300, tax 13,395.00, refund 25,714.20. Before the fix the Pag-IBIG repayments counted as 4,800 of contributions: non-taxable 55,500, taxable 334,500, tax 12,675.00 and a refund 720.00 too large (26,434.20). The company loan never matched and must stay uncounted.",
+      "loans": [
+        { "loanType": "Pag-IBIG Multi-Purpose Loan (MPL)", "referenceNo": "P24-HDMF-1", "principal": 4800, "cutoffDeduction": 400 },
+        { "loanType": "Company Emergency Loan", "referenceNo": "P24-CO-1", "principal": 3000, "cutoffDeduction": 250 }
+      ],
+      "cutoffNet": 24365.9,
+      "yearEnd": {
+        "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700,
+        "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund"
+      }
+    }
+  },
+  "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "status": "Ready", "poolFlag": false },
+  "limitations": [
+    "Only loan repayments are exercised end to end. An earned wage advance recovery (code EWA-) and a benefit plan deduction (code BEN-) are excluded by the same change and covered by unit tests on the line parser, not by a real-engine case here.",
+    "One salary, 'split' timing, a worker hired at the switch (no imported history), loans that are never limited by disposable pay.",
+    "Final pay (separation) reads contributions by exact code and is not affected by the label defect; it is not exercised here.",
+    "Year-end rows already computed under the old rule are replaced only when year end is recomputed; the stored rule version string is unchanged."
+  ]
+}
