@@ -1,6 +1,6 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import type { db } from "@/db";
-import { historicalPayrollEntries, payrollEntries, payrollRuns } from "@/db/schema";
+import { historicalPayrollEntries, payrollEntries, payrollRuns, supplementaryEarnings } from "@/db/schema";
 import { buildBir2316MappingPreview } from "./bir-2316-mapping-preview";
 import { bir2316Centavos } from "./bir-2316-reconciliation";
 import { releasedBir2316Withholding, type WithholdingEntry } from "./bir-2316-withholding";
@@ -74,7 +74,18 @@ export async function readBir2316MappingPreview(
     eq(historicalPayrollEntries.organizationId, organizationId), eq(historicalPayrollEntries.employeeId, employeeId),
     gte(historicalPayrollEntries.payDate, from), lte(historicalPayrollEntries.payDate, through),
   ));
-  const preview = buildBir2316MappingPreview(scope, entries, imported, annual);
+  const releasedRunIds = [...new Set(entries.filter(entry => entry.status === "Released" && entry.legalEntityId === scope.legalEntityId)
+    .map(entry => entry.runId))];
+  const allowances = releasedRunIds.length === 0 ? [] : await tx.select({
+    id: supplementaryEarnings.id, organizationId: supplementaryEarnings.organizationId, employeeId: supplementaryEarnings.employeeId,
+    payrollRunId: supplementaryEarnings.payrollRunId, earningType: supplementaryEarnings.earningType, amount: supplementaryEarnings.amount,
+    taxable: supplementaryEarnings.taxable, effectiveDate: supplementaryEarnings.effectiveDate, status: supplementaryEarnings.status,
+  }).from(supplementaryEarnings).where(and(
+    eq(supplementaryEarnings.organizationId, organizationId), eq(supplementaryEarnings.employeeId, employeeId),
+    eq(supplementaryEarnings.earningType, "allowance"), eq(supplementaryEarnings.taxable, true),
+    eq(supplementaryEarnings.status, "settled"), inArray(supplementaryEarnings.payrollRunId, releasedRunIds),
+  ));
+  const preview = buildBir2316MappingPreview(scope, entries, imported, annual, allowances);
   // Normalize only for the existing withholding validator. Persisted ledger lines are untouched.
   const zero = checkOmittedWithholding
     ? releasedBir2316Withholding({ ...scope, before: "0.00", expectedAdjustment: "0.00", historicalCount: imported.length },
