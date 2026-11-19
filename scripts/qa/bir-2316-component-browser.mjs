@@ -7,6 +7,16 @@ import { certificateSource, certificateReview } from '../../tests/fixtures/bir-2
 import { certificateSourceDigest } from '../../src/lib/bir-2316-source-digest.ts';
 import { prepare2316Certificate } from '../../src/lib/bir-2316-certificate.ts';
 import { render2316CertificatePdf } from '../../src/lib/bir-2316-pdf.ts';
+import { buildBir2316MappingPreview } from '../../src/lib/bir-2316-mapping-preview.ts';
+const scope = { ...certificateSource.scope, legalEntityId: certificateSource.legalEntityId };
+const mappingPreview = buildBir2316MappingPreview(scope, [
+  { ...scope, id: 1, runId: 1, status: 'Released', payDate: '2025-01-15', periodStart: '2025-01-01', periodEnd: '2025-01-15', grossPay: '15400.00', trace: { inputs: ['mwe=true'] },
+    lineItems: [{ code: 'EARN-1', label: 'Fictional meal allowance', amount: 400, notes: ['Type: recurring_allowance', 'Tax treatment: taxable'] }] },
+  { ...scope, id: 2, runId: 2, status: 'Released', payDate: '2025-02-15', periodStart: '2025-02-01', periodEnd: '2025-02-15', grossPay: '15700.00', trace: { inputs: ['mwe=false'] },
+    lineItems: [{ code: 'LEAVE_CONV-1', label: 'Leave Conversion (vacation 1d)', amount: 700, notes: ['1 days @ daily rate 700', 'Tax treatment: exempt'] }] },
+], [{ id: 1, payDate: '2025-03-15', grossPay: '30000.00', basicSalary: null }],
+{ ...certificateSource.summary, mwe: certificateSource.mwe, unpaidThirteenth: null });
+const source = { ...certificateSource, mappingPreview };
 const {chromium}=createRequire(import.meta.url)(process.env.QA_PLAYWRIGHT_MODULE ?? 'playwright');
 await mkdir('qa-artifacts',{recursive:true});
 await build({stdin:{contents:'import {createRoot} from "react-dom/client"; import {Certificate2316Review} from "./src/components/workspace/certificate-2316-review"; createRoot(document.getElementById("root")!).render(<Certificate2316Review organizationId={1} initialEmployeeId="1" initialTaxYear="2025"/>);',resolveDir:process.cwd(),sourcefile:'2316-component.tsx',loader:'tsx'},bundle:true,platform:'browser',jsx:'automatic',outfile:'qa-artifacts/2316-harness.js'});
@@ -14,11 +24,11 @@ const bundle=await readFile('qa-artifacts/2316-harness.js');
 const server=createServer(async(req,res)=>{
  if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle);return;}
  if(req.url.startsWith('/api/')){
-  if(req.method==='GET'){await new Promise(r=>setTimeout(r,500));res.setHeader('Content-Type','application/json');res.end(JSON.stringify({source:certificateSource,sourceDigest:certificateSourceDigest(certificateSource)}));return;}
-  const chunks=[];for await(const chunk of req)chunks.push(chunk);const {review,sourceDigest}=JSON.parse(Buffer.concat(chunks).toString());assert.equal(sourceDigest,certificateSourceDigest(certificateSource));
-  const result=prepare2316Certificate(certificateSource,review);
+  if(req.method==='GET'){await new Promise(r=>setTimeout(r,500));res.setHeader('Content-Type','application/json');res.end(JSON.stringify({source,sourceDigest:certificateSourceDigest(source)}));return;}
+  const chunks=[];for await(const chunk of req)chunks.push(chunk);const {review,sourceDigest}=JSON.parse(Buffer.concat(chunks).toString());assert.equal(sourceDigest,certificateSourceDigest(source));
+  const result=prepare2316Certificate(source,review);
   if(!result.ok){res.statusCode=422;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:'Complete the review.',issues:result.issues}));return;}
-  res.setHeader('Content-Type','application/pdf');res.end(Buffer.from(await render2316CertificatePdf(certificateSource,review)));return;
+  res.setHeader('Content-Type','application/pdf');res.end(Buffer.from(await render2316CertificatePdf(source,review)));return;
  }
  res.setHeader('Content-Type','text/html');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><div id="root"></div><div role="alert" id="__next-route-announcer__"></div><script src="/bundle.js"></script>');
 });
@@ -32,6 +42,18 @@ try{
   await page.screenshot({path:out+'/empty-'+width+'.png',fullPage:true});
   await page.getByRole('button',{name:'Load source records'}).click();await page.getByRole('status').waitFor();
   await page.screenshot({path:out+'/loading-'+width+'.png'});await page.getByRole('heading',{name:'Santos, Maria'}).waitFor();
+  const mapping=page.getByRole('region',{name:'Payroll evidence for category review'});
+  await mapping.getByText(/shows mixed minimum-wage status/).waitFor();
+  for(const [summary,evidence] of [['Allowances (1)','Fictional meal allowance'],['Leave conversions (1)','Leave Conversion'],['Minimum-wage classification by pay period (2)','Non-MWE'],['Imported periods (1)','Gross PHP 30000.00']]){
+   const disclosure=mapping.locator('details').filter({has:page.getByText(summary,{exact:true})});
+   await disclosure.locator('summary').click();
+   await disclosure.locator('li').filter({hasText:evidence}).waitFor();
+  }
+  assert.equal(await mapping.getByText('Candidate amounts from released lines').count(),0);
+  assert.equal(await mapping.locator('input, button').count(),0);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.screenshot({path:out+'/mapping-'+width+'.png',fullPage:true});
+  assert.equal(await page.locator('[name="item37"]').inputValue(),'');
   const review=certificateReview();for(const [key,value]of Object.entries(review.text))await page.locator('[name="'+key+'"]').fill(value);
   for(const [key,value]of Object.entries(review.detailItems))await page.locator('[name="item'+key+'"]').fill(value);
   await page.getByLabel('Employer type',{exact:true}).selectOption('main');await page.getByLabel('Previous employer review',{exact:true}).selectOption('none-confirmed');await page.locator('[name="pera"]').fill('0.00');await page.getByRole('checkbox').check();
@@ -41,5 +63,5 @@ try{
   const pending=page.waitForEvent('download');await page.getByRole('link',{name:'Download unsigned PDF'}).click();const download=await pending;assert.equal(await download.failure(),null);await download.saveAs(out+'/unsigned-'+width+'.pdf');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);await page.screenshot({path:out+'/complete-'+width+'.png',fullPage:true});await page.screenshot({path:out+'/download-'+width+'.png'});await page.close();console.log('PASS component-only loading/error/focus/form/download/no-overflow '+width);
  }
- await writeFile(out+'/results.json',JSON.stringify({result:'PASS',headSha:process.env.PR_HEAD_SHA??'local',widths:[1280,390],checks:['empty','loading','error focus','explicit labels','PDF download','no horizontal overflow','no browser errors'],boundary:'Actual React component and PDF renderer with fictional source API responses; not authenticated API or database acceptance.'},null,2));
+ await writeFile(out+'/results.json',JSON.stringify({result:'PASS',headSha:process.env.PR_HEAD_SHA??'local',widths:[1280,390],checks:['empty','loading','error focus','explicit labels','review-only mapping evidence','no certificate prefill','PDF download','no horizontal overflow','no browser errors'],boundary:'Actual React component and PDF renderer with fictional source API responses; not authenticated API or database acceptance.'},null,2));
 }finally{await browser.close();await new Promise(r=>server.close(r));}
