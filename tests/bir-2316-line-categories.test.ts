@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { annualize } from "../src/lib/annualization";
 import { reviewBir2316Summary } from "../src/lib/bir-2316-reconciliation";
+import { sumContributionsAndTax } from "../src/lib/year-end";
 import { categorizeBir2316Lines, classifyBir2316Line, reconcileBir2316Categories, type Bir2316Line } from "../src/lib/bir-2316-line-categories";
 
 const POOL_NOTE = "Tax treatment: shared PHP 90,000 annual benefit pool";
@@ -130,17 +131,53 @@ test("when contributions exceed basic pay the items cannot be reconciled and not
   assert.equal(result.detailItems, null);
 });
 
-test("a non-taxable allowance is item 37, and reconciliation exposes it if year end does not treat it as exempt", () => {
+test("reconciliation refuses a stale annualization result that omits the non-taxable allowance", () => {
   const lines = [line("BASIC", 120000), line("SSS", -3000), earning("EARN-5", "taxable_allowance", 12000, "non-taxable")];
   const result = categorizeBir2316Lines(lines, { mwe: false });
   assert.deepEqual(result.items, { "36": "3000.00", "37": "12000.00", "39": "117000.00" });
-  // annualization recognises only the pool, de minimis and contributions as non-taxable, so it cannot see item 37.
+  // Simulate a previously calculated result that did not include the exemption.
   const annual = annualize({ grossCompensation: 132000, thirteenthMonth: 0, statutoryContributions: 3000, taxWithheld: 0, mwe: false });
   const issues = reconcileBir2316Categories(result, annual);
   assert.equal(annual.nonTaxable, 3000);
   assert.ok(issues.some((issue) => issue.startsWith("EXEMPT_TOTAL_MISMATCH")), issues.join(" | "));
   assert.ok(issues.some((issue) => issue.startsWith("TAXABLE_TOTAL_MISMATCH")), issues.join(" | "));
   assert.ok(!issues.some((issue) => issue.startsWith("GROSS_MISMATCH")), "the items still add up to gross");
+});
+
+test("the Phase 23 exempt allowance reconciles end to end through annualization and the 2316 reviewer", () => {
+  const lines = [
+    line("BASIC", 360000),
+    line("SSS", -10500),
+    line("PHIC", -9000, "PhilHealth contribution"),
+    line("HDMF", -1200, "Pag-IBIG mandatory contribution"),
+    line("WHT", -39109.2),
+    earning("EARN-5", "taxable_allowance", 12000, "non-taxable", { label: "Non-taxable allowance" }),
+  ];
+  const parsed = sumContributionsAndTax(lines);
+  const annual = annualize({
+    grossCompensation: 402000, thirteenthMonth: 30000,
+    otherNonTaxable: parsed.otherNonTaxable, statutoryContributions: parsed.contributions,
+    taxWithheld: parsed.tax, mwe: false,
+  });
+  assert.equal(annual.nonTaxable, 62700);
+  assert.equal(annual.taxableIncome, 339300);
+  assert.equal(annual.taxDue, 13395);
+  assert.equal(annual.taxWithheld, 39109.2);
+  assert.equal(annual.adjustment, -25714.2);
+
+  const result = categorizeBir2316Lines(lines, { mwe: false, accruedUnpaidThirteenth: 30000 });
+  assert.deepEqual(result.items, { "34": "30000.00", "36": "20700.00", "37": "12000.00", "39": "339300.00" });
+  assert.deepEqual(reconcileBir2316Categories(result, annual), []);
+  assert.ok(result.detailItems);
+  const review = reviewBir2316Summary({
+    grossCompensation: "402000.00", nonTaxable: "62700.00", taxableIncome: "339300.00",
+    taxDue: "13395.00", withheldBeforeYearEnd: "39109.20", yearEndAdjustment: "-25714.20",
+  }, {
+    detailItems: result.detailItems, previousEmployer: { status: "none-confirmed" },
+    actualPresentWithheld: "13395.00", appliedAdjustment: "-25714.20", peraCredit: "0.00",
+  });
+  assert.equal(review.reconciled, true, JSON.stringify(review.issues));
+  assert.equal(review.officialCertificate, false);
 });
 
 test("reconciliation reports a gross mismatch and an MWE status mismatch", () => {
