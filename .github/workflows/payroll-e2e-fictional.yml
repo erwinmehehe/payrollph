@@ -64,6 +64,13 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Record the source tested by the fictional payroll suite
+        env:
+          APPROVED_EXIT_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$APPROVED_EXIT_EXPECTED_SHA"
+          git rev-parse HEAD HEAD:src/app/api/separation/route.ts HEAD:scripts/qa/payroll-approved-exit-http.mjs
       - name: Fetch exact PR base for fail-closed source guards
         run: git fetch --no-tags --depth=1 origin "$FAIL_CLOSED_GUARD_BASE_REF"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
