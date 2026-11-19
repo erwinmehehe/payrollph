@@ -29,7 +29,12 @@ try {
     (select count(*)::int from organizations) as employers`);
   requirePhase15Database(identity, mode);
   assert.equal(realpathSync(identity.directory), realpathSync(resolve("outputs/timesheet-employer-pg16")));
-  const { org, entity, owner, worker, cookie } = await seedEmployer("ATTA", randomUUID().slice(0, 8), standaloneMakeSession);
+  const nonce = randomUUID().slice(0, 8);
+  const homeA = await seedEmployer("ATTA", nonce, standaloneMakeSession);
+  const homeB = await seedEmployer("ATTB", nonce, standaloneMakeSession);
+  const { org, entity, worker } = await seedEmployer("VICTIM", nonce, standaloneMakeSession);
+  assert.ok(org.id > homeA.org.id && org.id > homeB.org.id);
+  const owner = homeA.owner, hr = homeB.owner;
   const [second] = await db.insert(s.legalEntities).values({
     organizationId: org.id, code: "TS-B", legalName: "Fictional B", displayName: "Fictional B",
   }).returning();
@@ -37,13 +42,9 @@ try {
     organizationId: org.id, legalEntityId: second.id, employeeNo: "TS-B-1", firstName: "Fictional",
     lastName: "B worker", title: "QA", avatarInitials: "FB", basicRate: "30000.00", startDate: "2026-01-01",
   }).returning();
-  const [hr] = await db.insert(s.users).values({
-    email: "checker@example.invalid", name: "Fictional checker", passwordHash: "fictional-session-only", role: "hr", totpEnabled: true,
-  }).returning();
+  await db.insert(s.userOrganizations).values({ organizationId: org.id, userId: owner.id, role: "owner", active: true });
   await db.insert(s.userOrganizations).values({ organizationId: org.id, userId: hr.id, role: "hr", active: true });
-  const checker = await standaloneMakeSession(hr.id);
-  await db.update(s.sessions).set({ mfaVerifiedAt: new Date() }).where(eq(s.sessions.id, checker.id));
-  const actors = [{ id: owner.id, cookie }, { id: hr.id, cookie: checker.cookie }];
+  const actors = [homeA, homeB].map(home => ({ id: home.owner.id, cookie: home.cookie, home }));
   for (const actor of actors) for (const employer of [entity, second]) {
     await db.insert(s.userLegalEntityGrants).values({ organizationId: org.id, userId: actor.id, legalEntityId: employer.id });
   }
@@ -144,19 +145,25 @@ try {
   assert.deepEqual(await state(), beforeTransferred);
   // Offboard both managers from this workspace while keeping their sessions
   // and their memberships in a separate fictional workspace active.
-  const next = await seedEmployer("ATTB", randomUUID().slice(0, 8), standaloneMakeSession);
   for (const actor of actors) {
-    await db.insert(s.userOrganizations).values({ organizationId: next.org.id, userId: actor.id, role: "hr", active: true });
-    await db.insert(s.userLegalEntityGrants).values({ organizationId: next.org.id, userId: actor.id, legalEntityId: next.entity.id });
+    await db.insert(s.userLegalEntityGrants).values({ organizationId: actor.home.org.id, userId: actor.id, legalEntityId: actor.home.entity.id });
     await db.update(s.userOrganizations).set({ active: false }).where(and(
       eq(s.userOrganizations.organizationId, org.id), eq(s.userOrganizations.userId, actor.id)));
   }
   const beforeOffboarded = await state();
   for (const actor of actors) {
+    const next = actor.home;
     const own = await standaloneRequest("/api/workforce/timesheets?" + new URLSearchParams({
       organizationId: next.org.id, legalEntityId: next.entity.id, ...period }), { cookie: actor.cookie });
     assert.equal(own.status, 200);
     assert.deepEqual(own.json.employees.map(x => x.id), [next.worker.id]);
+    const submitted = await standaloneRequest("/api/workforce/timesheets", { method: "POST", cookie: actor.cookie,
+      body: { organizationId: next.org.id, legalEntityId: next.entity.id, ...submit(next.worker) } });
+    assert.equal(submitted.status, 201);
+    const [ownRow] = await db.select().from(s.workforceTimesheets).where(eq(s.workforceTimesheets.id, submitted.json.timesheet.id));
+    assert.equal(ownRow.organizationId, next.org.id);
+    assert.equal(ownRow.employeeId, next.worker.id);
+    assert.equal(ownRow.submittedByUserId, actor.id);
     await request(actor, entity, null, 403);
     await request(actor, entity, policy, 403);
     await request(actor, entity, submit(worker), 403);
