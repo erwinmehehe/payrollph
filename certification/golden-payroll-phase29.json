@@ -1,0 +1,41 @@
+{
+  "version": "phase29-year-end-voluntary-pagibig-is-not-a-contribution-2026-11-19",
+  "toleranceCentavos": 0,
+  "description": "Voluntary Pag-IBIG savings are written as the line HDMF_VOL labelled 'Pag-IBIG voluntary contribution'. The label names the agency, so it would match the contribution label test; year-end annualization keeps it out only by its code (code !== 'HDMF_VOL' in sumContributionsAndTax). The cutoff never lets it reduce taxable pay (only mandatory SSS, PhilHealth and Pag-IBIG do), and year end must agree: a worker who saves voluntarily must settle exactly as one who does not. Phase 29 certifies it through the real engine with three workers hired at the switch on the same salary: a control, a worker saving 400.00 a month and a worker saving 1,000.00 a month. This was proved by unit test only.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000). Only the employee's mandatory SSS, PhilHealth and Pag-IBIG contributions are excluded from taxable compensation (NIRC Sec. 32(B)(7)(f)); a voluntary savings contribution above the mandatory share is the employee's own money and is not.",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e))."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 30,000; SSS 875, PhilHealth 750, mandatory Pag-IBIG 100 (1,725); taxable 30,000 - 1,725 = 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10; net 25,015.90.",
+    "A voluntary Pag-IBIG amount is split evenly over the two cutoffs of a month (400.00 a month = 200.00 a cutoff, 1,000.00 a month = 500.00 a cutoff). It is taken from net pay after tax, so it changes net pay and nothing else in the cutoff, and disposable pay never limits it. The mandatory Pag-IBIG line stays 100.00 because the compensation is already above the 10,000 ceiling.",
+    "Year end for a worker with no 13th month paid: entries 12 x 30,000; entitlement = basic earned 360,000 / 12 = 30,000 is accrued unpaid and added to gross compensation; contributions 12 x 1,725 = 20,700 and ONLY those; the 30,000 sits inside the 90,000 pool; non-taxable = exempt pool + contributions; taxable = gross - non-taxable; tax = 15% x (taxable - 250,000); withheld = the sum of the WHT lines only; a refund is a negative adjustment."
+  ],
+  "employees": {
+    "noVoluntaryControl": {
+      "description": "No voluntary savings. Net pay 25,015.90 in every cutoff. Year end: gross 390,000; non-taxable 50,700; taxable 339,300; tax 13,395.00; withheld 39,109.20; refund 25,714.20.",
+      "voluntaryMonthly": 0,
+      "cutoffNet": 25015.9,
+      "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700, "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund" }
+    },
+    "voluntary400": {
+      "description": "Voluntary Pag-IBIG savings of 400.00 a month: a 200.00 HDMF_VOL line a cutoff, 2,400.00 over the 12 cutoffs. Cutoff net 25,015.90 - 200.00 = 24,815.90; the other lines are the control's. Year end must equal the control: contributions 20,700 (NOT 23,100), taxable 339,300, tax 13,395.00, refund 25,714.20. If the savings were counted as contributions the refund would be 360.00 too large (15% x 2,400.00).",
+      "voluntaryMonthly": 400,
+      "cutoffNet": 24815.9,
+      "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700, "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund" }
+    },
+    "voluntary1000": {
+      "description": "Voluntary Pag-IBIG savings of 1,000.00 a month: a 500.00 HDMF_VOL line a cutoff, 6,000.00 over the 12 cutoffs. Cutoff net 25,015.90 - 500.00 = 24,515.90. Year end must equal the control: contributions 20,700 (NOT 26,700), taxable 339,300, tax 13,395.00, refund 25,714.20. If the savings were counted as contributions the refund would be 900.00 too large (15% x 6,000.00).",
+      "voluntaryMonthly": 1000,
+      "cutoffNet": 24515.9,
+      "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700, "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund" }
+    }
+  },
+  "steadyCutoff": { "grossPay": 30000, "sss": 875, "philHealth": 750, "pagIbig": 100, "withholding": 3259.1, "status": "Ready", "poolFlag": false },
+  "limitations": [
+    "Only a non-minimum-wage monthly-paid worker is exercised. A minimum wage earner's voluntary savings never reduce taxable supplementary pay either; that path is not exercised here.",
+    "One salary, 'split' timing, a worker hired at the switch (no imported history), savings never limited by disposable pay and never changed mid-year.",
+    "Final pay (separation) is not exercised; see Phase 25.",
+    "Year-end rows already computed under an older rule are replaced only when year end is recomputed."
+  ]
+}
