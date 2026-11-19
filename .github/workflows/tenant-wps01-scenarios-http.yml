@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'src/lib/payroll-rules.ts'
       - '.github/workflows/tenant-wps01-scenarios-http.yml'
       - 'scripts/qa/tenant-wps01-scenarios-*.mjs'
       - 'tests/tenant-wps01-scenarios-contract.test.mjs'
