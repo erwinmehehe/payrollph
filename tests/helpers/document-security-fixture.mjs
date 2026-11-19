@@ -1,9 +1,20 @@
 /** Historical test inputs only. Never call this from a current-credit writer. */
 import {readFileSync,cpSync,mkdirSync} from 'node:fs';
 import {dirname,join} from 'node:path';
-import {historicalDocumentSecurityFixture,protectedDocumentCreditKeys,sourceHoldArchive} from '../../scripts/qa/document-source-accounting.mjs';
+import {historicalDocumentSecurityFixture as archivedDocumentFixture,protectedDocumentCreditKeys,sourceHoldArchive} from '../../scripts/qa/document-source-accounting.mjs';
 import {readSecurityEvidence,verifySecurityCredits} from '../../scripts/qa/tenant-security-write-credit.mjs';
 export {SECURITY_TARGETS} from '../../scripts/qa/tenant-security-write-credit.mjs';
+// The historical receipt verifies this archived source against its original Git
+// blob. Current credits still read the working tree through the live verifier.
+export function historicalDocumentSecurityFixture(manifest) {
+ const historical = archivedDocumentFixture(manifest);
+ return {
+   manifest: historical.manifest,
+   read: (file, ...args) => file === 'src/lib/payroll-rules.ts'
+     ? readFileSync('tests/fixtures/tenant-historical-payroll-rules.txt', ...args)
+     : historical.read(file, ...args),
+ };
+}
 const live=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 export function readHistoricalSecurityEvidence(){return readSecurityEvidence(historicalDocumentSecurityFixture(live()).read);}
 export function verifyHistoricalSecurityCredits(manifest){
