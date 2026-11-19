@@ -73,6 +73,10 @@ try {
       payrollRunId: run.id, ...period, expectedBy: period.periodEnd });
   }
   await request(actors[0], entity, policy, 200);
+  const [saved] = await rows(s.workforceTimesheetPolicies);
+  assert.equal(saved.updatedByUserId, owner.id);
+  assert.equal(saved.enforcementMode, "advisory");
+  assert.equal(saved.active, false);
   const owned = (await request(actors[0], entity, submit(worker), 201)).timesheet;
   const otherSheet = (await request(actors[0], second, submit(other), 201)).timesheet;
   await request(actors[1], entity, decide(owned, "approved"), 200);
@@ -92,7 +96,10 @@ try {
   }
   const beforeReads = await state();
   for (const actor of actors) {
-    view(await request(actor, entity, null, 200), worker, owned);
+    const firstView = await request(actor, entity, null, 200);
+    view(firstView, worker, owned);
+    assert.throws(() => view(firstView, other, otherSheet), assert.AssertionError,
+      "timesheet validator accepts another employer's data");
     view(await request(actor, second, null, 200), other, otherSheet);
   }
   assert.deepEqual(await state(), beforeReads);
@@ -156,6 +163,24 @@ try {
     await request(actor, entity, decide(owned, "approved"), 403);
   }
   assert.deepEqual(await state(), beforeOffboarded);
+  const [employeeAccount] = await db.insert(s.users).values({
+    email: "fixture-worker@example.invalid", name: "Fictional worker", employeeId: worker.id,
+    passwordHash: "fictional-session-only", role: "employee",
+  }).returning();
+  await db.insert(s.userOrganizations).values({ organizationId: org.id, userId: employeeAccount.id, role: "employee", active: true });
+  const self = await standaloneMakeSession(employeeAccount.id);
+  view(await request(self, entity, null, 200), worker, owned);
+  const ownSubmission = (await request(self, entity, {
+    ...submit(worker), periodStart: "2026-05-04", periodEnd: "2026-05-17",
+  }, 201)).timesheet;
+  const [selfRow] = await db.select().from(s.workforceTimesheets).where(eq(s.workforceTimesheets.id, ownSubmission.id));
+  assert.equal(selfRow.employeeId, worker.id);
+  assert.equal(selfRow.submittedByUserId, employeeAccount.id);
+  assert.equal(selfRow.status, "submitted");
+  const beforeSelfDenials = await state();
+  await request(self, entity, policy, 403);
+  await request(self, entity, decide(ownSubmission, "approved"), 403);
+  assert.deepEqual(await state(), beforeSelfDenials);
   const receipt = { label: "SOLO_VERIFIED_DEV_RECOVERY", head: git("rev-parse", "HEAD"), postgres: identity.version,
     managers: 2, legalEmployers: 2, steps, unchangedAfterReads: true, unchangedAfterDenials: true, unchangedAfterTransferChecks: true };
   writeFileSync("outputs/timesheet-employer-result.json", JSON.stringify(receipt, null, 2) + "\n", { flag: "wx" });
