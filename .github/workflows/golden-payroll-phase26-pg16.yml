@@ -46,7 +46,7 @@ jobs:
       CI: "true"
       GITHUB_ACTIONS: "true"
       TZ: Asia/Manila
-      GOLDEN_PHASE24_DISPOSABLE: github-actions-pg16-only
+      GOLDEN_PHASE26_DISPOSABLE: github-actions-pg16-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: http://127.0.0.1:3000
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
