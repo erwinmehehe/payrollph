@@ -145,6 +145,10 @@ export async function verifyV1JournalTenantHttp() {
 
   const beforeVictim = await victimSnapshot(victim.org.id);
   const beforeVictimRuns = await runs(victim);
+  const victimJournalEntries = () => db.select().from(schema.payrollEntries)
+    .where(eq(schema.payrollEntries.payrollRunId, victim.runId)).orderBy(asc(schema.payrollEntries.id));
+  const beforeVictimEntries = await victimJournalEntries();
+  assert.equal(beforeVictimEntries.length, 1, "The released victim journal must have its seeded entry");
   const beforeVictimKeys = await keyRows(victim);
   const beforeRuns = await Promise.all([runs(a), runs(b)]);
 
@@ -265,6 +269,8 @@ export async function verifyV1JournalTenantHttp() {
     assert.deepEqual(await runs(a), beforeRuns[0]);
     assert.deepEqual(await runs(b), beforeRuns[1]);
     assert.deepEqual(await runs(victim), beforeVictimRuns);
+    assert.deepEqual(await victimJournalEntries(), beforeVictimEntries,
+      "The victim's released amounts and PhilHealth calculation trace must remain unchanged");
     assert.deepEqual(await keyRows(victim), beforeVictimKeys,
       "real higher-ID victim API-key rows must remain completely untouched");
     assert.deepEqual(await victimSnapshot(victim.org.id), beforeVictim,
