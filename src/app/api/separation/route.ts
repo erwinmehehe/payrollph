@@ -40,7 +40,7 @@ import {
 } from "@/lib/access";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
-import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
+import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, releasedExemptAllowanceYtd, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
 import { assertFinalPayPriorSnapshot, loadReviewedPriorForFinalPay, priorEvidenceSnapshot } from "@/lib/final-pay-prior-employer-server";
 import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { frozenFinalPayLegalEntityId } from "@/lib/bir-2316-employer";
@@ -715,6 +715,7 @@ export async function POST(request: Request) {
       unpaidBasicSalary,
       thirteenthPaidYtd: sources.totals.thirteenthPaidYtd,
       grossCompensationYtd: sources.totals.ordinaryGrossYtd,
+      releasedExemptAllowanceYtd: releasedExemptAllowanceYtd(sources.released),
       deMinimisYtd: sources.totals.deMinimisYtd,
       deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,

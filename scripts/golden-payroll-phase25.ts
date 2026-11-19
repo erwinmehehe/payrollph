@@ -1,19 +1,12 @@
-/**
- * Golden payroll certification, Phase 25 (PROOF-ONLY): year end and final pay must agree on the tax of the same worker in the same
- * year. Two workers hired at the switch on the same salary (a control and a worker with a 12,000 non-taxable allowance in cutoff 23)
- * run through the real engine for cutoffs 13-24, the real runYearEndAnnualization(), and the real computeFinalPay() fed the year-to-date
- * inputs exactly as the Separation API derives them (src/app/api/separation/route.ts: the sum over released rows of gross pay minus
- * 13th month paid). Year end exempts the allowance; the Separation derivation has no input that does. The phase certifies the correct
- * year-end values and DOCUMENTS the final-pay discrepancy; it fixes nothing (the Separation route is pinned in the tenant manifest).
- * Every expected value is an immutable hand-derived literal in certification/golden-payroll-phase25.json.
- */
+/** Phase 25 verifies termination annualization against the same worker's year-end settlement. */
+import { requirePhase15Environment, requirePhase15Database } from "./qa/golden-phase15-safety";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
 import { employeePayProfiles, employees, organizations, payrollEntries, payrollRuns, supplementaryEarnings, yearEndAdjustments } from "../src/db/schema";
-import { computeFinalPay, readBasicAndThirteenth } from "../src/lib/final-pay";
+import { computeFinalPay, readBasicAndThirteenth, releasedExemptAllowanceYtd } from "../src/lib/final-pay";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 import { runYearEndAnnualization } from "../src/lib/year-end";
 
@@ -23,7 +16,7 @@ type Spec = {
   description: string;
   supplementary: Array<{ cutoff: number; earningType: string; label: string; amount: number; taxable: boolean }>;
   cutoffs: Record<string, Slip>; yearEnd: Money;
-  finalPayInputs: Money; finalPayCorrect: Money; finalPayRouteDerived: Money;
+  finalPayInputs: Money; finalPay: Money;
 };
 type Catalog = {
   version: string; toleranceCentavos: number; sources: Record<string, string>; assumptions: string[];
@@ -159,33 +152,16 @@ function checkCutoffs(catalog: Catalog, id: string, spec: Spec, byCutoff: Map<nu
   return failures;
 }
 
-async function requireDisposablePhase21() {
-  // This harness creates synthetic payroll runs and marks them Released for
-  // ANNUALIZATION ONLY. Never allow it to touch a developer/customer database.
-  for (const [name, expected] of Object.entries({
-    CI: "true",
-    GITHUB_ACTIONS: "true",
-    GOLDEN_PHASE25_DISPOSABLE: "github-actions-pg16-only",
-    DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
-    PAYMONGO_DISBURSEMENTS_ENABLED: "false",
-    XENDIT_PAYOUTS_ENABLED: "false",
-    XENDIT_BILLING_ENABLED: "false",
-    WORKER_ENABLED: "false",
-    CENTRAL_SCHEDULER_ENABLED: "false",
-  })) {
-    assert.equal(process.env[name], expected, "PHASE25_REFUSED: unsafe " + name);
-  }
-  for (const name of [
-    "NEON_DATABASE_URL", "PAYMONGO_SECRET_KEY", "XENDIT_SECRET_KEY",
-    "STRIPE_SECRET_KEY", "RESEND_API_KEY", "POSTMARK_SERVER_TOKEN",
-    "SMTP_PASSWORD", "OPENAI_API_KEY", "WORKER_TOKEN", "CRON_SECRET",
-  ]) {
-    assert.ok(!process.env[name], "PHASE25_REFUSED: provider credential " + name);
-  }
-  const version = Number((await pool.query("SHOW server_version_num")).rows[0].server_version_num);
-  assert.ok(version >= 160000 && version < 170000, "PHASE25_REFUSED: PG16 required");
-  const { rows: [count] } = await pool.query("SELECT COUNT(*)::int AS n FROM organizations");
-  assert.equal(count.n, 0, "PHASE25_REFUSED: database must contain no employers");
+async function requireDisposablePhase25() {
+  const mode = requirePhase15Environment({
+    ...process.env,
+    GOLDEN_PHASE15_DISPOSABLE: process.env.GOLDEN_PHASE25_DISPOSABLE,
+    GOLDEN_PHASE15_LOCAL_CONFIRM: process.env.GOLDEN_PHASE25_LOCAL_CONFIRM,
+  });
+  const { rows: [state] } = await pool.query(`SELECT current_setting('server_version_num')::int AS version,
+    current_database() AS database, host(inet_server_addr()) AS "serverAddress",
+    host(inet_client_addr()) AS "clientAddress", (SELECT count(*)::int FROM organizations) AS employers`);
+  requirePhase15Database(state, mode);
 }
 
 async function runEngine(catalog: Catalog) {
@@ -219,7 +195,7 @@ async function runEngine(catalog: Catalog) {
       for (const message of compare(`${id} year-end`, spec.yearEnd, actual)) fail(id, message);
     }
     // Final pay: derive the year-to-date inputs from the released rows exactly as the Separation API does, then run computeFinalPay.
-    const finalPay = new Map<string, { routeInputs: Record<string, number>; routeDerived: ReturnType<typeof computeFinalPay>; correct: ReturnType<typeof computeFinalPay> }>();
+    const finalPay = new Map<string, ReturnType<typeof computeFinalPay>>();
     for (const [id, spec] of specs) {
       const rows = await db.select({ lineItems: payrollEntries.lineItems, grossPay: payrollEntries.grossPay }).from(payrollEntries)
         .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -233,29 +209,28 @@ async function runEngine(catalog: Catalog) {
         // The Separation API's expression: ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - parsed.thirteenthPaid).
         grossCompensationYtd += Math.max(0, Number(row.grossPay) - parsed.thirteenthPaid);
       }
-      const routeInputs = { releasedBasicYtd, thirteenthPaidYtd, grossCompensationYtd, statutoryContributionsYtd, taxWithheldYtd };
+      const routeInputs = { releasedBasicYtd, thirteenthPaidYtd, grossCompensationYtd, statutoryContributionsYtd, taxWithheldYtd, releasedExemptAllowanceYtd: releasedExemptAllowanceYtd(rows) };
       for (const message of compare(`${id} final-pay inputs`, spec.finalPayInputs, routeInputs)) fail(id, message);
-      const call = (gross: number) => computeFinalPay({
-        releasedBasicYtd, historicalBasicYtd: 0, unpaidBasicSalary: 0, thirteenthPaidYtd, grossCompensationYtd: gross,
+      const result = computeFinalPay({
+        releasedBasicYtd, historicalBasicYtd: 0, unpaidBasicSalary: 0, thirteenthPaidYtd, grossCompensationYtd,
+        releasedExemptAllowanceYtd: routeInputs.releasedExemptAllowanceYtd,
         deMinimisYtd: 0, deMinimisExcessYtd: 0, statutoryContributionsYtd, taxWithheldYtd, mwe: false, mweTaxableSupplementaryCompensationYtd: 0,
         leaveMonetizationPay: 0, taxableLeaveMonetizationPay: 0, separationPay: 0, retirementPay: 0, taxableSeparationPay: 0, taxableRetirementPay: 0,
         otherBenefits: 0, finalStatutoryDeductions: 0, loanDeductions: 0,
       });
-      const exempt = spec.supplementary.filter((item) => !item.taxable).reduce((sum, item) => sum + item.amount, 0);
-      const routeDerived = call(grossCompensationYtd);
-      const correct = call(grossCompensationYtd - exempt);
-      const pick = (r: ReturnType<typeof computeFinalPay>) => ({ thirteenthDue: r.thirteenthDue, grossFinalPay: r.grossFinalPay, taxDue: r.taxDue, taxAdjustment: r.taxAdjustment, netFinalPay: r.netFinalPay });
-      for (const message of compare(`${id} final pay (route-derived inputs)`, spec.finalPayRouteDerived, pick(routeDerived))) fail(id, message);
-      for (const message of compare(`${id} final pay (exempt amount removed)`, spec.finalPayCorrect, pick(correct))) fail(id, message);
-      // The correct final pay must equal the year-end settlement of the same worker.
-      const yearEndRow = adjustments.find((item) => item.employeeId === workers.get(id)!);
-      if (yearEndRow && cents(Number(correct.taxAdjustment), id) !== cents(-Number(yearEndRow.adjustment), id)) fail(id, `${id}: correct final pay tax adjustment ${correct.taxAdjustment} disagrees with year end ${-Number(yearEndRow.adjustment)}`);
-      finalPay.set(id, { routeInputs, routeDerived, correct });
+      for (const message of compare(`${id} final pay`, spec.finalPay, result)) fail(id, message);
+      const settlement = adjustments.find((item) => item.employeeId === workers.get(id)!);
+      assert.ok(settlement, `${id}: missing year-end settlement`);
+      for (const message of compare(`${id} year-end parity`, {
+        taxDue: Number(settlement.taxDue), taxAdjustment: -Number(settlement.adjustment),
+        taxableIncome: Number(settlement.taxableIncome), nonTaxable: Number(settlement.nonTaxable),
+      }, { ...result.annualization, taxAdjustment: result.taxAdjustment })) fail(id, message);
+      finalPay.set(id, result);
     }
     for (const [id, spec] of specs) {
       const row = adjustments.find((item) => item.employeeId === workers.get(id)!);
-      results.push(outcome(id, "engine", { yearEnd: spec.yearEnd, finalPayCorrect: spec.finalPayCorrect, finalPayRouteDerived: spec.finalPayRouteDerived },
-        { cutoff22: observed.get(id)!.get(22), cutoff23: observed.get(id)!.get(23), cutoff24: observed.get(id)!.get(24), taxDue: row ? Number(row.taxDue) : undefined, adjustment: row ? Number(row.adjustment) : undefined, finalPayRouteDerivedTaxDue: finalPay.get(id)?.routeDerived.taxDue, finalPayCorrectTaxDue: finalPay.get(id)?.correct.taxDue, finalPayUnderPayment: finalPay.has(id) ? Number((finalPay.get(id)!.correct.netFinalPay - finalPay.get(id)!.routeDerived.netFinalPay).toFixed(2)) : undefined },
+      results.push(outcome(id, "engine", { yearEnd: spec.yearEnd, finalPay: spec.finalPay },
+        { cutoff22: observed.get(id)!.get(22), cutoff23: observed.get(id)!.get(23), cutoff24: observed.get(id)!.get(24), taxDue: row ? Number(row.taxDue) : undefined, adjustment: row ? Number(row.adjustment) : undefined, finalPayTaxDue: finalPay.get(id)?.taxDue, finalPayRefund: finalPay.get(id)?.taxAdjustment, netFinalPay: finalPay.get(id)?.netFinalPay },
         failuresById.get(id) ?? []));
     }
   } finally {
@@ -266,7 +241,7 @@ async function runEngine(catalog: Catalog) {
 }
 
 async function main() {
-  await requireDisposablePhase21();
+  await requireDisposablePhase25();
   const raw = readFileSync(catalogPath, "utf8");
   const catalog = JSON.parse(raw) as Catalog;
   assert.equal(catalog.toleranceCentavos, 0, "Phase 25 compares exact centavos");

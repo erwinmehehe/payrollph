@@ -1,3 +1,4 @@
+import { releasedExemptAllowanceYtd } from "./final-pay";
 import type { SeparationLeaveSources } from "@/lib/separation-leave";
 import { reviewFinalPayLoans } from "@/lib/final-pay-loan-authority";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
@@ -45,7 +46,9 @@ export type FinalPayFingerprintInputs = {
 };
 
 export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
+  const exemptAllowance = releasedExemptAllowanceYtd(sources.released);
   return {
+    ...(exemptAllowance > 0 ? { releasedExemptAllowanceYtd: exemptAllowance } : {}),
     ...(criticalReleaseFlagEnabled("exactThirteenthCentavos") ? { thirteenthRoundingPolicy: "centavo-half-up-v1" } : {}),
     leave: sources.leave ? {
       balances: [...sources.leave.balances].sort((a, b) => a.id - b.id),
