@@ -59,6 +59,8 @@ type Ctx = {
   importedPeriods?: number;
   /** The 13th month entitlement not yet paid. Year end accrues it into gross compensation and the pool. */
   accruedUnpaidThirteenth?: number;
+  /** Only codes independently matched to settled supplementary-earning records in the released ledger. */
+  settledTaxableAllowanceCodes?: ReadonlySet<string>;
 };
 
 type Target =
@@ -67,6 +69,7 @@ type Target =
   | { to: "pool13" } | { to: "poolOther" }
   | { to: "deMinimis" }
   | { to: "contribution" }
+  | { to: "supplementaryAllowance" }
   | { to: "skip"; why: string }
   | { to: "review"; why: string };
 
@@ -87,7 +90,7 @@ const SKIP_PREFIX: Array<[string, string]> = [
 ];
 
 /** Where one line belongs. Unknown or judgement-dependent lines are "review". */
-export function classifyBir2316Line(line: Bir2316Line, mwe: boolean): Target {
+export function classifyBir2316Line(line: Bir2316Line, mwe: boolean, settledTaxableAllowance = false): Target {
   const code = String(line.code ?? "").toUpperCase();
   const type = note(line, "Type: ").toLowerCase();
   const treatment = note(line, "Tax treatment: ").toLowerCase();
@@ -108,6 +111,12 @@ export function classifyBir2316Line(line: Bir2316Line, mwe: boolean): Target {
   if (code.startsWith("LEAVE_CONV-")) return { to: "review", why: "leave conversion: the exempt portion and its 2316 item need a legal reading" };
 
   // Supplementary earnings and recurring components share one shape: a Type note and a Tax treatment note.
+  if (type === "allowance") {
+    return settledTaxableAllowance && treatment === "taxable" && /^EARN-[1-9]\d*$/.test(code) &&
+      line.benefitPool90k !== true && (!line.benefitPoolKind || line.benefitPoolKind === type)
+      ? { to: "supplementaryAllowance" }
+      : { to: "review", why: "generic allowance lacks matching settled taxable supplementary-earning evidence" };
+  }
   if (line.benefitPool90k === true || isSharedBenefitPoolEarningType(type) || isSharedBenefitPoolEarningType(line.benefitPoolKind)
       || type === "13th_month" || type === "thirteenth_month") {
     return type === "13th_month" || type === "thirteenth_month" ? { to: "pool13" } : { to: "poolOther" };
@@ -136,6 +145,7 @@ export function categorizeBir2316Lines(lines: readonly Bir2316Line[], ctx: Ctx):
   const descriptions: Bir2316Categories["descriptions"] = {};
   let basic = 0, contributions = 0, pool13 = 0, poolOther = 0, deMinimisExempt = 0, deMinimisExcess = 0;
   const basicCodes: string[] = [], poolCodes: string[] = [], dmCodes: string[] = [], contributionCodes: string[] = [];
+  const allowances: Array<{ code: string; label: string; amount: number }> = [];
   const add = (item: string, amount: number, code: string, tier: Bir2316Tier, description?: string) => {
     totals.set(item, (totals.get(item) ?? 0) + amount);
     (basis[item] ??= []).push(code);
@@ -146,7 +156,7 @@ export function categorizeBir2316Lines(lines: readonly Bir2316Line[], ctx: Ctx):
   for (const line of lines) {
     const code = String(line.code ?? "").toUpperCase() || "(no code)";
     const amount = cents(line.amount ?? 0);
-    const target = classifyBir2316Line(line, mwe);
+    const target = classifyBir2316Line(line, mwe, ctx.settledTaxableAllowanceCodes?.has(code));
     if (amount === null) {
       if (target.to !== "skip") unmapped.push({ code, label: String(line.label ?? ""), amount: String(line.amount), reason: "amount is not an exact centavo value" });
       continue;
@@ -157,6 +167,7 @@ export function categorizeBir2316Lines(lines: readonly Bir2316Line[], ctx: Ctx):
       case "skip": break;
       case "review": unmapped.push({ code, label: String(line.label ?? ""), amount: money(amount), reason: target.why }); break;
       case "contribution": contributions += Math.abs(amount); contributionCodes.push(code); break;
+      case "supplementaryAllowance": allowances.push({ code, label: String(line.label ?? ""), amount }); break;
       case "basic": basic += amount; basicCodes.push(code); break;
       case "pool13": pool13 += Math.max(0, amount); poolCodes.push(code); break;
       case "poolOther": poolOther += Math.max(0, amount); poolCodes.push(code); break;
@@ -167,6 +178,12 @@ export function categorizeBir2316Lines(lines: readonly Bir2316Line[], ctx: Ctx):
       }
       case "item": add(target.item, amount, code, target.tier, target.description); break;
     }
+  }
+
+  const allowanceSlot = ["51A", "51B"].find(item => !totals.has(item));
+  for (const { code, label, amount } of allowances) {
+    if (allowanceSlot && amount > 0) add(allowanceSlot, amount, code, "convention", "Taxable supplementary allowances");
+    else unmapped.push({ code, label, amount: money(amount), reason: "taxable supplementary allowance requires a reviewed item 51 allocation" });
   }
 
   const accrued = ctx.accruedUnpaidThirteenth === undefined ? 0 : cents(ctx.accruedUnpaidThirteenth);

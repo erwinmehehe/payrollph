@@ -18,6 +18,36 @@ const leave = {
 };
 const basic = { code: "BASIC", label: "Basic pay", amount: "30000.00" };
 
+test("generic taxable allowance needs a unique settled earning in the same employer, worker and released run", () => {
+  const generic = { ...allowance, code: "EARN-9", amount: "6000.00", notes: ["Type: allowance", "Tax treatment: taxable"] };
+  const run = released(1, "2026-01-15", false, [basic, generic]);
+  const paid = { id: 9, organizationId: scope.organizationId, employeeId: scope.employeeId, payrollRunId: run.runId,
+    status: "settled", earningType: "allowance", taxable: true, amount: "6000.00", effectiveDate: run.periodStart };
+  const annual = { ...summary, grossCompensation: "36000.00", nonTaxable: "0.00", taxableIncome: "36000.00" };
+  const verified = buildBir2316MappingPreview(scope, [run], [], annual, [paid]);
+  assert.deepEqual(verified.proposed.find(row => row.item === "51A"), {
+    item: "51A", amount: "6000.00", description: "Taxable supplementary allowances",
+  });
+  assert.equal(verified.totalsMatch, true);
+  for (const sources of [[], [{ ...paid, organizationId: 8 }], [{ ...paid, employeeId: 8 }],
+    [{ ...paid, payrollRunId: 8 }], [{ ...paid, id: 8 }], [{ ...paid, status: "approved" }],
+    [{ ...paid, earningType: "taxable_allowance" }], [{ ...paid, taxable: false }],
+    [{ ...paid, effectiveDate: "2026-01-16" }], [{ ...paid, amount: "5999.99" }]]) {
+    const held = buildBir2316MappingPreview(scope, [run], [], annual, sources);
+    assert.ok(!held.proposed.some(row => row.item.startsWith("51")));
+    assert.match(held.issues.join(), /lacks matching settled/);
+  }
+  for (const lineItems of [[basic, generic, generic], [basic, { ...generic, notes: [...generic.notes, "Tax treatment: non-taxable"] }]]) {
+    assert.ok(!buildBir2316MappingPreview(scope, [{ ...run, lineItems }], [], annual, [paid]).proposed.some(row => row.item.startsWith("51")));
+  }
+  const night = { code: "ND", amount: "5.00" }, holiday = { code: "HOLIDAY", amount: "5.00" };
+  const withNight = buildBir2316MappingPreview(scope, [{ ...run, lineItems: [basic, generic, night] }], [], annual, [paid]);
+  assert.equal(withNight.proposed.find(row => row.item === "51B")?.amount, "6000.00");
+  const full = buildBir2316MappingPreview(scope, [{ ...run, lineItems: [basic, generic, night, holiday] }], [], annual, [paid]);
+  assert.match(full.issues.join(), /requires a reviewed item 51 allocation/);
+  assert.equal(full.proposed.find(row => row.item === "51B")?.amount, "5.00");
+});
+
 test("only an exact, balanced released cutoff with corroborating engine evidence proves omitted zero WHT", () => {
   const inputs = ["taxableCompensation=9000.00", "withholdingTable=BIR-RR11-2018-2023-TABLE",
     "mandatoryUncollected=0.00", "uncollectedWithholding=0.00", "yearEndTaxAdjustment=0.00"];

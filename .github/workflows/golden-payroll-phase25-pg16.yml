@@ -1,4 +1,4 @@
-name: Golden Phase 25 final pay vs year end, proof-only (disposable PG16)
+name: Golden Phase 25 final pay vs year end (disposable PG16)
 
 on:
   pull_request:
@@ -10,6 +10,8 @@ on:
       - "src/lib/imported-benefit-prior.ts"
       - "tests/final-pay-route-derivation-pin.test.ts"
       - "src/lib/final-pay.ts"
+      - "src/lib/final-pay-source-fingerprint.ts"
+      - "scripts/qa/golden-phase15-safety.ts"
       - "src/app/api/separation/route.ts"
       - "src/lib/payroll-engine.ts"
       - "src/lib/annualization.ts"
@@ -114,7 +116,7 @@ jobs:
           assert.equal(a.results.length,2);
           assert.ok(a.results.every(r=>r.status==="passed" && r.part==="engine" && r.failures.length===0));
           NODE
-      - name: Preserve synthetic observed discrepancies even on failure
+      - name: Preserve fictional reconciliation results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

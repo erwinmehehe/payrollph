@@ -37,6 +37,7 @@ test('1999: two completed months / four actual engine cutoffs / released records
  const {enqueuePayrollRun,drainPayrollQueue}=await import('../src/lib/payroll-engine');
  const {settlePayrollRun}=await import('../src/lib/payroll-settlement');
  const {buildReleasedPayrollJournal,payrollJournalToCsv}=await import('../src/lib/payroll-journal-export');
+ const {releasedEmployerPhilHealth}=await import('../src/lib/payroll-journal-evidence');
  const {sql}=await import('drizzle-orm');
  const ledger:Row[]=[],structural:string[]=[],runIds:number[]=[],journals:unknown[]=[];
  let failure:unknown;
@@ -58,6 +59,20 @@ test('1999: two completed months / four actual engine cutoffs / released records
    assert.ok([16,18].includes(Math.floor(identity.version/10000)));
    assert.equal(identity.database,'app_db');
    assert.equal(identity.employers,0,'Fresh isolated employer database required');
+  }
+  // Exercise legacy and ambiguous evidence through the same PostgreSQL projection as the API.
+  for (const [tokens, workers, expected] of [
+    [[], 1, null], [['philHealthEmployerCutoff=bad'], 1, null],
+    [['philHealthEmployerCutoff=1.00','philHealthEmployerCutoff=1.00'], 1, null],
+    [['philHealthEmployerCutoff=1.00'], 2, null], [['philHealthEmployerCutoff=0.00'], 1, '0.00'],
+  ] as const) {
+    const result=await db.execute(sql`with
+      payroll_runs(id, organization_id, employee_count, gross_pay, net_pay) as (values (1, 1, ${workers}::int, 100, 90)),
+      employees(id, organization_id) as (values (1, 1)),
+      payroll_entries(payroll_run_id, employee_id, gross_pay, net_pay, trace) as
+        (values (1, 1, 100, 90, ${JSON.stringify({inputs:tokens})}::jsonb))
+      select ${releasedEmployerPhilHealth} as amount from payroll_runs`);
+    assert.equal(result.rows[0].amount, expected);
   }
   const [org]=await db.insert(organizations).values({name:'Fictional #1999 two-month employer',legalName:'Fictional Private Employer',plan:'Core',statutoryDeductionTiming:'split'}).returning();
   const [entity]=await db.insert(legalEntities).values({organizationId:org.id,code:'FICTIONAL1999',legalName:'Fictional single-site employer',displayName:'Fictional #1999',primaryEntity:true}).returning();
@@ -109,7 +124,12 @@ test('1999: two completed months / four actual engine cutoffs / released records
    await db.update(payrollRuns).set({status:'Releasing'}).where(and(eq(payrollRuns.id,run.id),eq(payrollRuns.status,'Needs review')));
    const result=await settlePayrollRun(run.id,{actor:'Fictional #1999 fixture',resource:run.periodLabel,metadata:{source:'disposable no-money records only'}});
    assert.equal(result.run.status,'Released');
-   const journal=buildReleasedPayrollJournal([result.run]);journals.push({runId:run.id,csv:payrollJournalToCsv(journal)});
+   const [evidence]=await db.select({employerPhilHealth:releasedEmployerPhilHealth}).from(payrollRuns).where(eq(payrollRuns.id,run.id));
+   const journal=buildReleasedPayrollJournal([{...result.run,...evidence}]);
+   const expectedEmployerPh=WORKERS.reduce((n,w)=>n+expectedCutoff(w,month,cutoff).phEr,0);
+   assert.equal(journal.find(j=>j.accountCode==='philhealth_employer_expense')?.debitCentavos,expectedEmployerPh);
+   assert.equal(journal.find(j=>j.accountCode==='philhealth_employer_payable')?.creditCentavos,expectedEmployerPh);
+   journals.push({runId:run.id,csv:payrollJournalToCsv(journal)});
    check(month,cutoff,'EMPLOYER','GL6000',journal.filter(j=>j.accountCode==='6000').reduce((n,j)=>n+j.debitCentavos,0),expectedGross);
    check(month,cutoff,'EMPLOYER','GL2100',journal.filter(j=>j.accountCode==='2100').reduce((n,j)=>n+j.creditCentavos,0),expectedDeductions);
    check(month,cutoff,'EMPLOYER','GL2200',journal.filter(j=>j.accountCode==='2200').reduce((n,j)=>n+j.creditCentavos,0),expectedNet);
@@ -126,7 +146,7 @@ test('1999: two completed months / four actual engine cutoffs / released records
    const rows=totals.filter(r=>r.month===month&&r.component===component);
    return {month,component,workerCount:rows.length,expectedCentavos:rows.reduce((n,r)=>n+r.expectedCentavos,0),actualCentavos:rows.reduce((n,r)=>n+r.actualCentavos,0),deltaCentavos:rows.reduce((n,r)=>n+r.deltaCentavos,0),status:rows.some(r=>r.status==='NOT RUN')?'NOT RUN':rows.some(r=>r.status==='DISAGREES')?'DISAGREES':component.startsWith('ph')?'SOURCE NOT VERIFIED':'AGREES'};
   }));
-  const result={kind:'PAYROLL_1999_TWO_MONTH',label:'SOLO_VERIFIED_DEV_RECOVERY',sourceHead,months:MONTHS,workers:WORKERS.length,workerInputs:WORKERS,sourceMatrix:'docs/payroll-certification/two-month-2026-1999.md',collectionPolicy:'split; separate reference arithmetic; no agency timing certification',runIds,recordsReleasedOnly:true,humanApprovalTested:false,providerCalls:0,productionAccepted:false,agencyAcceptance:false,protectedFlags:'OFF',ledger,monthlyTotals:totals,employerTotals,journals,structuralFailures:structural,holds:['Original PhilHealth 2026 advisory and odd-cent EE/ER policy','MWE/source-class acceptance','Year-boundary and final-pay interactions','Statutory-liability GL account mapping NOT RUN; existing export has gross/deductions/net control accounts only','Qualified payroll review; real-employer evidence separate'],knownWorkExcluded:['#2006 SSS bracket and odd-cent basic correction vectors']};
+  const result={kind:'PAYROLL_1999_TWO_MONTH',label:'SOLO_VERIFIED_DEV_RECOVERY',sourceHead,months:MONTHS,workers:WORKERS.length,workerInputs:WORKERS,sourceMatrix:'docs/payroll-certification/two-month-2026-1999.md',collectionPolicy:'split; separate reference arithmetic; no agency timing certification',runIds,recordsReleasedOnly:true,humanApprovalTested:false,providerCalls:0,productionAccepted:false,agencyAcceptance:false,protectedFlags:'OFF',ledger,monthlyTotals:totals,employerTotals,journals,structuralFailures:structural,holds:['Original PhilHealth 2026 advisory and odd-cent EE/ER policy','MWE/source-class acceptance','Year-boundary and final-pay interactions','Employer PhilHealth posting verified; other statutory liabilities and employer-specific account mappings remain outside this check','Qualified payroll review; real-employer evidence separate'],knownWorkExcluded:['#2006 SSS bracket and odd-cent basic correction vectors']};
   mkdirSync(outputDirectory,{recursive:true});writeFileSync(outputDirectory+'/result.json',JSON.stringify(result,null,2)+'\n');
   console.log('PAYROLL_1999_TWO_MONTH_RESULT '+JSON.stringify({sourceHead,months:MONTHS,workers:WORKERS.length,runs:runIds.length,comparisons:ledger.length,disagreements:ledger.filter(r=>r.deltaCentavos!==0),structuralFailures:structural,sourceUnverified:ledger.filter(r=>r.status==='SOURCE NOT VERIFIED').length}));
   await pool.end();

@@ -5,6 +5,10 @@ import type { CertificateSource } from "./bir-2316-certificate";
 
 type ReleasedRecord = WithholdingEntry & { trace: unknown; periodStart: string; periodEnd: string; grossPay: string };
 type ImportedRecord = { id: number; payDate: string; grossPay: string; basicSalary: string | null };
+type SupplementaryRecord = {
+  id: number; organizationId: number; employeeId: number; payrollRunId: number | null;
+  earningType: string; amount: string; taxable: boolean; effectiveDate: string; status: string;
+};
 type EvidenceLine = { entryId: number; payDate: string; lineNumber: number; code: string; label: string; amount: string; treatment: string | null; detail: string | null };
 type Period = { entryId: number; payDate: string; periodStart: string; periodEnd: string; grossPay: string; mwe: boolean | null; classification: string | null;
   region: string | null; wageOrder: string | null; dailyWage: string | null; minimumWage: string | null };
@@ -37,6 +41,7 @@ export function buildBir2316MappingPreview(
   records: readonly ReleasedRecord[],
   imported: readonly ImportedRecord[],
   annual: Pick<Bir2316ReviewSource, "grossCompensation" | "nonTaxable" | "taxableIncome"> & { mwe: boolean; unpaidThirteenth: unknown },
+  supplementary: readonly SupplementaryRecord[] = [],
 ): Bir2316MappingPreview {
   const preview: Bir2316MappingPreview = {
     periods: [], allowances: [], leaveConversions: [], imported: [], proposed: [], totalsMatch: null, issues: [],
@@ -52,6 +57,10 @@ export function buildBir2316MappingPreview(
   if (released.length === 0) preview.issues.push("No released payroll lines are available for this employee and tax year.");
 
   const lines: Bir2316Line[] = [];
+  const supplementaryById = new Map(supplementary.map(record => [record.id, record]));
+  const seenCodes = new Set<string>();
+  const repeatedCodes = new Set<string>();
+  const matchedCodes = new Set<string>();
   let malformed = false;
   for (const entry of released.sort((a, b) => a.payDate.localeCompare(b.payDate) || a.id - b.id)) {
     const steps = strings(record(entry.trace).inputs);
@@ -73,6 +82,15 @@ export function buildBir2316MappingPreview(
       const label = typeof line.label === "string" ? line.label : code;
       const treatment = recordedField(notes, "Tax treatment: ");
       const type = recordedField(notes, "Type: ");
+      if (seenCodes.has(code)) repeatedCodes.add(code);
+      seenCodes.add(code);
+      if (type === "allowance" && treatment === "taxable" && amount > 0 && /^EARN-[1-9]\d*$/.test(line.code)) {
+        const source = supplementaryById.get(Number(code.slice(5)));
+        if (source?.organizationId === scope.organizationId && source.employeeId === scope.employeeId &&
+            source.payrollRunId === entry.runId && source.status === "settled" && source.earningType === "allowance" &&
+            source.taxable === true && source.effectiveDate >= entry.periodStart && source.effectiveDate <= entry.periodEnd &&
+            bir2316Centavos(source.amount) === amount) matchedCodes.add(code);
+      }
       const pool = code.startsWith("DM-") && line.periodOtherBenefitsPool != null
         ? bir2316Centavos(line.periodOtherBenefitsPool as string | number) : undefined;
       if (pool === null) { malformed = true; continue; }
@@ -83,7 +101,7 @@ export function buildBir2316MappingPreview(
       });
       if (amount === 0) continue;
       const evidence = { entryId: entry.id, payDate: entry.payDate, lineNumber: index + 1, code, label, amount: (amount / 100).toFixed(2), treatment };
-      if (type === "taxable_allowance" || type === "recurring_allowance") preview.allowances.push({ ...evidence, detail: type });
+      if (type === "allowance" || type === "taxable_allowance" || type === "recurring_allowance") preview.allowances.push({ ...evidence, detail: type });
       if (code.startsWith("LEAVE_CONV-")) {
         preview.leaveConversions.push({ ...evidence, detail: notes.find(note => /^\d+(?:\.\d+)? days @ daily rate /.test(note)) ?? null });
       }
@@ -102,7 +120,8 @@ export function buildBir2316MappingPreview(
 
   const accrued = bir2316Centavos(annual.unpaidThirteenth as string | number);
   if (accrued !== null && accrued > 0) preview.issues.push("The saved annualization includes unpaid 13th-month accrual. Confirm the issuance-period payment records.");
-  const categories = categorizeBir2316Lines(lines, { mwe: annual.mwe });
+  for (const code of repeatedCodes) matchedCodes.delete(code);
+  const categories = categorizeBir2316Lines(lines, { mwe: annual.mwe, settledTaxableAllowanceCodes: matchedCodes });
   for (const line of categories.unmapped) preview.issues.push(line.code + " · " + line.reason);
   if (categories.issues.length > 0 && categories.unmapped.length === 0) preview.issues.push(...categories.issues);
   const grossCompensation = bir2316Centavos(annual.grossCompensation);
