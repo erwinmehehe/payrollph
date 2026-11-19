@@ -33557,14 +33557,17 @@
           "reason": "Held after the Phase 25 final-pay source change. The previous approved-exit HTTP evidence predates this route. Fresh applicable PG16 HTTP evidence and review are pending.",
           "testedBy": null,
           "reviewedUncertified": {
-            "file": "scripts/qa/payroll-approved-exit-http.mjs",
-            "line": 71,
-            "ownPositiveLine": 71,
-            "foreignDenialLine": 74,
-            "unchangedDbLine": 78,
-            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow.",
+            "kind": "phase25-separation-source-hold",
+            "previousMethodProof": {
+              "file": "scripts/qa/payroll-approved-exit-http.mjs",
+              "line": 71,
+              "ownPositiveLine": 71,
+              "foreignDenialLine": 74,
+              "unchangedDbLine": 78,
+              "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+            },
             "previousRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
-            "newMethodCredits": 0
+            "coverageCredits": 0
           }
         },
         {
@@ -33574,14 +33577,17 @@
           "reason": "Held after the Phase 25 final-pay source change. The previous approved-exit HTTP evidence predates this route. Fresh applicable PG16 HTTP evidence and review are pending.",
           "testedBy": null,
           "reviewedUncertified": {
-            "file": "scripts/qa/payroll-approved-exit-http.mjs",
-            "line": 65,
-            "ownPositiveLine": 65,
-            "foreignDenialLine": 75,
-            "unchangedDbLine": 78,
-            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow.",
+            "kind": "phase25-separation-source-hold",
+            "previousMethodProof": {
+              "file": "scripts/qa/payroll-approved-exit-http.mjs",
+              "line": 65,
+              "ownPositiveLine": 65,
+              "foreignDenialLine": 75,
+              "unchangedDbLine": 78,
+              "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+            },
             "previousRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
-            "newMethodCredits": 0
+            "coverageCredits": 0
           }
         },
         {
@@ -33591,14 +33597,17 @@
           "reason": "Held after the Phase 25 final-pay source change. The previous approved-exit HTTP evidence predates this route. Fresh applicable PG16 HTTP evidence and review are pending.",
           "testedBy": null,
           "reviewedUncertified": {
-            "file": "scripts/qa/payroll-approved-exit-http.mjs",
-            "line": 97,
-            "ownPositiveLine": 97,
-            "foreignDenialLine": 76,
-            "unchangedDbLine": 78,
-            "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow.",
+            "kind": "phase25-separation-source-hold",
+            "previousMethodProof": {
+              "file": "scripts/qa/payroll-approved-exit-http.mjs",
+              "line": 97,
+              "ownPositiveLine": 97,
+              "foreignDenialLine": 76,
+              "unchangedDbLine": 78,
+              "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+            },
             "previousRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
-            "newMethodCredits": 0
+            "coverageCredits": 0
           }
         }
       ],

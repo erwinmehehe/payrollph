@@ -1,0 +1,308 @@
+{
+  "name": "phase25-separation",
+  "records": {
+    "src/app/api/separation/route.ts": {
+      "gitBlobSha": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+      "sourceRevisionReview": {
+        "kind": "phase7-and-prior-employer-final-pay-provisional-source-reconciliation",
+        "previousRouteBlobSha": "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a",
+        "currentRouteBlobSha": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+        "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET, POST and PATCH now check the selected legal-employer boundary with the multi-entity flag enabled; GET filters sensitive final-pay rows to one authorized legal employer. No new tenant method credits; independent tax/security review and exact-head CI PENDING. Approval also repeats linked Released-payroll tax-year verification within the locked serializable Finance transaction; drift is held. Superseding separation annualization change (this PR): GET/POST/PATCH changed; previous-employer Form 2316 is maker/checker approved, legal-entity scoped, and its approval digest/revision is revalidated inside initiation, finance approval and release transactions. The existing proof covers prior employer flag-OFF separation, NOT new flag-ON legal-employer cross-tenant HTTP. New flag-ON PostgreSQL read/denial/source-drift regression is synthetic only. Zero new method credits. Fresh exact-head flag-ON own/foreign HTTP and independent financial/security approval remain PENDING; no production activation. Security correction after transfer: Runtime GET now selects a released/computed separation by the frozen numeric legal-employer fingerprint, never by the worker's mutable current employer; only an unsnapshotted draft may use current entity. Missing/legacy attribution fails closed. Direct selected-employer PG16 HTTP transfer/denial proof must pass on exact PR head. PATCH now uses the same frozen historical employer for all record actions, including clearance and final-pay, and returns the same non-disclosing 404 for absent/foreign org, missing entity grant and invalid frozen source. Real PG16 must reprove permitted old-employer no-op 400 versus new-employer and unknown 404 without SQL mutation.",
+        "priorEmployerFixPreviousRouteBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
+        "priorEmployerTaxContractFile": "tests/final-pay-prior-employer-annualization.test.ts",
+        "priorEmployerFictionalPgTest": "tests/final-pay-prior-employer-pg.test.ts",
+        "priorEmployerFlagOnRealHttpProof": "PENDING",
+        "priorTenantIsolationHttpProof": "scripts/qa/payroll-approved-exit-http.mjs",
+        "taxContractFile": "tests/final-pay-tax-classification.test.ts",
+        "newTenantIsolationMethodCredits": 0,
+        "exactHeadFullSuite": "PENDING",
+        "independentPhilippineTaxAndSecurityReview": "PENDING",
+        "productionCertified": false,
+        "changedMethods": [
+          "GET",
+          "POST",
+          "PATCH"
+        ],
+        "phase25PreviousRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c"
+      },
+      "route": "separation",
+      "methods": [
+        {
+          "name": "GET",
+          "line": 317,
+          "status": "GAP",
+          "reason": "Held after the Phase 25 final-pay source change. The previous approved-exit HTTP evidence predates this route. Fresh applicable PG16 HTTP evidence and review are pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "phase25-separation-source-hold",
+            "previousMethodProof": {
+              "file": "scripts/qa/payroll-approved-exit-http.mjs",
+              "line": 71,
+              "ownPositiveLine": 71,
+              "foreignDenialLine": 74,
+              "unchangedDbLine": 78,
+              "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+            },
+            "previousRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
+            "coverageCredits": 0
+          }
+        },
+        {
+          "name": "POST",
+          "line": 414,
+          "status": "GAP",
+          "reason": "Held after the Phase 25 final-pay source change. The previous approved-exit HTTP evidence predates this route. Fresh applicable PG16 HTTP evidence and review are pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "phase25-separation-source-hold",
+            "previousMethodProof": {
+              "file": "scripts/qa/payroll-approved-exit-http.mjs",
+              "line": 65,
+              "ownPositiveLine": 65,
+              "foreignDenialLine": 75,
+              "unchangedDbLine": 78,
+              "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+            },
+            "previousRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
+            "coverageCredits": 0
+          }
+        },
+        {
+          "name": "PATCH",
+          "line": 1208,
+          "status": "GAP",
+          "reason": "Held after the Phase 25 final-pay source change. The previous approved-exit HTTP evidence predates this route. Fresh applicable PG16 HTTP evidence and review are pending.",
+          "testedBy": null,
+          "reviewedUncertified": {
+            "kind": "phase25-separation-source-hold",
+            "previousMethodProof": {
+              "file": "scripts/qa/payroll-approved-exit-http.mjs",
+              "line": 97,
+              "ownPositiveLine": 97,
+              "foreignDenialLine": 76,
+              "unchangedDbLine": 78,
+              "scope": "Actual owned HTTP success, foreign company denial and unchanged victim DB rows in disposable approved-exit workflow."
+            },
+            "previousRouteBlobSha": "5867788194578cfb5a0aa8c717543371b0fa352c",
+            "coverageCredits": 0
+          }
+        }
+      ],
+      "employerSources": {
+        "session": true,
+        "apiKey": false,
+        "scim": false,
+        "query": true,
+        "body": true
+      },
+      "guards": [
+        {
+          "line": 1,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 31,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 34,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 35,
+          "token": "assertScope"
+        },
+        {
+          "line": 36,
+          "token": "getAccess"
+        },
+        {
+          "line": 279,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 287,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 294,
+          "token": "getAccess"
+        },
+        {
+          "line": 343,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 346,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 359,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 366,
+          "token": "getAccess"
+        },
+        {
+          "line": 381,
+          "token": "assertScope"
+        },
+        {
+          "line": 1016,
+          "token": "enforceSameOriginMutation"
+        },
+        {
+          "line": 1019,
+          "token": "getSessionUser"
+        },
+        {
+          "line": 1032,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 1039,
+          "token": "getAccess"
+        },
+        {
+          "line": 1051,
+          "token": "assertScope"
+        },
+        {
+          "line": 1074,
+          "token": "assertOrganizationRole"
+        },
+        {
+          "line": 1091,
+          "token": "assertOrganizationRole"
+        }
+      ],
+      "callerSuppliedIds": [
+        {
+          "line": 104,
+          "token": "input.organizationId"
+        },
+        {
+          "line": 113,
+          "token": "input.employeeId"
+        },
+        {
+          "line": 114,
+          "token": "input.organizationId"
+        },
+        {
+          "line": 119,
+          "token": "input.employeeId"
+        },
+        {
+          "line": 120,
+          "token": "input.organizationId"
+        },
+        {
+          "line": 137,
+          "token": "input.organizationId"
+        },
+        {
+          "line": 138,
+          "token": "input.employeeId"
+        },
+        {
+          "line": 156,
+          "token": "input.organizationId"
+        },
+        {
+          "line": 157,
+          "token": "input.employeeId"
+        },
+        {
+          "line": 169,
+          "token": "input.organizationId"
+        },
+        {
+          "line": 170,
+          "token": "input.employeeId"
+        },
+        {
+          "line": 184,
+          "token": "input.organizationId"
+        },
+        {
+          "line": 185,
+          "token": "input.employeeId"
+        },
+        {
+          "line": 191,
+          "token": "input.organizationId"
+        }
+      ],
+      "businessIds": [
+        {
+          "line": 92,
+          "token": "organizationId"
+        },
+        {
+          "line": 93,
+          "token": "employeeId"
+        },
+        {
+          "line": 104,
+          "token": "organizationId"
+        },
+        {
+          "line": 113,
+          "token": "employeeId"
+        },
+        {
+          "line": 114,
+          "token": "organizationId"
+        },
+        {
+          "line": 114,
+          "token": "organizationId"
+        },
+        {
+          "line": 119,
+          "token": "employeeId"
+        },
+        {
+          "line": 119,
+          "token": "employeeId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 120,
+          "token": "organizationId"
+        },
+        {
+          "line": 125,
+          "token": "runId"
+        },
+        {
+          "line": 135,
+          "token": "payrollRunId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        },
+        {
+          "line": 137,
+          "token": "organizationId"
+        },
+        {
+          "line": 138,
+          "token": "employeeId"
+        }
+      ]
+    }
+  },
+  "sourcePins": {
+    "src/app/api/separation/route.ts": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+    "src/lib/final-pay.ts": "874cd5aaa30eabdad9f12bf9cca4f0224aa18fe6",
+    "src/lib/final-pay-source-fingerprint.ts": "1d37b893650b552935c5a44c067359a98e8d3297",
+    "scripts/qa/payroll-approved-exit-http.mjs": "85832346e2a260efe2d9af008209af11a3331836"
+  }
+}

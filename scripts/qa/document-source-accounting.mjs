@@ -10,11 +10,18 @@ const activeVariant=(manifest,variant)=>(variant.triggerPaths??Object.keys(varia
  return file?.gitBlobSha===expected.gitBlobSha||file?.methods.some(row=>
   expected.methods.some(old=>old.reviewedUncertified&&row.reviewedUncertified?.kind===old.reviewedUncertified.kind));
 });
-export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
+export function sourceHoldArchive(read=readFileSync){
  const raw=read(DOCUMENT_ACCOUNTING_ARCHIVE);
  assert.equal(blob(raw),DOCUMENT_ACCOUNTING_BLOB,'Document accounting archive changed');
  const archive=JSON.parse(raw);
  assert.equal(archive.kind,'exact-document-source-withdrawals-accounting-only');
+ const separation=read('scripts/qa/phase25-separation-hold.json');
+ assert.equal(blob(separation),'7b9e9273b0093a63c63170c765af0f3e6abb0dc4','Phase 25 separation hold archive changed');
+ archive.variants.push(JSON.parse(separation));
+ return archive;
+}
+export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
+ const archive=sourceHoldArchive(read);
  let count=0;
  for(const variant of archive.variants){
   const active=activeVariant(manifest,variant);
@@ -38,7 +45,7 @@ export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
 /** Source-exact demotions only; inherited holds are not counted twice. */
 export function reviewedDocumentSourceWithdrawals(before,after,read=readFileSync){
  reviewedDocumentSourceHoldCount(after,read);
- const archive=JSON.parse(read(DOCUMENT_ACCOUNTING_ARCHIVE)),keys=new Set();
+ const archive=sourceHoldArchive(read),keys=new Set();
  for(const variant of archive.variants){
   if(!activeVariant(after,variant))continue;
   for(const [path,expected]of Object.entries(variant.records)){
@@ -62,7 +69,7 @@ export function reviewedDocumentSourceWithdrawals(before,after,read=readFileSync
 
 export function protectedDocumentCreditKeys(manifest,read=readFileSync){
  reviewedDocumentSourceHoldCount(manifest,read);
- const archive=JSON.parse(read(DOCUMENT_ACCOUNTING_ARCHIVE)),keys=new Set();
+ const archive=sourceHoldArchive(read),keys=new Set();
  for(const variant of archive.variants){
   if(!activeVariant(manifest,variant))continue;
   for(const [path,file]of Object.entries(variant.records))for(const row of file.methods)
