@@ -4,7 +4,7 @@
  * The earlier inventory guard continues to pin all route blobs/method exports.
  */
 import assert from "node:assert/strict";
-import {reviewedDocumentSourceHoldCount,sourceHoldArchive} from '../scripts/qa/document-source-accounting.mjs';
+import {reviewedDocumentSourceHoldCount,isReviewedHistoricalDocumentListRefresh,sourceHoldArchive} from '../scripts/qa/document-source-accounting.mjs';
 import {verifyWageRenewalMethod} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -143,7 +143,12 @@ test("closure plan schedules every original GAP exactly once in priority order",
   if (reviewedDocumentSourceHoldCount(manifest)) {
     const archive=sourceHoldArchive();
     for(const variant of archive.variants)for(const [path,record]of Object.entries(variant.records)) {
-      if(manifest.allApiRouteFiles[path]?.gitBlobSha!==record.gitBlobSha)continue;
+      const currentRecord=manifest.allApiRouteFiles[path];
+      // Preserve the original closure queue for an exact, zero-credit
+      // historical-document privacy source refresh; reject other changes.
+      const exactArchive=currentRecord?.gitBlobSha===record.gitBlobSha;
+      const exactRefresh=isReviewedHistoricalDocumentListRefresh(path,record,currentRecord);
+      if(!exactArchive&&!exactRefresh)continue;
       for(const row of record.methods) {
         if(row.status!=='GAP')continue;
         if(manifest.allApiRouteFiles[path].methods.find(method=>method.name===row.name)?.status!=='GAP')continue;
