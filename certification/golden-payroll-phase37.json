@@ -1,0 +1,261 @@
+{
+  "version": "phase37-mid-year-raise-2026-11-20",
+  "toleranceCentavos": 0,
+  "description": "A monthly employee gets a raise from 30,000 to 36,000 (or 40,000) during 2026. Hand-derived literals for each cutoff's gross pay, statutory contributions and withholding, then for year end and final pay. Nothing here is computed with PayrollPH functions.",
+  "sources": {
+    "payProration": "Pay revision rules in the product: a cutoff that contains the effective date pays each rate for the calendar days it was in force, (monthly rate / 2) x (days at that rate / days in the cutoff). A cutoff that starts on or after the effective date pays the new rate in full.",
+    "sss": "SSS 2025 schedule: employee share is 5% of the monthly salary credit; the credit is the monthly compensation rounded to the nearest 500, between 5,000 and 35,000. The first cutoff of a month collects half of an estimate; the month-final cutoff collects the difference to the contribution on the month's actual compensation.",
+    "philHealth": "PhilHealth PA2025-0002: premium 5% of the monthly basic salary (floor 10,000, ceiling 100,000), shared equally. The monthly basic salary is the rate in force at the end of the cutoff. The month-final cutoff collects the difference to that month's target.",
+    "pagIbig": "Pag-IBIG: employee share 2% of a fund salary capped at 10,000, so 200 a month and 100 a cutoff.",
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (0 up to 10,417; 15% of the excess over 10,417 up to 16,667; 937.50 + 20% of the excess over 16,667 up to 33,333) and the annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000).",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e))."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, every worker hired 2026-01-01 at 30,000 a month and paid by the engine for all 24 cutoffs. Nothing is imported. The worker is separated on 2026-12-31, so final pay settles the whole year.",
+    "A raise is entered in the order the product allows: the pay revision and the new stored rate are recorded just before the cutoff that contains the effective date is calculated (the employees API refuses a future effective date). The one exception is the last case, which records the raise while an earlier cutoff is still unprocessed.",
+    "Steady 30,000 cutoff: gross 15,000, SSS 750, PhilHealth 375, Pag-IBIG 100 (contributions 1,225), taxable 13,775, withholding 15% x (13,775 - 10,417) = 503.70.",
+    "Steady 36,000 cutoff: gross 18,000, SSS 875 (credit 35,000 is the ceiling), PhilHealth 450, Pag-IBIG 100 (contributions 1,425), taxable 16,575, withholding 15% x 6,158 = 923.70.",
+    "Steady 40,000 cutoff: gross 20,000, SSS 875, PhilHealth 500, Pag-IBIG 100 (contributions 1,475), taxable 18,525, withholding 937.50 + 20% x (18,525 - 16,667) = 1,309.10.",
+    "Raise on a cutoff boundary, 36,000 effective 2026-08-16: Aug 1-15 is a steady 30,000 cutoff (estimate 30,000, SSS 750). Aug 16-31 gross 18,000; the month's compensation is 15,000 + 18,000 = 33,000 (credit 33,000, SSS 1,650, so 900 is collected); PhilHealth target 900 less 375 = 525; Pag-IBIG 100; contributions 1,525; taxable 16,475; withholding 15% x 6,058 = 908.70.",
+    "Raise inside a first cutoff, 36,000 effective 2026-08-08: Aug 1-15 gross 15,000 x 7/15 + 18,000 x 8/15 = 7,000 + 9,600 = 16,600; SSS is estimated on 2 x 16,600 = 33,200 (credit 33,000, 1,650, so 825); PhilHealth on the 36,000 in force at the end of the cutoff (900, so 450); Pag-IBIG 100; contributions 1,375; taxable 15,225; withholding 15% x 4,808 = 721.20. Aug 16-31 gross 18,000; the month's compensation is 16,600 + 18,000 = 34,600 (credit 34,500, SSS 1,725, so 900); PhilHealth 900 less 450 = 450; Pag-IBIG 100; contributions 1,450; taxable 16,550; withholding 15% x 6,133 = 919.95.",
+    "Raise inside a second cutoff, 36,000 effective 2026-09-23: Sep 1-15 is a steady 30,000 cutoff. Sep 16-30 gross 15,000 x 7/15 + 18,000 x 8/15 = 16,600; the month's compensation is 15,000 + 16,600 = 31,600 (credit 31,500, SSS 1,575, so 825 is collected); PhilHealth on 36,000 (900 less 375 = 525); Pag-IBIG 100; contributions 1,450; taxable 15,150; withholding 15% x 4,733 = 709.95.",
+    "Raise into the 20% cutoff band, 40,000 effective 2026-08-16: Aug 16-31 gross 20,000; the month's compensation is 35,000 (credit 35,000, SSS 1,750, so 1,000 is collected); PhilHealth target 1,000 less 375 = 625; Pag-IBIG 100; contributions 1,725; taxable 18,275; withholding 937.50 + 20% x 1,608 = 1,259.10.",
+    "Year end for every case: grossCompensation = basic salary earned + the 13th month (basic / 12, to the centavo); non-taxable = the 13th month (inside the 90,000 pool) + employee contributions; taxable = grossCompensation - non-taxable = basic - contributions; tax from the annual table; adjustment = tax due - withheld (positive: collect; negative: refund).",
+    "Final pay for every case: releasedBasicYtd = the basic of all 24 released cutoffs, historicalBasicYtd = 0, thirteenthPaidYtd = 0, grossCompensationYtd = the same basic, statutoryContributionsYtd and taxWithheldYtd = the sums of the cutoffs; computeFinalPay pays the 13th month due and the tax adjustment: net final pay = 13th month due + (withheld - tax due)."
+  ],
+  "employees": {
+    "steadyNoRaise": {
+      "description": "Control: 30,000 all year. 24 x 1,225 = 29,400 contributions; 24 x 503.70 = 12,088.80 withheld; basic 360,000; 13th month 30,000; taxable 330,600; tax 15% x 80,600 = 12,090.00; collect 1.20.",
+      "monthlySalary": 30000,
+      "schedule": [
+        { "cutoffs": [1, 24], "grossPay": 15000, "contributions": 1225, "withholding": 503.7 }
+      ],
+      "yearEnd": {
+        "grossCompensation": 390000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 59400,
+        "statutoryContributions": 29400,
+        "taxableIncome": 330600,
+        "taxDue": 12090,
+        "taxWithheld": 12088.8,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 360000,
+        "historicalBasicYtd": 0,
+        "grossCompensationYtd": 360000,
+        "statutoryContributionsYtd": 29400,
+        "taxWithheldYtd": 12088.8,
+        "deMinimisYtd": 0,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 30000,
+        "grossFinalPay": 30000,
+        "taxDue": 12090,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 29998.8
+      }
+    },
+    "raiseOnCutoffBoundary": {
+      "description": "30,000 to 36,000 effective 2026-08-16, the first day of cutoff 16. Basic 15 x 15,000 + 9 x 18,000 = 387,000; contributions 31,300; withheld 15,853.80; 13th month 32,250; taxable 355,700; tax 15% x 105,700 = 15,855.00; collect 1.20.",
+      "monthlySalary": 30000,
+      "raise": { "effectiveDate": "2026-08-16", "newSalary": 36000, "recordedBeforeCutoff": 16 },
+      "schedule": [
+        { "cutoffs": [1, 15], "grossPay": 15000, "contributions": 1225, "withholding": 503.7 },
+        { "cutoffs": [16, 16], "grossPay": 18000, "contributions": 1525, "withholding": 908.7 },
+        { "cutoffs": [17, 24], "grossPay": 18000, "contributions": 1425, "withholding": 923.7 }
+      ],
+      "yearEnd": {
+        "grossCompensation": 419250,
+        "thirteenthMonth": 32250,
+        "nonTaxable": 63550,
+        "statutoryContributions": 31300,
+        "taxableIncome": 355700,
+        "taxDue": 15855,
+        "taxWithheld": 15853.8,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 387000,
+        "historicalBasicYtd": 0,
+        "grossCompensationYtd": 387000,
+        "statutoryContributionsYtd": 31300,
+        "taxWithheldYtd": 15853.8,
+        "deMinimisYtd": 0,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 32250,
+        "grossFinalPay": 32250,
+        "taxDue": 15855,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 32248.8
+      }
+    },
+    "raiseInsideFirstCutoff": {
+      "description": "30,000 to 36,000 effective 2026-08-08, inside cutoff 15 (Aug 1-15). Basic 14 x 15,000 + 16,600 + 18,000 + 8 x 18,000 = 388,600; contributions 31,375; withheld 16,082.55; 13th month 32,383.33; taxable 357,225.00; tax 15% x 107,225 = 16,083.75; collect 1.20.",
+      "monthlySalary": 30000,
+      "raise": { "effectiveDate": "2026-08-08", "newSalary": 36000, "recordedBeforeCutoff": 15 },
+      "schedule": [
+        { "cutoffs": [1, 14], "grossPay": 15000, "contributions": 1225, "withholding": 503.7 },
+        { "cutoffs": [15, 15], "grossPay": 16600, "contributions": 1375, "withholding": 721.2 },
+        { "cutoffs": [16, 16], "grossPay": 18000, "contributions": 1450, "withholding": 919.95 },
+        { "cutoffs": [17, 24], "grossPay": 18000, "contributions": 1425, "withholding": 923.7 }
+      ],
+      "yearEnd": {
+        "grossCompensation": 420983.33,
+        "thirteenthMonth": 32383.33,
+        "nonTaxable": 63758.33,
+        "statutoryContributions": 31375,
+        "taxableIncome": 357225,
+        "taxDue": 16083.75,
+        "taxWithheld": 16082.55,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 388600,
+        "historicalBasicYtd": 0,
+        "grossCompensationYtd": 388600,
+        "statutoryContributionsYtd": 31375,
+        "taxWithheldYtd": 16082.55,
+        "deMinimisYtd": 0,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 32383.33,
+        "grossFinalPay": 32383.33,
+        "taxDue": 16083.75,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 32382.13
+      }
+    },
+    "raiseInsideSecondCutoff": {
+      "description": "30,000 to 36,000 effective 2026-09-23, inside cutoff 18 (Sep 16-30). Basic 17 x 15,000 + 16,600 + 6 x 18,000 = 379,600; contributions 30,825; withheld 14,815.05; 13th month 31,633.33; taxable 348,775.00; tax 15% x 98,775 = 14,816.25; collect 1.20.",
+      "monthlySalary": 30000,
+      "raise": { "effectiveDate": "2026-09-23", "newSalary": 36000, "recordedBeforeCutoff": 18 },
+      "schedule": [
+        { "cutoffs": [1, 17], "grossPay": 15000, "contributions": 1225, "withholding": 503.7 },
+        { "cutoffs": [18, 18], "grossPay": 16600, "contributions": 1450, "withholding": 709.95 },
+        { "cutoffs": [19, 24], "grossPay": 18000, "contributions": 1425, "withholding": 923.7 }
+      ],
+      "yearEnd": {
+        "grossCompensation": 411233.33,
+        "thirteenthMonth": 31633.33,
+        "nonTaxable": 62458.33,
+        "statutoryContributions": 30825,
+        "taxableIncome": 348775,
+        "taxDue": 14816.25,
+        "taxWithheld": 14815.05,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 379600,
+        "historicalBasicYtd": 0,
+        "grossCompensationYtd": 379600,
+        "statutoryContributionsYtd": 30825,
+        "taxWithheldYtd": 14815.05,
+        "deMinimisYtd": 0,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 31633.33,
+        "grossFinalPay": 31633.33,
+        "taxDue": 14816.25,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 31632.13
+      }
+    },
+    "raiseIntoTwentyPercentBand": {
+      "description": "30,000 to 40,000 effective 2026-08-16. The cutoff table taxes the 20,000 cutoffs in its 20% band but the annual table leaves the year in its 15% band, so year end refunds. Basic 15 x 15,000 + 9 x 20,000 = 405,000; contributions 31,900; withheld 19,287.40; 13th month 33,750; taxable 373,100; tax 15% x 123,100 = 18,465.00; refund 822.40.",
+      "monthlySalary": 30000,
+      "raise": { "effectiveDate": "2026-08-16", "newSalary": 40000, "recordedBeforeCutoff": 16 },
+      "schedule": [
+        { "cutoffs": [1, 15], "grossPay": 15000, "contributions": 1225, "withholding": 503.7 },
+        { "cutoffs": [16, 16], "grossPay": 20000, "contributions": 1725, "withholding": 1259.1 },
+        { "cutoffs": [17, 24], "grossPay": 20000, "contributions": 1475, "withholding": 1309.1 }
+      ],
+      "yearEnd": {
+        "grossCompensation": 438750,
+        "thirteenthMonth": 33750,
+        "nonTaxable": 65650,
+        "statutoryContributions": 31900,
+        "taxableIncome": 373100,
+        "taxDue": 18465,
+        "taxWithheld": 19287.4,
+        "adjustment": -822.4,
+        "outcome": "refund"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 405000,
+        "historicalBasicYtd": 0,
+        "grossCompensationYtd": 405000,
+        "statutoryContributionsYtd": 31900,
+        "taxWithheldYtd": 19287.4,
+        "deMinimisYtd": 0,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 33750,
+        "grossFinalPay": 33750,
+        "taxDue": 18465,
+        "taxAdjustment": 822.4,
+        "netFinalPay": 34572.4
+      }
+    },
+    "raiseRecordedWhileEarlierCutoffOpen": {
+      "description": "The same raise as raiseOnCutoffBoundary (36,000 effective 2026-08-16), but it is recorded while cutoff 15 (Aug 1-15) is still an unprocessed draft. Cutoff 15 must still pay the 30,000 in force on those days, so every figure equals raiseOnCutoffBoundary.",
+      "monthlySalary": 30000,
+      "raise": { "effectiveDate": "2026-08-16", "newSalary": 36000, "recordedBeforeCutoff": 15 },
+      "schedule": [
+        { "cutoffs": [1, 15], "grossPay": 15000, "contributions": 1225, "withholding": 503.7 },
+        { "cutoffs": [16, 16], "grossPay": 18000, "contributions": 1525, "withholding": 908.7 },
+        { "cutoffs": [17, 24], "grossPay": 18000, "contributions": 1425, "withholding": 923.7 }
+      ],
+      "yearEnd": {
+        "grossCompensation": 419250,
+        "thirteenthMonth": 32250,
+        "nonTaxable": 63550,
+        "statutoryContributions": 31300,
+        "taxableIncome": 355700,
+        "taxDue": 15855,
+        "taxWithheld": 15853.8,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 387000,
+        "historicalBasicYtd": 0,
+        "grossCompensationYtd": 387000,
+        "statutoryContributionsYtd": 31300,
+        "taxWithheldYtd": 15853.8,
+        "deMinimisYtd": 0,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 32250,
+        "grossFinalPay": 32250,
+        "taxDue": 15855,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 32248.8
+      }
+    }
+  },
+  "limitations": [
+    "One raise per worker, a monthly worker only, with no other earning, deduction, loan or leave in the year. A daily or hourly worker, a pay cut, two raises in one month, and a raise combined with overtime or attendance pay are not exercised.",
+    "A raise inside a cutoff is prorated by calendar days, as the product defines it; whether that matches an employer's own policy (working days) is an employer decision this certification does not make.",
+    "A year-end termination with no other outstanding pay, loans, separation pay, final leave monetisation or prior-employer income, as in Phases 25, 32, 33 and 34.",
+    "The raise is recorded straight into the database tables the employees API writes (the pay revision and the stored rate); the API's own checks and its retro-adjustment path for already released cutoffs are not exercised here.",
+    "Year-end rows already computed under an older rule are replaced only when year end is recomputed."
+  ]
+}

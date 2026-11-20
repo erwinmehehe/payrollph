@@ -4,7 +4,7 @@ import { loadApprovedPayrollExits, payrollEmploymentStatus, profileBeforeFutureR
 import { reviewRetroStatutorySourcePeriods } from "@/lib/payroll-retro-statutory-source-period";
 import { loadPendingPayrollRetroSources } from "@/lib/payroll-retro-source-lookup";
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -711,7 +711,30 @@ async function executePayrollChunk(input: PayrollChunkRequest & {
       record,
     ]);
   }
-  const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
+  // A raise is stored as a pay revision plus the new stored rate the moment it is entered. A cutoff that ended before the raise took
+  // effect, but is calculated after it was entered, must still pay the rate in force then: use the previous rate of the earliest
+  // revision after this cutoff (the approved-exit path does the same for a leaving worker). Nothing changes without such a revision.
+  const futurePayRevisionRows = chunkIds.length && !approvedExitEnabled
+    ? await reader.select().from(employeePayRevisions).where(and(
+        eq(employeePayRevisions.organizationId, input.organizationId),
+        inArray(employeePayRevisions.employeeId, chunkIds),
+        gt(employeePayRevisions.effectiveDate, run.periodEnd),
+      )).orderBy(asc(employeePayRevisions.effectiveDate), asc(employeePayRevisions.id))
+    : [];
+  const earliestFuturePayRevisionByEmployee = new Map<number, (typeof futurePayRevisionRows)[number]>();
+  for (const revision of futurePayRevisionRows) {
+    if (!earliestFuturePayRevisionByEmployee.has(revision.employeeId)) earliestFuturePayRevisionByEmployee.set(revision.employeeId, revision);
+  }
+  const payProfileByEmployee = new Map(payProfileRows.map((profile) => {
+    const next = earliestFuturePayRevisionByEmployee.get(profile.employeeId);
+    return [profile.employeeId, next ? {
+      ...profile,
+      payBasis: next.previousPayBasis,
+      rateAmount: next.previousRateAmount,
+      standardWorkDaysPerMonth: next.previousStandardWorkDaysPerMonth,
+      standardHoursPerDay: next.previousStandardHoursPerDay,
+    } : profile] as const;
+  }));
   const payRevisionsByEmployee = new Map<number, typeof payRevisionRows>();
   for (const revision of payRevisionRows) {
     payRevisionsByEmployee.set(revision.employeeId, [...(payRevisionsByEmployee.get(revision.employeeId) ?? []), revision]);
