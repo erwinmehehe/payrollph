@@ -10,7 +10,7 @@ import {verifyOidcCallbackHold} from '../scripts/qa/tenant-oidc-source-supersess
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 const row=(m,path)=>m.allApiRouteFiles[path].methods.find(x=>x.name==='GET');
 test('two current protocol steps require the exact successful HTTPS/PG16 run, with resolve held',()=>{
- const r=readOidcBatchExecution();assert.equal(r.workflowJobId,132322353286);
+ const r=readOidcBatchExecution();assert.equal(r.workflowJobId,136319661547);
  assert.equal(verifyOidcBatchCredits(manifest()),2);
  assert.equal(Object.keys(r.inputs).length,214);
  assert.equal(r.proof.realProviderCalls,0);assert.equal(r.proof.coverageCredits,0);
