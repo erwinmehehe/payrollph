@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'package-lock.json'
       - '.github/workflows/final-pay-prior-employer-http.yml'
       - '.github/workflows/payroll-e2e-fictional.yml'
       - 'scripts/qa/final-pay-prior-employer-http.mjs'

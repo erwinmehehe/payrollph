@@ -3,6 +3,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "package-lock.json"
       - "tests/payroll-e2e-fictional-*.test.ts"
       - "docs/qa/payroll-e2e-*.md"
       - "src/lib/payroll-engine.ts"
