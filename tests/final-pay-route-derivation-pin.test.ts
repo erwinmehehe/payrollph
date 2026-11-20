@@ -20,6 +20,17 @@ test("the separation calculation takes its exemption only from loaded released r
   assert.ok(call.includes("releasedExemptAllowanceYtd: releasedExemptAllowanceYtd(sources.released),"));
 });
 
+test("the Separation API still derives de minimis the way Golden Phase 33 reproduces", () => {
+  assert.ok(route.includes("deMinimisPaidYtd += parsed.deMinimisPaid;"), "paid de minimis derivation changed: update Golden Phase 33");
+  assert.ok(route.includes("deMinimisExcessYtd += parsed.deMinimisExcess;"), "pool excess derivation changed: update Golden Phase 33");
+  assert.ok(route.includes("deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd))),"),
+    "exempt de minimis is no longer paid less excess: update Golden Phase 33");
+  assert.ok(route.includes("deMinimisExcessYtd: Number(money(deMinimisExcessYtd)),"), "excess total changed: update Golden Phase 33");
+  const call = route.slice(route.indexOf("computeFinalPay({"), route.indexOf("const dueDate = finalPayDueDate"));
+  assert.ok(call.includes("deMinimisYtd: sources.totals.deMinimisYtd,"), "final pay no longer takes the exempt de minimis total: update Golden Phase 33");
+  assert.ok(call.includes("deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,"), "final pay no longer takes the pool excess total: update Golden Phase 33");
+});
+
 test("released allowance requires consistent outside-pool treatment and exact money", () => {
   const line = { code: "EARN-12", amount: "12000.01", benefitPool90k: false, benefitPoolKind: "taxable_allowance",
     notes: ["Type: taxable_allowance", "Tax treatment: non-taxable"] };

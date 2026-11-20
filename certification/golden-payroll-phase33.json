@@ -1,0 +1,56 @@
+{
+  "version": "phase33-final-pay-reads-de-minimis-like-year-end-2026-11-20",
+  "toleranceCentavos": 0,
+  "description": "Year end reads de minimis pay from the structured DM- line fields (the exempt part is the amount less the line's other-benefits-pool excess, and the excess joins the shared 90,000 pool). The Separation API reads the same two figures from the payslip instead: the paid amount from the line and the pool excess by matching a text note, 'other-benefits pool excess this period', and then passes the exempt part (paid less excess) and the excess to computeFinalPay. If that note ever stops matching, or matches the wrong note, final pay would tax de minimis pay the cutoff exempted. Phase 33 certifies the two readings agree through the real engine with four workers hired at the switch on the same salary: a control, a rice subsidy inside its monthly ceiling, a uniform allowance that crosses its yearly ceiling part way through the year, and one whose excess overflows the shared 90,000 pool. For each, the real computeFinalPay is fed the year-to-date inputs exactly as the Separation API derives them from the released rows, and its tax settlement must equal both the control's and the worker's own year-end settlement.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward (up to 10,417 exempt; 10,417 to 16,667: 15%; 16,667 to 33,333: 937.50 + 20%; over 33,333: 4,270.70 + 25% of the excess); annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000). De minimis benefits within the category ceilings of BIR RR 29-2025 are exempt (rice subsidy 2,500 a month; uniform and clothing allowance 8,000 a year); the excess over a ceiling joins the 90,000 pool of 13th month pay and other benefits (NIRC Sec. 32(B)(7)(e)).",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e)). De minimis pay is not basic salary."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 60,000 (30,000 a cutoff), every worker hired 2026-07-01 so only the 12 engine cutoffs 13-24 exist and there are no imported rows. An ordinary cutoff: gross 30,000; SSS 875, PhilHealth 750, Pag-IBIG 100 (1,725); taxable 28,275; withholding 937.50 + 0.20 x (28,275 - 16,667) = 3,259.10. De minimis pay, being exempt or inside the unused 90,000 pool, does not move withholding or any contribution (60,000 is at the SSS and Pag-IBIG ceilings, PhilHealth is on basic).",
+    "A de minimis grant of 2,000.00 a month pays 1,000.00 in each of the 12 cutoffs, 12,000.00 in all, on 12 DM- lines. Rice subsidy: the 2,500 monthly ceiling is never reached, so all 12,000.00 is exempt and nothing enters the pool. Uniform and clothing allowance: the 8,000 yearly ceiling is consumed by the first eight cutoffs, so 8,000.00 is exempt and the remaining 4,000.00 is excess that joins the pool.",
+    "The Separation API inputs, derived from the released rows exactly as the route does: releasedBasicYtd = sum of BASIC lines = 360,000; thirteenthPaidYtd = 0; grossCompensationYtd = sum over rows of (gross pay - 13th month paid), which includes de minimis pay = 360,000 (control) and 372,000 (both grant workers); statutoryContributionsYtd = 20,700; taxWithheldYtd = 12 x 3,259.10 = 39,109.20; deMinimisYtd = max(0, paid - excess) = 0, 12,000 and 8,000; deMinimisExcessYtd = 0, 0 and 4,000; releasedExemptAllowanceYtd = 0 (a DM- line is not an allowance).",
+    "computeFinalPay: gross for annualization = grossCompensationYtd + 13th month due (30,000) = 402,000 for the grant workers; non-taxable = pool (30,000 + excess) + de minimis within ceiling + contributions 20,700 = 62,700 in both grant cases; taxable = 402,000 - 62,700 = 339,300; tax = 15% x 89,300 = 13,395.00; tax adjustment = withheld - tax due (positive = refund) = 25,714.20; net final pay = the 30,000.00 unpaid 13th month + 25,714.20 = 55,714.20.",
+    "Year end for each grant worker: gross 360,000 + 12,000 + 30,000 accrued 13th month = 402,000; non-taxable 62,700; taxable 339,300; tax 13,395.00; withheld 39,109.20; refund 25,714.20, the control's tax figures."
+  ],
+  "employees": {
+    "noDeMinimisControl": {
+      "description": "No grant. Year end: gross 390,000; non-taxable 50,700; taxable 339,300; tax 13,395.00; refund 25,714.20. Final pay: tax 13,395.00, refund 25,714.20, net 55,714.20.",
+      "grant": null,
+      "dmLines": 0,
+      "yearEnd": { "grossCompensation": 390000, "thirteenthMonth": 30000, "nonTaxable": 50700, "statutoryContributions": 20700, "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund" },
+      "finalPayInputs": { "releasedExemptAllowanceYtd": 0, "releasedBasicYtd": 360000, "grossCompensationYtd": 360000, "statutoryContributionsYtd": 20700, "taxWithheldYtd": 39109.2, "deMinimisYtd": 0, "deMinimisExcessYtd": 0 },
+      "finalPay": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 13395, "taxAdjustment": 25714.2, "netFinalPay": 55714.2 }
+    },
+    "riceSubsidyWithinCeiling": {
+      "description": "A rice subsidy of 2,000.00 a month (1,000.00 a cutoff, 12,000.00 in all) against a 2,500.00 monthly ceiling: all exempt, no excess. Year end: gross 402,000; non-taxable 30,000 + 12,000 + 20,700 = 62,700; taxable 339,300; tax 13,395.00; refund 25,714.20. Final pay must agree: deMinimisYtd 12,000 and excess 0 with grossCompensationYtd 372,000 give taxable 402,000 - 62,700 = 339,300, tax 13,395.00, refund 25,714.20, net 55,714.20. If final pay did not exempt the de minimis pay it would tax 12,000.00 more: tax 15,195.00 and the employee under-paid 1,800.00.",
+      "grant": { "benefitType": "riceSubsidy", "amount": 2000, "frequency": "month" },
+      "dmLines": 12,
+      "yearEnd": { "grossCompensation": 402000, "thirteenthMonth": 30000, "nonTaxable": 62700, "statutoryContributions": 20700, "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund" },
+      "finalPayInputs": { "releasedExemptAllowanceYtd": 0, "releasedBasicYtd": 360000, "grossCompensationYtd": 372000, "statutoryContributionsYtd": 20700, "taxWithheldYtd": 39109.2, "deMinimisYtd": 12000, "deMinimisExcessYtd": 0 },
+      "finalPay": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 13395, "taxAdjustment": 25714.2, "netFinalPay": 55714.2 }
+    },
+    "uniformAllowanceCrossesYearlyCeiling": {
+      "description": "A uniform and clothing allowance of 2,000.00 a month (1,000.00 a cutoff, 12,000.00 in all) against an 8,000.00 yearly ceiling: 8,000.00 exempt and 4,000.00 excess that joins the shared 90,000 pool. Year end: gross 402,000; non-taxable = pool 30,000 + 4,000 + de minimis 8,000 + contributions 20,700 = 62,700; taxable 339,300; tax 13,395.00; refund 25,714.20. Final pay must agree: deMinimisYtd 8,000 and excess 4,000 with grossCompensationYtd 372,000 give the same 62,700 non-taxable, tax 13,395.00, refund 25,714.20, net 55,714.20. If final pay lost the excess it would exempt only 8,000.00 of the 12,000.00 and tax 4,000.00 more: tax 13,995.00 and the employee under-paid 600.00.",
+      "grant": { "benefitType": "uniformClothing", "amount": 2000, "frequency": "month" },
+      "dmLines": 12,
+      "yearEnd": { "grossCompensation": 402000, "thirteenthMonth": 30000, "nonTaxable": 62700, "statutoryContributions": 20700, "taxableIncome": 339300, "taxDue": 13395, "taxWithheld": 39109.2, "adjustment": -25714.2, "outcome": "refund" },
+      "finalPayInputs": { "releasedExemptAllowanceYtd": 0, "releasedBasicYtd": 360000, "grossCompensationYtd": 372000, "statutoryContributionsYtd": 20700, "taxWithheldYtd": 39109.2, "deMinimisYtd": 8000, "deMinimisExcessYtd": 4000 },
+      "finalPay": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 13395, "taxAdjustment": 25714.2, "netFinalPay": 55714.2 }
+    },
+    "uniformAllowanceOverflowsThePool": {
+      "description": "A uniform and clothing allowance of 12,000.00 a month (6,000.00 a cutoff, 72,000.00 in all) against the 8,000.00 yearly ceiling: 8,000.00 exempt and 64,000.00 excess for the shared 90,000 pool. The cutoffs never see the 13th month (it is accrued at year end), so the pool stays below 90,000 (64,000) and withholding is unchanged. Year end: gross 360,000 + 72,000 + 30,000 = 462,000; the pool is 30,000 + 64,000 = 94,000, of which 90,000 is exempt and 4,000 taxable; non-taxable = 90,000 + de minimis 8,000 + contributions 20,700 = 118,700; taxable 462,000 - 118,700 = 343,300; tax 15% x 93,300 = 13,995.00; withheld 39,109.20; refund 25,114.20. Final pay must agree: deMinimisYtd 8,000 and excess 64,000 with grossCompensationYtd 432,000 give the same taxable 343,300, tax 13,995.00, refund 25,114.20, net 30,000.00 + 25,114.20 = 55,114.20. If final pay lost the excess it would exempt the whole 72,000.00 and the 4,000.00 above the pool would escape tax: tax 13,395.00 and the employee over-refunded 600.00.",
+      "grant": { "benefitType": "uniformClothing", "amount": 12000, "frequency": "month" },
+      "dmLines": 12,
+      "yearEnd": { "grossCompensation": 462000, "thirteenthMonth": 30000, "nonTaxable": 118700, "statutoryContributions": 20700, "taxableIncome": 343300, "taxDue": 13995, "taxWithheld": 39109.2, "adjustment": -25114.2, "outcome": "refund" },
+      "finalPayInputs": { "releasedExemptAllowanceYtd": 0, "releasedBasicYtd": 360000, "grossCompensationYtd": 432000, "statutoryContributionsYtd": 20700, "taxWithheldYtd": 39109.2, "deMinimisYtd": 8000, "deMinimisExcessYtd": 64000 },
+      "finalPay": { "thirteenthDue": 30000, "grossFinalPay": 30000, "taxDue": 13995, "taxAdjustment": 25114.2, "netFinalPay": 55114.2 }
+    }
+  },
+  "limitations": [
+    "Only a rice subsidy and a uniform allowance are exercised, at 2,000.00 and 12,000.00 a month. A pool overflowing by 4,000.00 is exercised in final pay; a pool overflowing through a final leave monetisation, or one already partly used by imported history, is not.",
+    "A year-end termination with no imported periods, other outstanding pay, loans, separation pay, final leave monetisation or prior-employer income, as in Phases 25 and 32. A final leave monetisation's de minimis portion has its own reviewed buckets and is not exercised.",
+    "The Separation API route cannot be called from a harness (it needs a session); a source test pins the route expressions the harness reproduces.",
+    "Year-end rows already computed under an older rule are replaced only when year end is recomputed."
+  ]
+}
