@@ -1,0 +1,291 @@
+{
+  "version": "phase34-final-pay-honours-imported-de-minimis-2026-11-20",
+  "toleranceCentavos": 0,
+  "description": "Year end applies a previous provider's imported de minimis totals (the deMinimisBreakdown of imported payroll history rows): each category is capped at its statutory ceiling per period, the part inside is exempt and the part above joins the shared 90,000 pool. The Separation API loads the same imported rows for final pay but takes its de minimis totals only from the released engine payslips, so imported de minimis pay reaches final pay inside gross compensation with no exemption. Phase 34 certifies that final pay and year end agree for a worker whose first six months were imported from a previous provider and whose last six were calculated by the engine, through the real engine, the real runYearEndAnnualization and the real computeFinalPay fed the year-to-date inputs exactly as the Separation API derives them from the released rows and the imported rows.",
+  "sources": {
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward; annual table (up to 250,000 exempt; 250,000 to 400,000: 15% of the excess over 250,000; 400,000 to 800,000: 22,500 + 20% of the excess over 400,000). De minimis benefits within the category ceilings of BIR RR 29-2025 are exempt (rice subsidy 2,500 a month; uniform and clothing allowance 8,000 a year); the excess over a ceiling joins the 90,000 pool of 13th month pay and other benefits (NIRC Sec. 32(B)(7)(e)).",
+    "thirteenthMonth": "Presidential Decree 851: 13th month pay = one twelfth of basic salary earned in the year; exempt up to 90,000 together with other benefits (NIRC Sec. 32(B)(7)(e)). De minimis pay is not basic salary."
+  },
+  "assumptions": [
+    "Tax year 2026, 24 semi-monthly cutoffs, 'split' timing, monthly salary 30,000, every worker hired 2026-01-01. The company switched provider on 2026-07-01: January to June are six imported monthly rows (pay date = last day of the month), July to December (cutoffs 13-24) are calculated by the engine. The worker is separated on 2026-12-31, so final pay settles the whole year.",
+    "An imported month: basic 30,000, SSS 1,500, PhilHealth 750, Pag-IBIG 200, withholding 1,007.40, 13th month 0, plus the case's de minimis pay on top of the basic in gross pay. A calculated cutoff: gross 15,000, SSS 750, PhilHealth 375, Pag-IBIG 100, withholding 503.70 (the Phase 9 / Phase 13 steady worker). Contributions 6 x 2,450 + 12 x 1,225 = 29,400; withheld 6 x 1,007.40 + 12 x 503.70 = 12,088.80. The engine pays no de minimis in these cases.",
+    "The Separation API inputs, derived exactly as the route does: releasedBasicYtd = 12 cutoffs x 15,000 = 180,000; historicalBasicYtd = the six imported basic salaries = 180,000; thirteenthPaidYtd = 0; grossCompensationYtd = sum over released rows of (gross pay - 13th month paid) + sum over imported rows of (gross pay - 13th month) = 180,000 + 6 x the imported gross; statutoryContributionsYtd = 29,400; taxWithheldYtd = 12,088.80; releasedExemptAllowanceYtd = 0.",
+    "What year end does with the imported de minimis, and what final pay must therefore also do: exempt = the part of each category's period total inside its ceiling (rice 2,500 a month; uniform 8,000 a year); excess = the part above it. So deMinimisYtd is the imported exempt part and deMinimisExcessYtd the imported excess.",
+    "computeFinalPay: gross for annualization = grossCompensationYtd + the 30,000 13th month due ((180,000 + 180,000) / 12); non-taxable = pool (30,000 + excess, capped at 90,000) + de minimis within ceiling + contributions 29,400; taxable = gross - non-taxable; tax from the annual table; tax adjustment = withheld - tax due (negative = the employee owes); net final pay = the 30,000.00 unpaid 13th month + tax adjustment."
+  ],
+  "employees": {
+    "noDeMinimisControl": {
+      "description": "No imported de minimis. Year end: gross 360,000 + accrued 13th month 30,000 = 390,000; non-taxable 30,000 + 29,400 = 59,400; taxable 330,600; tax 15% x 80,600 = 12,090.00; withheld 12,088.80; collect 1.20. Final pay: tax 12,090.00, tax adjustment -1.20, net 30,000.00 - 1.20 = 29,998.80.",
+      "imported": {
+        "grossPay": 30000,
+        "basicSalary": 30000,
+        "netPay": 26542.6,
+        "taxWithheld": 1007.4,
+        "sssEmployee": 1500,
+        "philHealthEmployee": 750,
+        "pagIbigEmployee": 200,
+        "thirteenthMonth": 0
+      },
+      "yearEnd": {
+        "grossCompensation": 390000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 59400,
+        "statutoryContributions": 29400,
+        "taxableIncome": 330600,
+        "taxDue": 12090,
+        "taxWithheld": 12088.8,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 180000,
+        "historicalBasicYtd": 180000,
+        "grossCompensationYtd": 360000,
+        "statutoryContributionsYtd": 29400,
+        "taxWithheldYtd": 12088.8,
+        "deMinimisYtd": 0,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 30000,
+        "grossFinalPay": 30000,
+        "taxDue": 12090,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 29998.8
+      }
+    },
+    "importedRiceSubsidyWithinCeiling": {
+      "description": "A previous provider paid a rice subsidy of 2,500 in each of the six imported months (the monthly ceiling), inside imported gross pay of 32,500: 15,000 exempt, nothing above the ceiling. Year end: gross 6 x 32,500 + 180,000 + 30,000 = 405,000; non-taxable 30,000 + 15,000 + 29,400 = 74,400; taxable 330,600; tax 12,090.00; collect 1.20, the control's figures. Final pay must agree: deMinimisYtd 15,000 and excess 0 with grossCompensationYtd 375,000 give the same 74,400 non-taxable, taxable 330,600, tax 12,090.00, tax adjustment -1.20, net 29,998.80. If final pay ignored the imported de minimis it would tax 15,000.00 more: non-taxable 59,400, taxable 345,600, tax 15% x 95,600 = 14,340.00, tax adjustment -2,251.20, net 27,748.80, the worker under-paid 2,250.00.",
+      "imported": {
+        "grossPay": 32500,
+        "basicSalary": 30000,
+        "netPay": 29042.6,
+        "taxWithheld": 1007.4,
+        "sssEmployee": 1500,
+        "philHealthEmployee": 750,
+        "pagIbigEmployee": 200,
+        "thirteenthMonth": 0,
+        "deMinimisBreakdown": {
+          "riceSubsidy": 2500
+        }
+      },
+      "yearEnd": {
+        "grossCompensation": 405000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 74400,
+        "statutoryContributions": 29400,
+        "taxableIncome": 330600,
+        "taxDue": 12090,
+        "taxWithheld": 12088.8,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 180000,
+        "historicalBasicYtd": 180000,
+        "grossCompensationYtd": 375000,
+        "statutoryContributionsYtd": 29400,
+        "taxWithheldYtd": 12088.8,
+        "deMinimisYtd": 15000,
+        "deMinimisExcessYtd": 0
+      },
+      "finalPay": {
+        "thirteenthDue": 30000,
+        "grossFinalPay": 30000,
+        "taxDue": 12090,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 29998.8
+      }
+    },
+    "importedRiceSubsidyAboveMonthlyCeiling": {
+      "description": "A rice subsidy of 3,000 a month against the 2,500 monthly ceiling, imported gross 33,000: per month 2,500 exempt and 500 excess, so 15,000 exempt and 3,000 excess. Year end: gross 6 x 33,000 + 180,000 + 30,000 = 408,000; pool 30,000 + 3,000 = 33,000 (under the 90,000 cap, still untaxed); non-taxable 33,000 + 15,000 + 29,400 = 77,400; taxable 330,600; tax 12,090.00; collect 1.20. Final pay must agree: deMinimisYtd 15,000 and excess 3,000 with grossCompensationYtd 378,000. If final pay ignored the imported de minimis it would tax 18,000.00 more: non-taxable 59,400, taxable 348,600, tax 15% x 98,600 = 14,790.00, tax adjustment -2,701.20, net 27,298.80, the worker under-paid 2,700.00.",
+      "imported": {
+        "grossPay": 33000,
+        "basicSalary": 30000,
+        "netPay": 29542.6,
+        "taxWithheld": 1007.4,
+        "sssEmployee": 1500,
+        "philHealthEmployee": 750,
+        "pagIbigEmployee": 200,
+        "thirteenthMonth": 0,
+        "deMinimisBreakdown": {
+          "riceSubsidy": 3000
+        }
+      },
+      "yearEnd": {
+        "grossCompensation": 408000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 77400,
+        "statutoryContributions": 29400,
+        "taxableIncome": 330600,
+        "taxDue": 12090,
+        "taxWithheld": 12088.8,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 180000,
+        "historicalBasicYtd": 180000,
+        "grossCompensationYtd": 378000,
+        "statutoryContributionsYtd": 29400,
+        "taxWithheldYtd": 12088.8,
+        "deMinimisYtd": 15000,
+        "deMinimisExcessYtd": 3000
+      },
+      "finalPay": {
+        "thirteenthDue": 30000,
+        "grossFinalPay": 30000,
+        "taxDue": 12090,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 29998.8
+      }
+    },
+    "importedUniformAllowanceAcrossMonths": {
+      "description": "A uniform and clothing allowance of 2,000 in each of the six imported months against the 8,000 ANNUAL ceiling: 12,000 paid, so 8,000 exempt and 4,000 excess, however the months fall. Imported gross 32,000. Year end: gross 6 x 32,000 + 180,000 + 30,000 = 402,000; pool 30,000 + 4,000 = 34,000; non-taxable 34,000 + 8,000 + 29,400 = 71,400; taxable 330,600; tax 12,090.00; collect 1.20. Final pay must agree: deMinimisYtd 8,000 and excess 4,000 with grossCompensationYtd 372,000. If final pay ignored the imported de minimis it would tax 12,000.00 more: non-taxable 59,400, taxable 342,600, tax 15% x 92,600 = 13,890.00, tax adjustment -1,801.20, net 28,198.80, the worker under-paid 1,800.00.",
+      "imported": {
+        "grossPay": 32000,
+        "basicSalary": 30000,
+        "netPay": 28542.6,
+        "taxWithheld": 1007.4,
+        "sssEmployee": 1500,
+        "philHealthEmployee": 750,
+        "pagIbigEmployee": 200,
+        "thirteenthMonth": 0,
+        "deMinimisBreakdown": {
+          "uniformClothing": 2000
+        }
+      },
+      "yearEnd": {
+        "grossCompensation": 402000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 71400,
+        "statutoryContributions": 29400,
+        "taxableIncome": 330600,
+        "taxDue": 12090,
+        "taxWithheld": 12088.8,
+        "adjustment": 1.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 180000,
+        "historicalBasicYtd": 180000,
+        "grossCompensationYtd": 372000,
+        "statutoryContributionsYtd": 29400,
+        "taxWithheldYtd": 12088.8,
+        "deMinimisYtd": 8000,
+        "deMinimisExcessYtd": 4000
+      },
+      "finalPay": {
+        "thirteenthDue": 30000,
+        "grossFinalPay": 30000,
+        "taxDue": 12090,
+        "taxAdjustment": -1.2,
+        "netFinalPay": 29998.8
+      }
+    },
+    "importedUniformAllowanceOverflowsThePool": {
+      "description": "A uniform and clothing allowance of 12,000 a month in the six imported months (72,000 against the 8,000 yearly ceiling): 8,000 exempt and 64,000 excess for the shared 90,000 pool. Imported gross 42,000. Year end: gross 6 x 42,000 + 180,000 + 30,000 = 462,000; pool 30,000 + 64,000 = 94,000, of which 90,000 is exempt and 4,000 taxable; non-taxable 90,000 + 8,000 + 29,400 = 127,400; taxable 334,600; tax 15% x 84,600 = 12,690.00; withheld 12,088.80; collect 601.20. Final pay must agree: deMinimisYtd 8,000 and excess 64,000 with grossCompensationYtd 432,000: tax 12,690.00, tax adjustment -601.20, net 30,000.00 - 601.20 = 29,398.80. If final pay ignored the imported de minimis it would tax 72,000.00 more: non-taxable 59,400, taxable 402,600, tax 22,500 + 20% x 2,600 = 23,020.00, tax adjustment -10,931.20, net 19,068.80, the worker under-paid 10,330.00. If final pay kept the exempt 8,000 but lost the excess it would exempt the whole 72,000 and let 4,000 above the pool escape tax: tax 12,090.00, a 600.00 over-refund.",
+      "imported": {
+        "grossPay": 42000,
+        "basicSalary": 30000,
+        "netPay": 38542.6,
+        "taxWithheld": 1007.4,
+        "sssEmployee": 1500,
+        "philHealthEmployee": 750,
+        "pagIbigEmployee": 200,
+        "thirteenthMonth": 0,
+        "deMinimisBreakdown": {
+          "uniformClothing": 12000
+        }
+      },
+      "yearEnd": {
+        "grossCompensation": 462000,
+        "thirteenthMonth": 30000,
+        "nonTaxable": 127400,
+        "statutoryContributions": 29400,
+        "taxableIncome": 334600,
+        "taxDue": 12690,
+        "taxWithheld": 12088.8,
+        "adjustment": 601.2,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 180000,
+        "historicalBasicYtd": 180000,
+        "grossCompensationYtd": 432000,
+        "statutoryContributionsYtd": 29400,
+        "taxWithheldYtd": 12088.8,
+        "deMinimisYtd": 8000,
+        "deMinimisExcessYtd": 64000
+      },
+      "finalPay": {
+        "thirteenthDue": 30000,
+        "grossFinalPay": 30000,
+        "taxDue": 12690,
+        "taxAdjustment": -601.2,
+        "netFinalPay": 29398.8
+      }
+    },
+    "importedAndEngineUniformShareOneCeiling": {
+      "description": "A worker on 60,000 a month (so SSS is at its ceiling and the de minimis pay moves no contribution, as in Phase 33). A uniform and clothing allowance of 2,000 a month in the six imported months (12,000) and of 12,000 a month in the engine months (72,000: 6,000 a cutoff, 12 cutoffs) against ONE 8,000 yearly ceiling: 84,000 paid, so 8,000 exempt and 76,000 excess. (The engine alone would count only its own 72,000.) The engine knows the imported 12,000 already and flags every cutoff as an Exception for the unreconciled shared pool; the harness accepts exactly that one flag. Imported month: basic 60,000, gross 62,000, SSS 1,750, PhilHealth 1,500, Pag-IBIG 200, withholding 6,518.20. Engine cutoff: gross 36,000, contributions 1,725, withholding 3,259.10 (the cutoffs never see the 13th month, so the pool stays under 90,000 and withholding is unchanged). Contributions 6 x 3,450 + 12 x 1,725 = 41,400; withheld 6 x 6,518.20 + 12 x 3,259.10 = 78,218.40; 13th month (360,000 + 360,000) / 12 = 60,000. Year end: gross 372,000 + 432,000 + 60,000 = 864,000; pool 60,000 + 76,000 = 136,000, of which 90,000 is exempt; non-taxable 90,000 + 8,000 + 41,400 = 139,400; taxable 724,600; tax 22,500 + 20% x 324,600 = 87,420.00; collect 9,201.60. Final pay must agree: deMinimisYtd 8,000 and excess 76,000 with grossCompensationYtd 804,000: tax 87,420.00, tax adjustment -9,201.60, net 60,000.00 - 9,201.60 = 50,798.40. If final pay added the imported de minimis on top of the engine's already-shared figures instead of sharing one ceiling it would exempt 16,000 and count 68,000 excess: non-taxable 147,400, taxable 716,600, tax 85,820.00, a 1,600.00 over-refund.",
+      "monthlySalary": 60000,
+      "grant": {
+        "benefitType": "uniformClothing",
+        "amount": 12000,
+        "frequency": "month"
+      },
+      "imported": {
+        "grossPay": 62000,
+        "basicSalary": 60000,
+        "netPay": 52031.8,
+        "taxWithheld": 6518.2,
+        "sssEmployee": 1750,
+        "philHealthEmployee": 1500,
+        "pagIbigEmployee": 200,
+        "thirteenthMonth": 0,
+        "deMinimisBreakdown": {
+          "uniformClothing": 2000
+        }
+      },
+      "yearEnd": {
+        "grossCompensation": 864000,
+        "thirteenthMonth": 60000,
+        "nonTaxable": 139400,
+        "statutoryContributions": 41400,
+        "taxableIncome": 724600,
+        "taxDue": 87420,
+        "taxWithheld": 78218.4,
+        "adjustment": 9201.6,
+        "outcome": "collect"
+      },
+      "finalPayInputs": {
+        "releasedExemptAllowanceYtd": 0,
+        "releasedBasicYtd": 360000,
+        "historicalBasicYtd": 360000,
+        "grossCompensationYtd": 804000,
+        "statutoryContributionsYtd": 41400,
+        "taxWithheldYtd": 78218.4,
+        "deMinimisYtd": 8000,
+        "deMinimisExcessYtd": 76000
+      },
+      "finalPay": {
+        "thirteenthDue": 60000,
+        "grossFinalPay": 60000,
+        "taxDue": 87420,
+        "taxAdjustment": -9201.6,
+        "netFinalPay": 50798.4
+      }
+    }
+  },
+  "limitations": [
+    "Only a rice subsidy and a uniform allowance are imported, at 2,500, 3,000, 2,000 and 12,000 a month. A ceiling shared between imported months and engine months is exercised for the uniform allowance only (one case, with the shared pool full); a category with a monthly ceiling shared across the switch month, and meal allowance, are not.",
+    "A year-end termination with no other outstanding pay, loans, separation pay, final leave monetisation or prior-employer income, as in Phases 25, 32 and 33. Imported rows whose de minimis breakdown is missing, unreadable, unknown, a leave-days category or larger than gross pay are refused by year end (Phase 13); how final pay should refuse them is not exercised.",
+    "The Separation API route cannot be called from a harness (it needs a session); a source test pins the route expressions the harness reproduces.",
+    "Year-end rows already computed under an older rule are replaced only when year end is recomputed."
+  ]
+}
