@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - '.github/workflows/payroll-e2e-fictional.yml'
       - "src/app/workspace/prior-employer/page.tsx"
       - "src/components/workspace/year-end-prior-review.tsx"
       - "src/components/workspace/certificate-2316-review.tsx"
