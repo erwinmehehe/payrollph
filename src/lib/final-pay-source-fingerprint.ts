@@ -30,6 +30,7 @@ export type FinalPayFingerprintInputs = {
     thirteenthMonth: string | number; taxWithheld: string | number;
     sssEmployee: string | number; philHealthEmployee: string | number;
     pagIbigEmployee: string | number; payDate: string;
+    deMinimisBreakdown?: unknown;
   }>;
   retroSourcePeriods?: Array<{
     id: number; sourcePeriodStart: string | null; sourcePeriodEnd: string | null;
@@ -96,6 +97,8 @@ export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
         philHealthEmployee: Number(row.philHealthEmployee),
         pagIbigEmployee: Number(row.pagIbigEmployee),
         payDate: String(row.payDate),
+        // Imported de minimis changes final-pay tax, so a changed breakdown must invalidate an approved package.
+        ...(row.deMinimisBreakdown == null ? {} : { deMinimisBreakdown: row.deMinimisBreakdown }),
       })),
     // A changed source period must invalidate a final-pay maker/checker
     // approval even when the already-released RETRO payslip stays unchanged.

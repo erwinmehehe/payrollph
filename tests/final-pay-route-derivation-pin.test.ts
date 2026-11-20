@@ -23,12 +23,20 @@ test("the separation calculation takes its exemption only from loaded released r
 test("the Separation API still derives de minimis the way Golden Phase 33 reproduces", () => {
   assert.ok(route.includes("deMinimisPaidYtd += parsed.deMinimisPaid;"), "paid de minimis derivation changed: update Golden Phase 33");
   assert.ok(route.includes("deMinimisExcessYtd += parsed.deMinimisExcess;"), "pool excess derivation changed: update Golden Phase 33");
-  assert.ok(route.includes("deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd))),"),
-    "exempt de minimis is no longer paid less excess: update Golden Phase 33");
-  assert.ok(route.includes("deMinimisExcessYtd: Number(money(deMinimisExcessYtd)),"), "excess total changed: update Golden Phase 33");
+  assert.ok(route.includes("deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd) + importedDeMinimis.exempt)),"),
+    "exempt de minimis is no longer paid less excess plus the imported adjustment: update Golden Phases 33 and 34");
+  assert.ok(route.includes("deMinimisExcessYtd: Number(money(deMinimisExcessYtd + importedDeMinimis.excess)),"), "excess total changed: update Golden Phases 33 and 34");
   const call = route.slice(route.indexOf("computeFinalPay({"), route.indexOf("const dueDate = finalPayDueDate"));
   assert.ok(call.includes("deMinimisYtd: sources.totals.deMinimisYtd,"), "final pay no longer takes the exempt de minimis total: update Golden Phase 33");
   assert.ok(call.includes("deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,"), "final pay no longer takes the pool excess total: update Golden Phase 33");
+});
+
+test("the Separation API adds the imported de minimis adjustment Golden Phase 34 reproduces", () => {
+  assert.ok(route.includes("const importedDeMinimis = importedDeMinimisFinalPayAdjustment(historical, released);"),
+    "imported de minimis adjustment is no longer derived from the imported and released rows: update Golden Phase 34");
+  assert.ok(route.includes('import { importedDeMinimisFinalPayAdjustment } from "@/lib/final-pay-imported-de-minimis";'));
+  assert.ok(route.includes("historicalBasicYtd: historicalBasicSalaryEarned,"), "imported basic is no longer the historical basic: update Golden Phase 34");
+  assert.ok(route.includes("ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - Number(row.thirteenthMonth));"));
 });
 
 test("released allowance requires consistent outside-pool treatment and exact money", () => {
