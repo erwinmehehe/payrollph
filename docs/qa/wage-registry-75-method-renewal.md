@@ -1,7 +1,7 @@
 <!-- wage-renewal-v2:start -->
 # Wage-source API renewal v2 (per-method source closures)
 
-SOLO_VERIFIED_DEV_RECOVERY. 498 methods = **454 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP**. 75 of 75 methods CREDITED from one fresh run; 0 remain zero-credit holds.
+SOLO_VERIFIED_DEV_RECOVERY. 498 methods = **430 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 31 GAP**. 51 of 75 methods CREDITED from one fresh run; 24 remain zero-credit holds.
 
 Execution: [run 44713061008](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008), 42 successful jobs at exact source head `a9ce9c0301105bd1871d958fbbce444487a957ff`. Receipt: [`wage-registry-renewal-receipt-v2.json`](../../scripts/qa/wage-registry-renewal-receipt-v2.json) (27 global pins; one closure per method).
 
@@ -25,7 +25,7 @@ A later change withdraws only the methods whose own closure or the global base c
 | `GET /api/compliance/calendar` | CREDITED | 255 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `GET /api/compliance/contribution-issues/evidence` | CREDITED | 257 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `GET /api/compliance/filing-validations/[id]/file` | CREDITED | 255 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `PATCH /api/compliance/filing-validations/[id]` | CREDITED | 218 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381072) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381118) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381381) |
+| `PATCH /api/compliance/filing-validations/[id]` | HELD | 218 | zero credit |
 | `GET /api/compliance/filing-validations` | CREDITED | 258 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `POST /api/compliance/filing-validations` | CREDITED | 188 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381074) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381097) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381144) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381189) |
 | `GET /api/compliance/government-loan-remittances` | CREDITED | 257 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
@@ -47,43 +47,43 @@ A later change withdraws only the methods whose own closure or the global base c
 | `GET /api/compliance/statutory-remittances` | CREDITED | 254 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `POST /api/compliance/statutory-remittances` | CREDITED | 176 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381100) |
 | `POST /api/compliance/validate` | CREDITED | 186 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381074) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381097) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381144) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381189) |
-| `GET /api/dashboard` | CREDITED | 307 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
+| `GET /api/dashboard` | HELD | 307 | zero credit |
 | `POST /api/employees/import` | CREDITED | 187 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381763) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381788) |
 | `GET /api/employees/import` | CREDITED | 267 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `GET /api/employees` | CREDITED | 272 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `POST /api/employees` | CREDITED | 192 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381763) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381788) |
 | `PATCH /api/employees` | CREDITED | 192 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381763) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381788) |
 | `POST /api/enterprise` | CREDITED | 182 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381035) |
-| `GET /api/first-payroll/preview` | CREDITED | 287 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
+| `GET /api/first-payroll/preview` | HELD | 287 | zero credit |
 | `GET /api/hcm/governance-readiness` | CREDITED | 255 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `POST /api/managed-payroll/runs/[id]/approve` | CREDITED | 178 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381511) |
 | `GET /api/migrations` | CREDITED | 198 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381074) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381097) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381144) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381189) |
 | `POST /api/migrations` | CREDITED | 193 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381388) |
-| `GET /api/payroll-runs/[id]/assurance` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `GET /api/payroll-runs/[id]/close` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `POST /api/payroll-runs/[id]/close` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `GET /api/payroll-runs/[id]/connected-impact` | CREDITED | 352 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381074) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381097) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381144) + [PG16 5](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381189) |
-| `GET /api/payroll-runs/[id]/explain/[employeeId]` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `GET /api/payroll-runs/[id]/exports` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `POST /api/payroll-runs/[id]/exports` | CREDITED | 340 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381785) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) |
-| `GET /api/payroll-runs/[id]/payout-reconciliation` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `POST /api/payroll-runs/[id]/payout-reconciliation` | CREDITED | 340 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381651) |
-| `POST /api/payroll-runs/[id]/pilot-signoff` | CREDITED | 340 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381671) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381745) |
-| `POST /api/payroll-runs/[id]/process` | CREDITED | 365 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209380686) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381039) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381051) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381165) + [PG16 5](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381305) + [PG16 6](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381453) + [PG16 7](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) |
-| `GET /api/payroll-runs/[id]/release-checklist` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `POST /api/payroll-runs/[id]/release` | CREDITED | 365 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209380686) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381039) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381051) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381165) + [PG16 5](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381305) + [PG16 6](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381453) + [PG16 7](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) |
-| `POST /api/payroll-runs/[id]/submit-review` | CREDITED | 365 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209380686) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381039) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381051) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381165) + [PG16 5](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381305) + [PG16 6](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381453) + [PG16 7](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) |
-| `GET /api/payroll-runs/[id]/variance` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `GET /api/payroll-runs/[id]/xendit-payout` | CREDITED | 340 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381671) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381745) |
-| `GET /api/payroll-runs` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
-| `POST /api/payroll-runs` | CREDITED | 340 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381671) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381745) |
+| `GET /api/payroll-runs/[id]/assurance` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/close` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/close` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/connected-impact` | HELD | 352 | zero credit |
+| `GET /api/payroll-runs/[id]/explain/[employeeId]` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/exports` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/exports` | HELD | 340 | zero credit |
+| `GET /api/payroll-runs/[id]/payout-reconciliation` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/payout-reconciliation` | HELD | 340 | zero credit |
+| `POST /api/payroll-runs/[id]/pilot-signoff` | HELD | 340 | zero credit |
+| `POST /api/payroll-runs/[id]/process` | HELD | 365 | zero credit |
+| `GET /api/payroll-runs/[id]/release-checklist` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/release` | HELD | 365 | zero credit |
+| `POST /api/payroll-runs/[id]/submit-review` | HELD | 365 | zero credit |
+| `GET /api/payroll-runs/[id]/variance` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/xendit-payout` | HELD | 340 | zero credit |
+| `GET /api/payroll-runs` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs` | HELD | 340 | zero credit |
 | `GET /api/reports` | CREDITED | 265 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
 | `GET /api/self/contribution-evidence` | CREDITED | 90 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381318) |
 | `POST /api/spend` | CREDITED | 179 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381511) |
 | `PATCH /api/spend` | CREDITED | 179 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381511) |
-| `GET /api/year-end` | CREDITED | 219 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381208) |
-| `POST /api/year-end` | CREDITED | 219 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381208) |
-| `GET /api/payroll-runs/[id]/pre-run-readiness` | CREDITED | 375 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136209381547) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008/job/136211984603) |
+| `GET /api/year-end` | HELD | 219 | zero credit |
+| `POST /api/year-end` | HELD | 219 | zero credit |
+| `GET /api/payroll-runs/[id]/pre-run-readiness` | HELD | 375 | zero credit |
 <!-- wage-renewal-v2:end -->
 
 > **HISTORICAL #2005 PG16 RENEWAL — SUPERSEDED BY #2006:** The original 75 method receipts below remain authentic evidence for the previous payroll engine only. The modified #2006 engine invalidates their current-source status; all 75 affected methods are GAP / zero-credit until fresh verification. This document does not authorize production or restore credits.
