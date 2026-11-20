@@ -86,19 +86,32 @@ export function fileEdges(file,source,exists=isFile){
  return [...edges];
 }
 
+/** Ledger validation: the tenant manifest, its documents and its receipts. A ledger file can make a proof job
+ * fail but cannot change what an HTTP proof demonstrated, so it is neither pinned nor followed. A file counts
+ * only when BOTH its path names it as ledger AND its source makes no request, opens no database, starts no
+ * process and imports no application source; anything else stays a pinned runtime input. */
+const LEDGER_PATH=/^(?:scripts\/qa\/[^/]*(?:credit|accounting|holds?|reconciliation|supersession|renewal|receipt|ledger|counts|repin)[^/]*\.mjs|tests\/(?:helpers\/)?[^/]*(?:coverage-inventory|credit|ledger|reconciliation|holds?|renewal|closure-plan|families|counts|repin|inventory)[^/]*\.mjs)$/;
+const NOT_LEDGER=/\bfetch\(|\bhttp\.request\(|new Pool\(|from ['"](?:pg|postgres)['"]|\b(?:spawn|spawnSync|fork)\(|execFileSync\(\s*process\.execPath|from ['"]@\/|from ['"](?:\.\.\/)+src\//;
+export const isLedgerSource=(file,source)=>LEDGER_PATH.test(file)&&!NOT_LEDGER.test(source);
+
 export function closure(roots,read=readFileSync,exists=isFile,cache=new Map()){
  const pins={},queue=[...roots];
  while(queue.length){
   const file=queue.shift().replaceAll('\\','/');
   if(Object.hasOwn(pins,file))continue;
   assert.ok(!file.startsWith('../')&&!path.isAbsolute(file),'Repository-local input required: '+file);
-  const raw=read(file),sha=blob(raw);pins[file]=sha;
+  // Bookkeeping is neither pinned nor followed: what it imports is ledger validation, not proof runtime.
+  // (An input a harness really executes is reached from that harness, never only through bookkeeping.)
+  if(V2_ACCOUNTING_ONLY.includes(file)){pins[file]=null;continue;}
+  const raw=read(file),sha=blob(raw);
+  if(isLedgerSource(file,raw.toString('utf8'))){pins[file]=null;continue;}
+  pins[file]=sha;
   if(!CODE.test(file))continue;
   const memo=file+'@'+sha;
   if(!cache.has(memo))cache.set(memo,fileEdges(file,raw.toString('utf8'),exists));
   queue.push(...cache.get(memo));
  }
- return Object.fromEntries(Object.entries(pins).sort(([a],[b])=>a.localeCompare(b)));
+ return Object.fromEntries(Object.entries(pins).filter(([,sha])=>sha!==null).sort(([a],[b])=>a.localeCompare(b)));
 }
 
 /** Every repository file the selected jobs of each proof family name, plus the family's own recipe workflow. */

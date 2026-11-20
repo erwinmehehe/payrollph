@@ -6,7 +6,9 @@ import {readWageRenewalInventory,INVENTORY_BLOB} from './wage-registry-renewal-p
 import {requiredWageFamilies,methodKey} from './wage-registry-renewal-methods.mjs';
 import {verifyWageFamilyResults} from './wage-registry-renewal-results.mjs';
 import {verifyCompleteWageMethod} from './wage-registry-renewal-complete.mjs';
-import {wageRenewalV2HoldView} from './wage-registry-renewal-v2.mjs';
+import {wageRenewalV2HoldView,WAGE_RENEWAL_V2_KIND} from './wage-registry-renewal-v2.mjs';
+/** A row renewed from a sealed wage-source receipt: v1 (#2005, 668-file union) or v2 (per-method closures). */
+export const isWageRenewalKind=kind=>kind==='wage-registry-current-source-pg16-http-renewal'||kind===WAGE_RENEWAL_V2_KIND;
 
 export const WAGE_RENEWAL_KIND='wage-registry-current-source-pg16-http-renewal';
 export const WAGE_RENEWAL_RECEIPT='scripts/qa/wage-registry-renewal-receipt.json';
@@ -194,7 +196,7 @@ export function wageRenewalHoldView(manifest,read=readFileSync){
  return view;
 }
 export function verifyWageRenewalMethod(manifest,path,verb,read=readFileSync){
- const row=rowAt(manifest,{path,verb});if(row?.testedBy?.kind!==WAGE_RENEWAL_KIND)return 0;
+ const row=rowAt(manifest,{path,verb});if(!isWageRenewalKind(row?.testedBy?.kind))return 0;
  wageRenewalHoldView(manifest,read);return 1;
 }
 export function hasWageRenewalReceipt(){return existsSync(WAGE_RENEWAL_RECEIPT)&&/^[a-f0-9]{40}$/.test(WAGE_RENEWAL_RECEIPT_BLOB);}

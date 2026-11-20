@@ -4,7 +4,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from './payroll-run-oracle-hold.mjs';
 import {payrollRenewalProofBuilder} from './payroll-run-credit-renewal-verify.mjs';
-import {wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
+import {wageRenewalHoldView,WAGE_RENEWAL_KIND,isWageRenewalKind} from './wage-registry-renewal-verify.mjs';
 const MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 const INVENTORY='docs/engineering/tenant-isolation-coverage-inventory.md';
 const PLAN='docs/engineering/tenant-isolation-closure-plan.md';
@@ -123,7 +123,7 @@ export function reconcilePayrollRenewal({write=false}={}){
   const source=JSON.parse(readFileSync(MANIFEST,'utf8'));
   const renewed=ORACLE_HELD_METHODS.filter(key=>{
     const at=key.indexOf(' '),path='src/app/api/'+key.slice(at+1)+'/route.ts';
-    return source.allApiRouteFiles[path].methods.find(row=>row.name===key.slice(0,at))?.testedBy?.kind===WAGE_RENEWAL_KIND;
+    return isWageRenewalKind(source.allApiRouteFiles[path].methods.find(row=>row.name===key.slice(0,at))?.testedBy?.kind);
   });
   if(renewed.length){
     wageRenewalHoldView(source);

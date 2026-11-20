@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import {ORACLE_HELD_METHODS,verifyOracleSourceHolds} from './payroll-run-oracle-hold.mjs';
 import {verifyWageRegistrySourceHold} from './wage-registry-source-hold.mjs';
-import {verifyWageRenewalMethod,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
+import {verifyWageRenewalMethod,WAGE_RENEWAL_KIND,isWageRenewalKind} from './wage-registry-renewal-verify.mjs';
 import {readWageRenewalInventory} from './wage-registry-renewal-plan.mjs';
 const FILE='scripts/qa/tenant-isolation-coverage-manifest.json';
 const blob=bytes=>createHash('sha1').update('blob '+Buffer.byteLength(bytes)+'\0').update(bytes).digest('hex');
@@ -31,7 +31,7 @@ export function zeroCreditSsoProofFixture(input){
       continue;
     }
     assert.equal(row.status,'COVERED','Only the exact nineteen existing renewals may be removed from this disposable fixture');
-    if(row.testedBy?.kind===WAGE_RENEWAL_KIND){
+    if(isWageRenewalKind(row.testedBy?.kind)){
       assert.equal(verifyWageRenewalMethod(m,file,verb),1);
       const captured=readWageRenewalInventory().methods.find(entry=>entry.path===file&&entry.verb===verb);
       assert.ok(captured,'Disposable fixture requires the exact captured withdrawal');

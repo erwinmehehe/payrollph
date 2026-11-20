@@ -7,16 +7,25 @@ import {methodKey} from '../scripts/qa/wage-registry-renewal-methods.mjs';
 import {ACCOUNTING_ONLY,wageRenewalHoldView} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import {V2_ACCOUNTING_ONLY,V2_GLOBAL_ROOTS,WAGE_RENEWAL_V2_KIND,WAGE_RENEWAL_V2_SCHEMA,WAGE_RENEWAL_V2_RECEIPT_BLOB,
  wageRenewalV2Drift,validateWageRenewalV2Closures,wageRenewalV2HoldView,verifyWageRenewalV2Rows} from '../scripts/qa/wage-registry-renewal-v2.mjs';
-import {closure,fileEdges,sealClosures} from '../scripts/qa/wage-registry-renewal-v2-capture.mjs';
+import {closure,fileEdges,sealClosures,isLedgerSource} from '../scripts/qa/wage-registry-renewal-v2-capture.mjs';
 import {extractLogRecords,jobIdentityByName,buildPackets} from '../scripts/qa/wage-registry-renewal-packets.mjs';
 
 const sha=text=>{const b=Buffer.from(text);return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');};
 const repo=files=>({read:f=>{if(!Object.hasOwn(files,f)){const e=new Error('ENOENT '+f);e.code='ENOENT';throw e;}return Buffer.from(files[f]);},exists:f=>Object.hasOwn(files,f)});
 
-test('v2 accounting scope is the v1 scope plus the three v2 bookkeeping files, nothing executable',()=>{
+test('v2 accounting scope is the v1 scope, three ledger reconcilers and the three v2 bookkeeping files, nothing that makes a request',()=>{
  assert.deepEqual(V2_ACCOUNTING_ONLY.slice(0,ACCOUNTING_ONLY.length),[...ACCOUNTING_ONLY]);
- assert.deepEqual(V2_ACCOUNTING_ONLY.slice(ACCOUNTING_ONLY.length),['scripts/qa/wage-registry-renewal-v2.mjs','scripts/qa/wage-registry-renewal-v2-capture.mjs','scripts/qa/wage-registry-renewal-packets.mjs']);
+ assert.deepEqual(V2_ACCOUNTING_ONLY.slice(ACCOUNTING_ONLY.length),[
+  'scripts/qa/payroll-run-credit-renewal.mjs','scripts/qa/payroll-run-sso-proof-fixture.mjs','scripts/qa/wage-registry-renewal-supersession.mjs',
+  'scripts/qa/wage-registry-renewal-v2.mjs','scripts/qa/wage-registry-renewal-v2-capture.mjs','scripts/qa/wage-registry-renewal-packets.mjs']);
  for(const f of V2_GLOBAL_ROOTS)assert.ok(!V2_ACCOUNTING_ONLY.includes(f));
+ // Bookkeeping validates the ledger; it must never be where an HTTP proof or a database write happens.
+ for(const f of V2_ACCOUNTING_ONLY){
+  // The generator names these calls in its own detection pattern and only runs `git ls-tree`.
+  if(f==='scripts/qa/wage-registry-renewal-v2-capture.mjs')continue;
+  const source=readFileSync(f,'utf8');
+  assert.doesNotMatch(source,/\bfetch\(|\bpg\b|new Pool\(|from ['"]postgres['"]|INSERT INTO|UPDATE [a-z_]+ SET/i,f+' must stay bookkeeping only');
+ }
 });
 
 test('closure follows runtime imports, skips erased type-only imports, follows launched scripts and fixtures',()=>{
@@ -30,6 +39,23 @@ test('closure follows runtime imports, skips erased type-only imports, follows l
  assert.deepEqual(Object.keys(closure(['src/a.ts'],read,exists)),['src/a.ts','src/b.ts','src/c.ts']);
  assert.deepEqual(Object.keys(closure(['scripts/run.mjs'],read,exists)),['fixtures/qa/key.pem','scripts/child.mjs','scripts/run.mjs']);
  assert.deepEqual(Object.keys(closure(['scripts/mentions.mjs'],read,exists)),['scripts/mentions.mjs'],'a path a non-launching script merely mentions is not an input');
+});
+
+test('ledger validation is neither pinned nor followed; a ledger-named file that runs anything stays a pinned input',()=>{
+ const {read,exists}=repo({
+  'scripts/qa/run-http.mjs':'import "./tenant-x-credit.mjs";\nimport "./tenant-y-credit.mjs";\nimport "./tenant-table-catalog.mjs";',
+  'scripts/qa/tenant-x-credit.mjs':'import "./only-ledger-needs-this.mjs";\nexport const ok=1;',
+  'scripts/qa/only-ledger-needs-this.mjs':'export {};',
+  'scripts/qa/tenant-y-credit.mjs':'export const r=await fetch("http://127.0.0.1");',
+  'scripts/qa/tenant-table-catalog.mjs':'export const rows=[];',
+ });
+ assert.deepEqual(Object.keys(closure(['scripts/qa/run-http.mjs'],read,exists)),
+  ['scripts/qa/run-http.mjs','scripts/qa/tenant-table-catalog.mjs','scripts/qa/tenant-y-credit.mjs']);
+ assert.equal(isLedgerSource('tests/tenant-isolation-coverage-inventory.test.mjs','assert.ok(1)'),true);
+ assert.equal(isLedgerSource('tests/tenant-x-credit.test.mjs','import {x} from "@/lib/payroll-engine"'),false,'application source makes it runtime');
+ assert.equal(isLedgerSource('scripts/qa/tenant-x-credit.mjs','spawnSync(process.execPath,["a"])'),false,'launching a process makes it runtime');
+ assert.equal(isLedgerSource('scripts/qa/tenant-x-credit.mjs','new Pool({})'),false,'a database makes it runtime');
+ assert.equal(isLedgerSource('scripts/qa/tenant-second-pass-http.mjs',''),false,'an HTTP harness is never ledger by name');
 });
 
 test('(v) an unresolvable local import and (vi) an unreviewed non-literal dynamic load fail generation',()=>{
