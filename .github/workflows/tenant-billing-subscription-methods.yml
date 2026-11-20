@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - "package-lock.json"
       - ".github/workflows/tenant-billing-subscription-methods.yml"
       - "scripts/qa/tenant-billing-subscription-provider-preload.mjs"
       - "scripts/qa/tenant-billing-subscription-http.mjs"
