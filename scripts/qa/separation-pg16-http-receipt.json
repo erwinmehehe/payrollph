@@ -1,40 +1,47 @@
 {
   "schema": "payrollph-separation-pg16-http-receipt-v1",
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
-  "base": "52133c136affa635f05cf353f1669ede47777b1c",
-  "head": "e6926ce10de2aaa4ccf39a8b25548126733f0744",
-  "sourceTree": "40f6b087c72438902c037ab7dcc7b5eca7d69d08",
+  "base": "a5a96c9158c586697a3a95a44569ff4da0409a1d",
+  "head": "b56c7ea85a03ff049f7bca1be2706ea2196e474c",
+  "sourceTree": "fc8c59e0de82e45f7da17444c81499a4bafc5803",
   "postgresMajor": 16,
   "transport": "localhost-http",
   "sourcePins": {
-    "src/app/api/separation/route.ts": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+    "src/app/api/separation/route.ts": "8d7f6772cd2cb9298043cd646aa8883242dd5b84",
     "scripts/qa/payroll-approved-exit-http.mjs": "85832346e2a260efe2d9af008209af11a3331836",
     "scripts/qa/final-pay-prior-employer-http.mjs": "f72e1f7e5a555328d1a0ae4a0f6a34c82dc1c3d8",
     "scripts/qa/tenant-2316-ssr-transfer-http.mjs": "281d1a94bcfa1bee7eace8b8b6437c80972082b6",
     ".github/workflows/payroll-e2e-fictional.yml": "04a4fc473771bce9a59d267d75a27e4189bb980c",
     ".github/workflows/final-pay-prior-employer-http.yml": "07402e85918dd0ee900e74329729049c8d694d9d",
     ".github/workflows/tenant-2316-ssr-transfer-qa.yml": "875d698563e690d95ecae7a97af25f21a88e5304",
-    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2"
+    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2",
+    "src/lib/final-pay.ts": "271a2c70171a6d40190b4dc495a57d5534982b5b",
+    "src/lib/payroll-rules.ts": "17866ecd6ce02b8a966ec3baf59d7462e7af35c4",
+    "src/lib/multi-entity-server.ts": "f38a8bb77a5026d581d4a92b22533fc879ea7e00",
+    "src/lib/final-pay-prior-employer-server.ts": "fe30da71932ec42d6302232891f0f1abd89c1abc",
+    "src/lib/final-pay-imported-de-minimis.ts": "c6b46171120b3277ca2556489b8287c8f23b5894",
+    "src/lib/final-pay-source-fingerprint.ts": "8f24ca3e96f9f63182dd9d26c6d07516d6bd6b3d",
+    "src/lib/year-end.ts": "45a78b13cd0f040e021da7b734cceb2c76d2d3c6"
   },
   "evidence": [
     {
       "name": "form2316-ssr-transfer",
-      "jobId": 135994739869,
-      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794845/job/135994739869",
+      "jobId": 136199362605,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44710112174/job/136199362605",
       "httpStep": "Prove actual 2316 same-parent isolation and transfer/revocation with fictional PG16",
       "conclusion": "success"
     },
     {
       "name": "fictional-flag-on-separation",
-      "jobId": 135994732929,
-      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794813/job/135994732929",
+      "jobId": 136199363190,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44710112371/job/136199363190",
       "httpStep": "Real authenticated flag-ON/OFF Separation HTTP, same-org foreign denial, three-actor fictional release",
       "conclusion": "success"
     },
     {
       "name": "Disposable PG16 fictional payroll",
-      "jobId": 135994719019,
-      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794893/job/135994719019",
+      "jobId": 136199363527,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44710112315/job/136199363527",
       "httpStep": "Real Separation POST through ordinary payroll and final-pay recomputation",
       "conclusion": "success"
     }
@@ -42,31 +49,35 @@
   "methods": {
     "GET": {
       "evidenceJobs": [
-        135994739869,
-        135994732929,
-        135994719019
+        136199362605,
+        136199363190,
+        136199363527
       ],
       "result": "PASS",
       "scope": "Authorized listing, organization and legal-employer scope, retained historical visibility after transfer."
     },
     "POST": {
       "evidenceJobs": [
-        135994732929,
-        135994719019
+        136199363190,
+        136199363527
       ],
       "result": "PASS",
       "scope": "Authorized creation, organization and same-workspace denial, and the entire separation table unchanged immediately after the same-workspace denial."
     },
     "PATCH": {
       "evidenceJobs": [
-        135994739869,
-        135994732929,
-        135994719019
+        136199362605,
+        136199363190,
+        136199363527
       ],
       "result": "PASS",
       "scope": "Authorized clearance and approval, legal-employer denial, frozen records after transfer and unchanged captured state."
     }
   },
   "independentTaxAndSecurityReview": "PENDING",
-  "coverageCredits": 0
+  "coverageCredits": 0,
+  "fullPg16Suite": {
+    "jobId": 136199363527,
+    "conclusion": "success"
+  }
 }

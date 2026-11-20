@@ -1,5 +1,6 @@
 import {TIMESHEET_ROUTE} from './timesheet-source-accounting.mjs';
 import {verifyTimesheetRenewal} from './timesheet-employer-credit.mjs';
+import {separationRoute,verifySeparationRenewal} from './separation-pg16-credit.mjs';
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from './tenant-xendit-post-credit.mjs';
 import {verifyMkt01Credit} from './tenant-mkt01-marketing-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from './tenant-approvals-credit.mjs';
@@ -167,6 +168,8 @@ export function verifyInvitationAcceptCredits(m) {
       // The one other promotion allowed on top of the merged invitation credits is the separately sealed BIR candidate POST, and
       // only with its own provisional, unaccepted receipt (its exact pins are verified by the inventory test's dedicated test).
       const timesheetPromotions = promoted.filter(key => key === "GET " + TIMESHEET_ROUTE || key === "POST " + TIMESHEET_ROUTE);
+      const separationPromotions = promoted.filter(key => key.endsWith(" " + separationRoute));
+      if (separationPromotions.length) assert.equal(separationPromotions.length, verifySeparationRenewal(m));
       if (timesheetPromotions.length) assert.equal(timesheetPromotions.length, verifyTimesheetRenewal(m));
       const birPath = "src/app/api/bir/annual-employer/candidate/route.ts";
       const birPromotions = promoted.filter(key => key === "POST " + birPath);
@@ -242,7 +245,7 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(verifyMkt01Credit(m),1,
           "Only the executed source-sealed MKT-01 operator GET credit may coexist");
       }
-      assert.deepEqual(promoted, [...timesheetPromotions,...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...oidcStartPromotions,...xenditPromotions,...mkt01Promotions,...payrollRenewals].sort(),
+      assert.deepEqual(promoted, [...separationPromotions,...timesheetPromotions,...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...oidcStartPromotions,...xenditPromotions,...mkt01Promotions,...payrollRenewals].sort(),
         "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.
