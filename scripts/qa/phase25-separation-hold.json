@@ -301,7 +301,7 @@
   },
   "sourcePins": {
     "src/app/api/separation/route.ts": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
-    "src/lib/final-pay.ts": "874cd5aaa30eabdad9f12bf9cca4f0224aa18fe6",
+    "src/lib/final-pay.ts": "271a2c70171a6d40190b4dc495a57d5534982b5b",
     "src/lib/final-pay-source-fingerprint.ts": "1d37b893650b552935c5a44c067359a98e8d3297",
     "scripts/qa/payroll-approved-exit-http.mjs": "85832346e2a260efe2d9af008209af11a3331836"
   }
