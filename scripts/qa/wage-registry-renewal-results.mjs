@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {assertAcceptedReceipt,assertRejectedReceipt} from './tenant-filing-patch-method-contract.mjs';
 
-const terminals={
+export const terminals={
  security:/SYNTHETIC_REAL_HTTP_ONLY/,
  dl02:/SYNTHETIC_REAL_HTTP_ONLY/,
  table:/tenant-table-proof/,

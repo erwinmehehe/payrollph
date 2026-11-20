@@ -1,6 +1,7 @@
 /** Current-source zero-credit checks. Never project an archived receipt as live proof. */
 import assert from 'node:assert/strict';
 import {wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
+import {WAGE_RENEWAL_V2_KIND} from './wage-registry-renewal-v2.mjs';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {WAGE_PROOF_SOURCE,WATCH_PROOF_SOURCE,PRIOR_WAGE_BLOB_SHA,PRIOR_WATCH_BLOB_SHA,NEW_WAGE_BLOB_SHA,verifyAllWageRegistrySourceHolds} from './wage-registry-source-hold.mjs';
@@ -35,7 +36,7 @@ export function verifiedWageCreditHolds(manifest,read=readFileSync){
 export function protectedWageCreditKeys(manifest,read=readFileSync){
  const held=verifiedWageCreditHolds(manifest,read);
  for(const [path,file]of Object.entries(manifest.allApiRouteFiles))for(const row of file.methods)
-  if(row.testedBy?.kind===WAGE_RENEWAL_KIND)held.add(row.name+' '+path);
+  if(row.testedBy?.kind===WAGE_RENEWAL_KIND||row.testedBy?.kind===WAGE_RENEWAL_V2_KIND)held.add(row.name+' '+path);
  return held;
 }
 

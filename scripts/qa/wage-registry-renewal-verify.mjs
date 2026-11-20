@@ -6,6 +6,7 @@ import {readWageRenewalInventory,INVENTORY_BLOB} from './wage-registry-renewal-p
 import {requiredWageFamilies,methodKey} from './wage-registry-renewal-methods.mjs';
 import {verifyWageFamilyResults} from './wage-registry-renewal-results.mjs';
 import {verifyCompleteWageMethod} from './wage-registry-renewal-complete.mjs';
+import {wageRenewalV2HoldView} from './wage-registry-renewal-v2.mjs';
 
 export const WAGE_RENEWAL_KIND='wage-registry-current-source-pg16-http-renewal';
 export const WAGE_RENEWAL_RECEIPT='scripts/qa/wage-registry-renewal-receipt.json';
@@ -99,8 +100,9 @@ export function qualifiedWageMethods(families,inventory=readWageRenewalInventory
 }
 
 /** Validates raw results; source/receipt seals are separately mandatory. */
-export function validateWageReceiptResults(receipt){
- assert.equal(receipt.schema,'payrollph-wage-source-pg16-renewal-v1');
+export function validateWageReceiptResults(receipt,schema='payrollph-wage-source-pg16-renewal-v1'){
+ assert.ok(['payrollph-wage-source-pg16-renewal-v1','payrollph-wage-source-pg16-renewal-v2'].includes(schema),'Unknown renewal receipt schema');
+ assert.equal(receipt.schema,schema);
  assert.equal(receipt.label,'SOLO_VERIFIED_DEV_RECOVERY');
  assert.equal(receipt.inventoryBlobSha,INVENTORY_BLOB);
  for(const key of ['productionAccepted','independentlyAccepted','liveActivation'])assert.equal(receipt[key],false);
@@ -173,6 +175,8 @@ export function wageRenewalRow(entry,receipt){
 }
 /** Strict ledger projection for old withdrawal/history tests, never HTTP acceptance. */
 export function wageRenewalHoldView(manifest,read=readFileSync){
+ // v2 rows (per-method closure receipt) are verified and projected first; v1 rows follow unchanged.
+ manifest=wageRenewalV2HoldView(manifest,read);
  const candidates=Object.entries(manifest.allApiRouteFiles).flatMap(([path,file])=>file.methods
   .filter(row=>row.testedBy?.kind===WAGE_RENEWAL_KIND||row.historicalWageSourceWithdrawal)
   .map(row=>({path,row})));
