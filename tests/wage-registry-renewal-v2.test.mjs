@@ -114,9 +114,11 @@ test('no v2 rows: the hold views are identity; a forged v2 row cannot be project
 test('log extraction keeps one-line and pretty-printed JSON results, PASS lines and TENANT_ env echoes',()=>{
  const log=['2026-11-17T00:12:53.9276892Z ##[group]Run node x','2026-11-17T00:12:53.9Z   TENANT_DL02_PROOF: isolated-ci-only',
   '2026-11-17T00:12:54.0Z {"kind":"one","n":1}','2026-11-17T00:12:54.1Z {','2026-11-17T00:12:54.1Z   "kind": "pretty",','2026-11-17T00:12:54.1Z   "rows": [1, 2]','2026-11-17T00:12:54.1Z }',
-  '2026-11-17T00:12:55.0Z PASS anonymous visibility /api/health','2026-11-17T00:12:55.0Z {not json'].join('\n');
+  '2026-11-17T00:12:55.0Z PASS anonymous visibility /api/health','2026-11-17T00:12:55.0Z {not json',
+  '2026-11-17T00:09:10.2Z PAYROLL_RUN_ORACLE_PASS {"methods":19}','2026-11-17T00:25:29.2Z # {"kind":"tap"}',
+  '2026-11-17T00:25:29.3Z lowercase prefix {"kind":"ignored"}'].join('\n');
  const r=extractLogRecords(log);
- assert.deepEqual(r.json,[{kind:'one',n:1},{kind:'pretty',rows:[1,2]}]);
+ assert.deepEqual(r.json,[{kind:'one',n:1},{kind:'pretty',rows:[1,2]},{methods:19},{kind:'tap'}]);
  assert.equal(r.env.TENANT_DL02_PROOF,'isolated-ci-only');
  assert.ok(r.lines.includes('PASS anonymous visibility /api/health'));
  assert.doesNotThrow(()=>new Function('return '+extractLogRecords.toString())(),'the extractor must run unchanged in a browser');

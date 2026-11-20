@@ -23,10 +23,12 @@ export function extractLogRecords(text){
   const t=lines[i].trim();
   const m=/^(TENANT_[A-Z0-9_]+): (.+)$/.exec(t);if(m&&!(m[1]in env))env[m[1]]=m[2].trim();
   if(/(?:^|\b)PASS\b|SYNTHETIC_REAL_HTTP_ONLY|tenant-|HTTP|isolat/i.test(t)&&t.length<=600)keep.push(lines[i]);
-  if(!t.startsWith('{'))continue;
+  // A result is printed bare, after a TAP comment marker ("# {...}") or after an UPPER_CASE token ("X_PASS {...}").
+  const p=/^(?:# |[A-Z][A-Z0-9_]*(?: [A-Z0-9_]+)* )?(\{.*)$/.exec(t);
+  if(!p)continue;
   let buffer='',done=false;
   for(let j=i;j<lines.length&&j<i+4000;j++){
-   buffer+=(j===i?t:'\n'+lines[j]);
+   buffer+=(j===i?p[1]:'\n'+lines[j]);
    if(!/[}\]]\s*$/.test(lines[j]))continue;
    try{const value=JSON.parse(buffer);if(value&&typeof value==='object'&&!Array.isArray(value)){json.push(value);i=j;}done=true;break;}catch{/* keep reading */}
   }
