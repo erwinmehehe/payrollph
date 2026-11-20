@@ -15,18 +15,20 @@ export type WageOrder = {
 };
 
 /**
- * Current private-sector regional wage screening references verified as of
- * 2026-11-16 against official NWPC/RTWPB sources:
+ * Current private-sector regional wage screening references checked as of
+ * 2026-11-20 against official NWPC/RTWPB sources:
  * - NWPC regional private-sector summary dated 2026-11-06:
  *   https://nwpc.dole.gov.ph/wp-content/uploads/2026/11/4-Summary-of-Current-Regl-MWRs-Non-Agri-and-Agri-by-Region-November-6_2026.pdf
- * - NWPC 2026-10-06 archived official summary for VI-29 and XII-25
- *   rates still effective before the later published orders begin:
+ * - NWPC 2026-10-06 archived official summary for historical VI-29
+ *   and the XII-25 rate effective before the next order:
  *   https://nwpc.dole.gov.ph/wp-content/uploads/2026/10/Summary-of-Current-Regl-MWRs-Non-Agri-and-Agri-by-Region-Oct_6_2026.pdf
+ * - NWPC Region VI current rate/order VI-(WESTERN VISAYAS)-30, 2026-11-20:
+ *   https://nwpc.dole.gov.ph/region-vi/
+ *   https://nwpc.dole.gov.ph/western-visayas-soccsksargen-private-sector-workers-kasambahays-to-receive-wage-increases/
  * - Region IV-A operative table (IVA-23, 2026-10-26):
  *   https://nwpc.dole.gov.ph/region-iva/
- * - Region VI and XII tables (new orders effective 2026-11-20 and
- *   2026-11-22 respectively, NOT active at this verification date):
- *   https://nwpc.dole.gov.ph/region-vi/
+ * - Region XII official table: new order effective 2026-11-22,
+ *   NOT yet active on this 2026-11-20 review date:
  *   https://nwpc.dole.gov.ph/region-xii/
  * - Region VII ROVII-27 official NWPC publication (2026-10-14):
  *   https://nwpc.dole.gov.ph/central-visayas-workers-set-to-receive-%E2%82%B142-minimum-wage-increase-wage-review-in-other-regions-ongoing/
@@ -39,10 +41,9 @@ export type WageOrder = {
  * category is known.
  *
  * For tranches, effectiveOn is the date the stored high-tier rate became
- * effective. Future tranches are intentionally excluded; announced VI-30
- * (2026-11-20), XII-26 (2026-11-22), and V/BARMM second tranches
- * (2026-12-01) are NOT active in this 2026-11-16 snapshot.
- * Historical IV-A/VII high tiers are retained for dated screening.
+ * effective. VI-30 is active from 2026-11-20; XII-26 (2026-11-22)
+ * and V/BARMM second tranches (2026-12-01) are not yet active.
+ * Historical IV-A/VI/VII high tiers are retained for dated screening.
  *
  * MWE classification is explicit on the employee record. A rate below this
  * screening reference may raise a human-review flag, but never changes MWE
@@ -57,7 +58,7 @@ export const WAGE_ORDERS: WageOrder[] = [
   { region: "IV-A", dailyRate: 645, wageOrder: "WO-IVA-23", effectiveOn: "2026-10-26", verified: true },
   { region: "IV-B", dailyRate: 455, wageOrder: "WO-RB-MIMAROPA-13", effectiveOn: "2026-01-01", verified: true },
   { region: "V", dailyRate: 455, wageOrder: "WO-RBV-23", effectiveOn: "2026-04-08", verified: true },
-  { region: "VI", dailyRate: 550, wageOrder: "WO-RBVI-29", effectiveOn: "2025-11-19", verified: true },
+  { region: "VI", dailyRate: 590, wageOrder: "WO-RBVI-30", effectiveOn: "2026-11-20", verified: true },
   { region: "VII", dailyRate: 582, wageOrder: "WO-ROVII-27", effectiveOn: "2026-10-14", verified: true },
   { region: "VIII", dailyRate: 470, wageOrder: "WO-RB VIII-25", effectiveOn: "2026-06-01", verified: true },
   { region: "IX", dailyRate: 464, wageOrder: "WO-RIX-24", effectiveOn: "2026-06-01", verified: true },
@@ -78,7 +79,29 @@ export const WAGE_ORDERS: WageOrder[] = [
  * exact locality is not established. It is a conservative REVIEW FLAG only,
  * never a salary adjustment or a claim about the employee's legal wage tier.
  */
+/**
+ * NWPC Wage Order VI-(WESTERN VISAYAS)-30, issued 2026-10-21, published
+ * 2026-11-04, effective 2026-11-20. The exact employer/worker category must
+ * be verified: >10-worker nonagri/industrial/commercial = PHP 590,
+ * <=10-worker nonagri = PHP 565, agriculture = PHP 565.
+ * These screens do not grant/refuse wage-order exemptions or alter payroll.
+ * Source: https://nwpc.dole.gov.ph/region-vi/
+ */
+export type RegionVIWageClass = "nonagri_gt10" | "nonagri_le10" | "agriculture";
+export const REGION_VI_WAGE_TIERS = [
+  { wageClass: "nonagri_gt10", label: "Non-agriculture/industrial/commercial; more than 10 workers",
+    oldDailyRate: 550, newDailyRate: 590 },
+  { wageClass: "nonagri_le10", label: "Non-agriculture/industrial/commercial; 10 workers or fewer",
+    oldDailyRate: 525, newDailyRate: 565 },
+  { wageClass: "agriculture", label: "Agriculture",
+    oldDailyRate: 520, newDailyRate: 565 },
+] as const;
+export const RBVI30_EFFECTIVE_ON = "2026-11-20";
+export const RBVI29_EFFECTIVE_ON = "2025-11-19";
+export const RBVI30_SOURCE_URL = "https://nwpc.dole.gov.ph/region-vi/";
+
 export type RegionVIIWageClass = "A" | "B";
+export type RegionalWageClass = RegionVIWageClass | RegionVIIWageClass;
 export const REGION_VII_WAGE_TIERS = [
   {
     wageClass: "A",
@@ -103,6 +126,7 @@ export const ROVII27_SOURCE_URL =
  */
 export const HISTORICAL_WAGE_ORDERS: WageOrder[] = [
   { region: "IV-A", dailyRate: 600, wageOrder: "WO-IVA-22", effectiveOn: "2025-10-05", verified: true },
+  { region: "VI", dailyRate: 550, wageOrder: "WO-RBVI-29", effectiveOn: RBVI29_EFFECTIVE_ON, verified: true },
   { region: "VII", dailyRate: 540, wageOrder: "WO-ROVII-26", effectiveOn: "2025-10-04", verified: true },
 ];
 
@@ -126,11 +150,11 @@ function verifiedWageDate(value: string): string {
 }
 
 /**
- * Exact Region VII wage-class resolution is opt-in and requires explicit
+ * Region VI and VII wage-class resolution is opt-in and requires explicit
  * employer classification; region-only callers retain the highest tier as an
- * advisory screening reference. No rates take effect before 2026-10-14.
+ * advisory screening reference. No rate silently changes an employee salary.
  */
-export function wageOrderFor(region: string, asOfDate?: string, wageClass?: RegionVIIWageClass): WageOrder {
+export function wageOrderFor(region: string, asOfDate?: string, wageClass?: RegionalWageClass): WageOrder {
   const normalized = region.trim().toUpperCase();
   const order = WAGE_ORDERS.find((row) => row.region === normalized);
   if (!order) {
@@ -138,8 +162,23 @@ export function wageOrderFor(region: string, asOfDate?: string, wageClass?: Regi
   }
   const date = asOfDate === undefined ? null : verifiedWageDate(asOfDate);
   if (wageClass !== undefined) {
+    if (normalized === "VI") {
+      const tier = REGION_VI_WAGE_TIERS.find((item) => item.wageClass === wageClass);
+      if (!tier) throw new Error("Invalid Region VI wage class; select a verified sector and size.");
+      if (date !== null && date < RBVI29_EFFECTIVE_ON) {
+        throw new Error(`No verified wage-order history for Region VI on ${date}.`);
+      }
+      const active = date === null || date >= RBVI30_EFFECTIVE_ON;
+      return {
+        region: "VI",
+        dailyRate: active ? tier.newDailyRate : tier.oldDailyRate,
+        wageOrder: active ? "WO-RBVI-30" : "WO-RBVI-29",
+        effectiveOn: active ? RBVI30_EFFECTIVE_ON : RBVI29_EFFECTIVE_ON,
+        verified: true,
+      };
+    }
     if (normalized !== "VII") {
-      throw new Error("Wage Class A/B may only be selected for Region VII.");
+      throw new Error("A regional wage class may only be selected for Region VI or VII.");
     }
     const tier = REGION_VII_WAGE_TIERS.find((item) => item.wageClass === wageClass);
     if (!tier) throw new Error("Invalid Region VII wage class; choose A or B.");
@@ -183,7 +222,7 @@ export function requireExplicitWageRegion(value: unknown): string {
 }
 
 export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMonth = 22,
-  asOfDate?: string, wageClass?: RegionVIIWageClass) {
+  asOfDate?: string, wageClass?: RegionalWageClass) {
   if (!Number.isFinite(monthlyBasic) || monthlyBasic < 0 || !Number.isFinite(daysPerMonth) || daysPerMonth <= 0) {
     throw new Error("Wage screening requires a non-negative monthly rate and positive working days per month.");
   }
@@ -208,7 +247,7 @@ export function wageScreenForWorkPeriod(
   daysPerMonth: number,
   periodStart: string,
   periodEnd: string,
-  wageClass?: RegionVIIWageClass,
+  wageClass?: RegionalWageClass,
 ) {
   const start = verifiedWageDate(periodStart);
   const end = verifiedWageDate(periodEnd);
