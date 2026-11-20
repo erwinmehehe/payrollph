@@ -116,6 +116,8 @@ jobs:
         run: |
           node --check scripts/qa/tenant-2316-ssr-transfer-contract.mjs
           node --check scripts/qa/tenant-2316-ssr-transfer-http.mjs
+          node --test tests/tenant-2316-ssr-transfer.test.mjs
+          node --test tests/tenant-prior-2316-post-final-pay.test.mjs
           node --import tsx --test tests/tenant-2316-legal-employer-worker.test.ts
       - name: Generate disposable encryption keys
         shell: bash
@@ -146,8 +148,6 @@ jobs:
         env:
           NODE_ENV: production
         run: node --import tsx scripts/qa/tenant-2316-ssr-transfer-http.mjs
-      - name: Verify source pins, denial controls, and coverage accounting
-        run: node --test tests/tenant-2316-ssr-transfer.test.mjs tests/tenant-prior-2316-post-final-pay.test.mjs
       - name: Bounded server log on failure
         if: failure()
         run: tail -n 80 /tmp/tenant-2316-ssr-transfer.log || true
