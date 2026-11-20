@@ -17,6 +17,7 @@ on:
       - "src/lib/approved-exit-payroll.ts"
       - "src/app/api/separation/route.ts"
       - "scripts/qa/payroll-approved-exit-http.mjs"
+      - "scripts/qa/final-pay-prior-employer-http.mjs"
       - "src/lib/payroll-journal-export.ts"
       - ".github/workflows/payroll-e2e-fictional.yml"
 permissions:

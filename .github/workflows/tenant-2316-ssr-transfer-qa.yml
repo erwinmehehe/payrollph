@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/payroll-e2e-fictional.yml'
+      - 'scripts/qa/final-pay-prior-employer-http.mjs'
       - "src/app/workspace/prior-employer/page.tsx"
       - "src/components/workspace/year-end-prior-review.tsx"
       - "src/components/workspace/certificate-2316-review.tsx"
