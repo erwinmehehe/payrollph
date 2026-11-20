@@ -24,9 +24,7 @@ export function verifyHistoricalSecurityCredits(manifest){
 export function copyDocumentHoldInputs(root){
  protectedDocumentCreditKeys(live());
  const archive=sourceHoldArchive();
- const receipt=JSON.parse(readFileSync('scripts/qa/separation-pg16-http-receipt.json','utf8'));
- const paths=new Set([...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),...Object.keys(receipt.sourcePins)]);
- for(const file of paths) {
+ for(const variant of archive.variants)for(const file of Object.keys(variant.sourcePins)) {
   mkdirSync(dirname(join(root,file)),{recursive:true});cpSync(file,join(root,file));
  }
 }

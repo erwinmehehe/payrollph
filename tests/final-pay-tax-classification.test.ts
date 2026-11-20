@@ -358,7 +358,7 @@ test("final-pay review CSV surfaces tax split and evidence, including safe formu
 });
 
 
-test("Phase 7 separation source re-inventory preserves the hold and admits only sealed renewals", async () => {
+test("Phase 7 separation source re-inventory preserves existing tenant evidence, no new credits", () => {
   const path = "src/app/api/separation/route.ts";
   const sourceBytes = readFileSync(path);
   const fingerprint = createHash("sha1")
@@ -382,14 +382,9 @@ test("Phase 7 separation source re-inventory preserves the hold and admits only 
   assert.equal(review.exactHeadFullSuite, "PENDING");
   assert.equal(review.independentPhilippineTaxAndSecurityReview, "PENDING");
   assert.equal(review.productionCertified, false);
-  const { hasSeparationPromotions, verifySeparationRenewal } = await import("../scripts/qa/separation-pg16-credit.mjs");
-  if (hasSeparationPromotions(record)) {
-    assert.equal(verifySeparationRenewal(manifest), 3);
-  } else {
-    assert.deepEqual(record.methods.map((m: { name: string; status: string }) => [m.name, m.status]),
-      [["GET", "GAP"], ["POST", "GAP"], ["PATCH", "GAP"]],
-      "Phase 25 holds separation methods until renewed HTTP evidence");
-  }
+  assert.deepEqual(record.methods.map((m: { name: string; status: string }) => [m.name, m.status]),
+    [["GET", "GAP"], ["POST", "GAP"], ["PATCH", "GAP"]],
+    "Phase 25 holds separation methods until renewed HTTP evidence");
   const tenantProof = readFileSync(review.priorTenantIsolationHttpProof, "utf8");
   for (const token of [
     "Actual Separation POST creates package", "Owned Separation GET",

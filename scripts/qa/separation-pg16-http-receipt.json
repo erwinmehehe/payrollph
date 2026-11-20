@@ -1,9 +1,9 @@
 {
   "schema": "payrollph-separation-pg16-http-receipt-v1",
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
-  "base": "c7cf9a12e8d217c3fc336b51c4a7e9f585e1a6c1",
-  "head": "84a25ec15bd9e246fde606f689bdbeddb0ee2523",
-  "sourceTree": "90747c06786db7c4f852eaef306090ada4836533",
+  "base": "52133c136affa635f05cf353f1669ede47777b1c",
+  "head": "e6926ce10de2aaa4ccf39a8b25548126733f0744",
+  "sourceTree": "40f6b087c72438902c037ab7dcc7b5eca7d69d08",
   "postgresMajor": 16,
   "transport": "localhost-http",
   "sourcePins": {
@@ -14,31 +14,27 @@
     ".github/workflows/payroll-e2e-fictional.yml": "04a4fc473771bce9a59d267d75a27e4189bb980c",
     ".github/workflows/final-pay-prior-employer-http.yml": "07402e85918dd0ee900e74329729049c8d694d9d",
     ".github/workflows/tenant-2316-ssr-transfer-qa.yml": "875d698563e690d95ecae7a97af25f21a88e5304",
-    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2",
-    "src/lib/final-pay.ts": "271a2c70171a6d40190b4dc495a57d5534982b5b",
-    "src/lib/payroll-rules.ts": "17866ecd6ce02b8a966ec3baf59d7462e7af35c4",
-    "src/lib/multi-entity-server.ts": "f38a8bb77a5026d581d4a92b22533fc879ea7e00",
-    "src/lib/final-pay-prior-employer-server.ts": "fe30da71932ec42d6302232891f0f1abd89c1abc"
+    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2"
   },
   "evidence": [
     {
       "name": "form2316-ssr-transfer",
-      "jobId": 136076969624,
-      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44672648054/job/136076969624",
+      "jobId": 135994739869,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794845/job/135994739869",
       "httpStep": "Prove actual 2316 same-parent isolation and transfer/revocation with fictional PG16",
       "conclusion": "success"
     },
     {
       "name": "fictional-flag-on-separation",
-      "jobId": 136076970353,
-      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44672648322/job/136076970353",
+      "jobId": 135994732929,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794813/job/135994732929",
       "httpStep": "Real authenticated flag-ON/OFF Separation HTTP, same-org foreign denial, three-actor fictional release",
       "conclusion": "success"
     },
     {
       "name": "Disposable PG16 fictional payroll",
-      "jobId": 136076970344,
-      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44672648125/job/136076970344",
+      "jobId": 135994719019,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794893/job/135994719019",
       "httpStep": "Real Separation POST through ordinary payroll and final-pay recomputation",
       "conclusion": "success"
     }
@@ -46,35 +42,31 @@
   "methods": {
     "GET": {
       "evidenceJobs": [
-        136076969624,
-        136076970353,
-        136076970344
+        135994739869,
+        135994732929,
+        135994719019
       ],
       "result": "PASS",
       "scope": "Authorized listing, organization and legal-employer scope, retained historical visibility after transfer."
     },
     "POST": {
       "evidenceJobs": [
-        136076970353,
-        136076970344
+        135994732929,
+        135994719019
       ],
       "result": "PASS",
       "scope": "Authorized creation, organization and same-workspace denial, and the entire separation table unchanged immediately after the same-workspace denial."
     },
     "PATCH": {
       "evidenceJobs": [
-        136076969624,
-        136076970353,
-        136076970344
+        135994739869,
+        135994732929,
+        135994719019
       ],
       "result": "PASS",
       "scope": "Authorized clearance and approval, legal-employer denial, frozen records after transfer and unchanged captured state."
     }
   },
   "independentTaxAndSecurityReview": "PENDING",
-  "coverageCredits": 0,
-  "fullPg16Suite": {
-    "jobId": 136076970344,
-    "conclusion": "success"
-  }
+  "coverageCredits": 0
 }

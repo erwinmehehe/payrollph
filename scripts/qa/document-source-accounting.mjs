@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {hasSeparationPromotions,separationRoute,verifySeparationRenewal} from './separation-pg16-credit.mjs';
 export const DOCUMENT_ACCOUNTING_ARCHIVE='scripts/qa/document-source-accounting-archive.json';
 export const DOCUMENT_ACCOUNTING_BLOB='b3ccc93613bce6b9ee6ec3dd32b074f7a7befa13';
 const blob=b=>{const raw=Buffer.from(b);return createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex');};
@@ -25,10 +24,6 @@ export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
  const archive=sourceHoldArchive(read);
  let count=0;
  for(const variant of archive.variants){
-  if(variant.name==='phase25-separation'&&hasSeparationPromotions(manifest.allApiRouteFiles[separationRoute])){
-   verifySeparationRenewal(manifest,read);
-   continue;
-  }
   const active=activeVariant(manifest,variant);
   if(!active)continue;
   for(const [path,expected]of Object.entries(variant.records)){
@@ -52,7 +47,6 @@ export function reviewedDocumentSourceWithdrawals(before,after,read=readFileSync
  reviewedDocumentSourceHoldCount(after,read);
  const archive=sourceHoldArchive(read),keys=new Set();
  for(const variant of archive.variants){
-  if(variant.name==='phase25-separation'&&hasSeparationPromotions(after.allApiRouteFiles[separationRoute]))continue;
   if(!activeVariant(after,variant))continue;
   for(const [path,expected]of Object.entries(variant.records)){
   const file=after.allApiRouteFiles[path];
@@ -77,7 +71,6 @@ export function protectedDocumentCreditKeys(manifest,read=readFileSync){
  reviewedDocumentSourceHoldCount(manifest,read);
  const archive=sourceHoldArchive(read),keys=new Set();
  for(const variant of archive.variants){
-  if(variant.name==='phase25-separation'&&hasSeparationPromotions(manifest.allApiRouteFiles[separationRoute]))continue;
   if(!activeVariant(manifest,variant))continue;
   for(const [path,file]of Object.entries(variant.records))for(const row of file.methods)
    if(row.status==='GAP')keys.add(row.name+' '+path);
