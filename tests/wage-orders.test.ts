@@ -148,7 +148,7 @@ test("official ROVII-27 Class A and Class B rates activate only on 14 October 20
   assert.equal(wageOrderFor("VII").dailyRate, 582, "undated generic screens use the current verified high tier");
   assert.equal(wageOrderFor("NCR", "2026-10-14").dailyRate, 755);
   assert.throws(() => wageOrderFor("VII", "2026-02-29"), /Invalid wage screening calendar date/);
-  assert.throws(() => wageOrderFor("NCR", "2026-10-14", "B"), /only be selected for Region VII/);
+  assert.throws(() => wageOrderFor("NCR", "2026-10-14", "B"), /only be selected for Region VI or VII/);
   assert.throws(() => wageOrderFor("VII", "2026-10-14", "C" as never), /Invalid Region VII wage class/);
 });
 
