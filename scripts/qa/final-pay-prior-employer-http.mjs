@@ -174,9 +174,13 @@ async function prove() {
   expect(await http("/api/separation?organizationId=" + org.id + "&legalEntityId=" + primary.id, cookies[3]),
     403, "Foreign same-org user cannot select victim legal employer");
   const beforeDenials = await db.select().from(s.separationRecords)
-    .where(eq(s.separationRecords.id, id));
+    .orderBy(s.separationRecords.id);
   expect(await http("/api/separation", cookies[3], "POST", payload),
     403, "Foreign same-org Separation POST");
+  const afterDeniedPost = await db.select().from(s.separationRecords)
+    .orderBy(s.separationRecords.id);
+  assert.deepEqual(afterDeniedPost, beforeDenials,
+    "Denied same-org Separation POST leaves all separation rows unchanged");
   const forbiddenPatch = await http("/api/separation", cookies[3], "PATCH", {
     id, action: "approve",
   });
@@ -188,7 +192,7 @@ async function prove() {
   assert.deepEqual(forbiddenPatch.json, unknownPatch.json,
     "A new-employer payroll caller cannot infer that a frozen separation exists");
   const afterDenials = await db.select().from(s.separationRecords)
-    .where(eq(s.separationRecords.id, id));
+    .orderBy(s.separationRecords.id);
   assert.deepEqual(afterDenials, beforeDenials);
 
   for (const field of ["itCleared", "adminCleared", "financeCleared", "hrCleared"]) {

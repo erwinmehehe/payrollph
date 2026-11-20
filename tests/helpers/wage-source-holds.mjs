@@ -3,6 +3,7 @@ import {verifyJournalRenewal} from '../../scripts/qa/tenant-journal-renewal.mjs'
 import {isPhase34SeparationHoldRefresh,reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 import {reviewedTimesheetSourceHold} from "../../scripts/qa/timesheet-source-accounting.mjs";
 import {timesheetRenewalDelta, timesheetProofKind} from "../../scripts/qa/timesheet-employer-credit.mjs";
+import {hasSeparationPromotions,separationRenewalDelta,separationRoute} from "../../scripts/qa/separation-pg16-credit.mjs";
 import {wageHeldPriorProof} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {verifiedWageCreditHolds} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {historicWageRegistryProofView} from '../../scripts/qa/wage-registry-source-hold.mjs';
@@ -33,6 +34,7 @@ export function assertWageLedgerDelta(assert,manifest){
   assert.ok(base,'The wage withdrawal requires an inspectable main manifest');
   const priorLive=base.manifest;
   const timesheetRenewals=timesheetRenewalDelta(priorLive,liveManifest);
+  const separationRenewals=separationRenewalDelta(priorLive,liveManifest);
   const otherWithdrawals=new Set([
     ...reviewedDocumentSourceWithdrawals(priorLive,liveManifest),
     ...reviewedTimesheetSourceHold(priorLive,liveManifest),
@@ -45,6 +47,7 @@ export function assertWageLedgerDelta(assert,manifest){
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
     const previous=prior.allApiRouteFiles[path];
     if(isPhase34SeparationHoldRefresh(path,previous,file))continue; // Both records retain zero credit.
+    if(path===separationRoute&&hasSeparationPromotions(file))continue;
     if (path === 'src/app/api/workforce/timesheets/route.ts' && file.methods[0]?.testedBy?.kind === timesheetProofKind) continue; // Exact base and result checked above.
     if(path==='src/app/api/v1/journal-entries/route.ts' && file.methods[0]?.testedBy?.kind==='released-journal-philhealth-pg16'){
       verifyJournalRenewal(liveManifest);
@@ -101,8 +104,8 @@ export function assertWageLedgerDelta(assert,manifest){
   }
   assert.deepEqual(manifest.scopedPages,prior.scopedPages,'Wage withdrawal cannot alter page credits');
   const {live}=assertLiveTenantCounts(assert,liveManifest);
-  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-otherWithdrawals.size+timesheetRenewals);
-  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+otherWithdrawals.size-timesheetRenewals);
+  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-otherWithdrawals.size+timesheetRenewals+separationRenewals);
+  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+otherWithdrawals.size-timesheetRenewals-separationRenewals);
   assert.equal(live.publicByDesign,prior.metrics.publicByDesign);
   assert.equal(live.privilegedOperationsTokenOnly,prior.metrics.privilegedOperationsTokenOnly);
   return true;
