@@ -7,7 +7,7 @@ import {randomUUID,createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const ORIGIN="http://127.0.0.1:3000";
 const PINS={
-  "src/app/api/documents/route.ts":"fb0d1748dd25c6dd985894b9042f7eab427ce898",
+  "src/app/api/documents/route.ts":"ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
   "src/app/api/hcm/documents/route.ts":"47910bb8ecfaad37e031c708a5ea949692a3f8c3",
   "src/lib/multi-entity-server.ts":"f38a8bb77a5026d581d4a92b22533fc879ea7e00",
 };
