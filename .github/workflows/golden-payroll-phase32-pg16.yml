@@ -1,0 +1,122 @@
+name: Golden Phase 32 final pay honours every earning the cutoff exempted (disposable PG16)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/golden-payroll-phase32-pg16.yml"
+      - "scripts/golden-payroll-phase32.ts"
+      - "certification/golden-payroll-phase32.json"
+      - "src/lib/final-pay.ts"
+      - "tests/final-pay-released-exempt-earnings.test.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/lib/annualization.ts"
+      - "src/lib/year-end.ts"
+      - "src/lib/ph-compliance.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  phase32:
+    # Keep proof runs inside the connected repository; no fork-controlled job
+    # may inherit even temporary local DB privileges.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      TZ: Asia/Manila
+      GOLDEN_PHASE32_DISPOSABLE: github-actions-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      EXACT_THIRTEENTH_CENTAVOS_ENABLED: "false"
+      NEON_DATABASE_URL: ""
+      PAYMONGO_SECRET_KEY: ""
+      XENDIT_SECRET_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      RESEND_API_KEY: ""
+      POSTMARK_SERVER_TOKEN: ""
+      SMTP_PASSWORD: ""
+      OPENAI_API_KEY: ""
+      WORKER_TOKEN: ""
+      CRON_SECRET: ""
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact PR-head source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate ephemeral fictional encryption keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in PII_ENCRYPTION_KEY BANK_DATA_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Initialize empty disposable PG16 schema
+        run: npm run db:push
+      - name: Apply reviewed disposable schema baseline
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Verify year-end line treatment, including negative controls
+        run: node --import tsx --test tests/final-pay-released-exempt-earnings.test.ts
+      - name: Execute all 3 real-engine final-pay exempt earnings cases
+        run: npx tsx scripts/golden-payroll-phase32.ts
+      - name: Verify artifact has all three genuine passed cases
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import {readFileSync} from "node:fs";
+          const a=JSON.parse(readFileSync("qa-artifacts/golden-payroll-phase32-reconciliation.json","utf8"));
+          assert.equal(a.status,"passed");
+          assert.equal(a.caseCount,3);
+          assert.equal(a.results.length,3);
+          assert.ok(a.results.every(r=>r.status==="passed" && r.part==="engine" && r.failures.length===0));
+          NODE
+      - name: Preserve synthetic observed discrepancies even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: golden-payroll-phase32-pg16
+          path: qa-artifacts/golden-payroll-phase32-reconciliation.json
+          if-no-files-found: warn
+          retention-days: 14
