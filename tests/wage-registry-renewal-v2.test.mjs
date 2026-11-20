@@ -52,7 +52,14 @@ test('ledger validation is neither pinned nor followed; a ledger-named file that
  assert.deepEqual(Object.keys(closure(['scripts/qa/run-http.mjs'],read,exists)),
   ['scripts/qa/run-http.mjs','scripts/qa/tenant-table-catalog.mjs','scripts/qa/tenant-y-credit.mjs']);
  assert.equal(isLedgerSource('tests/tenant-isolation-coverage-inventory.test.mjs','assert.ok(1)'),true);
- assert.equal(isLedgerSource('tests/tenant-x-credit.test.mjs','import {x} from "@/lib/payroll-engine"'),false,'application source makes it runtime');
+ // Text inside a string is not code: a ledger test that quotes an import line (or a call) in its fixtures stays ledger.
+ const quoted='const fixture = \'import { WAGE_ORDERS } from "@/lib/wage-orders";\';\nconst note = "fetch(url) and new Pool() and spawn(x)";\n// import x from "@/lib/y"\n';
+ assert.equal(isLedgerSource('tests/tenant-isolation-coverage-inventory.test.mjs',quoted),true,'quoted source text must not pin a ledger test');
+ assert.equal(isLedgerSource('tests/tenant-isolation-coverage-inventory.test.mjs',quoted+'import {x} from "@/lib/wage-orders";'),false,'a real import is runtime');
+ assert.equal(isLedgerSource('tests/tenant-isolation-coverage-inventory.test.mjs',quoted+'const s=await import("../../src/lib/x.ts");'),false,'a dynamic import of application source is runtime');
+ assert.equal(isLedgerSource('tests/tenant-isolation-coverage-inventory.test.mjs',quoted+'import pg from "pg";'),false,'a database module is runtime');
+ assert.equal(isLedgerSource('tests/tenant-isolation-coverage-inventory.test.mjs',quoted+'const r=await fetch(u);'),false,'a request is runtime');
+ assert.equal(isLedgerSource('scripts/qa/tenant-x-credit.mjs','import {x} from "@/lib/payroll-engine"'),false,'application source makes it runtime');
  assert.equal(isLedgerSource('scripts/qa/tenant-x-credit.mjs','spawnSync(process.execPath,["a"])'),false,'launching a process makes it runtime');
  assert.equal(isLedgerSource('scripts/qa/tenant-x-credit.mjs','new Pool({})'),false,'a database makes it runtime');
  assert.equal(isLedgerSource('scripts/qa/tenant-second-pass-http.mjs',''),false,'an HTTP harness is never ledger by name');

@@ -91,8 +91,33 @@ export function fileEdges(file,source,exists=isFile){
  * only when BOTH its path names it as ledger AND its source makes no request, opens no database, starts no
  * process and imports no application source; anything else stays a pinned runtime input. */
 const LEDGER_PATH=/^(?:scripts\/qa\/[^/]*(?:credit|accounting|holds?|reconciliation|supersession|renewal|receipt|ledger|counts|repin)[^/]*\.mjs|tests\/(?:helpers\/)?[^/]*(?:coverage-inventory|credit|ledger|reconciliation|holds?|renewal|closure-plan|families|counts|repin|inventory)[^/]*\.mjs)$/;
-const NOT_LEDGER=/\bfetch\(|\bhttp\.request\(|new Pool\(|from ['"](?:pg|postgres)['"]|\b(?:spawn|spawnSync|fork)\(|execFileSync\(\s*process\.execPath|from ['"]@\/|from ['"](?:\.\.\/)+src\//;
-export const isLedgerSource=(file,source)=>LEDGER_PATH.test(file)&&!NOT_LEDGER.test(source);
+/** What makes a file runtime rather than ledger, read from its syntax tree so that text inside a string (a ledger test quoting an import
+ * line in its fixtures) is never mistaken for code: an import/require of application source or a database or network or process
+ * module, a call to fetch, a database pool, or a process started from process.execPath. */
+const RUNTIME_MODULE=/^(?:pg|postgres|node:child_process|child_process|node:http|node:https|node:net|http|https|net)$/;
+const APP_SOURCE_SPECIFIER=/^@\/|^(?:\.\.?\/)*(?:\.\.\/)+src\//;
+function runtimeReason(file,source){
+ const ts=require("typescript");
+ const ast=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,file.endsWith("x")?ts.ScriptKind.TSX:ts.ScriptKind.TS);
+ let reason=null;
+ const flagSpecifier=node=>{if(node&&ts.isStringLiteralLike(node)&&(RUNTIME_MODULE.test(node.text)||APP_SOURCE_SPECIFIER.test(node.text)))reason??=node.text;};
+ const walk=node=>{
+  if(reason)return;
+  if((ts.isImportDeclaration(node)||ts.isExportDeclaration(node))&&node.moduleSpecifier)flagSpecifier(node.moduleSpecifier);
+  else if(ts.isCallExpression(node)){
+   const callee=node.expression;
+   if(callee.kind===ts.SyntaxKind.ImportKeyword||(ts.isIdentifier(callee)&&callee.text==="require"))flagSpecifier(node.arguments[0]);
+   else if(ts.isIdentifier(callee)&&callee.text==="fetch")reason??="fetch";
+   else if(ts.isIdentifier(callee)&&["spawn","spawnSync","fork"].includes(callee.text))reason??=callee.text;
+   else if(ts.isIdentifier(callee)&&["execFileSync","execFile"].includes(callee.text)&&node.arguments[0]?.getText()==="process.execPath")reason??="execFile process.execPath";
+   else if(ts.isPropertyAccessExpression(callee)&&["request","get"].includes(callee.name.text)&&ts.isIdentifier(callee.expression)&&["http","https"].includes(callee.expression.text))reason??="http request";
+  }else if(ts.isNewExpression(node)&&((ts.isIdentifier(node.expression)&&["Pool","Client"].includes(node.expression.text))||(ts.isPropertyAccessExpression(node.expression)&&["Pool","Client"].includes(node.expression.name.text))))reason??="database client";
+  ts.forEachChild(node,walk);
+ };
+ walk(ast);
+ return reason;
+}
+export const isLedgerSource=(file,source)=>LEDGER_PATH.test(file)&&runtimeReason(file,source)===null;
 
 export function closure(roots,read=readFileSync,exists=isFile,cache=new Map()){
  const pins={},queue=[...roots];

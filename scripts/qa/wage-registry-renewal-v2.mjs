@@ -23,7 +23,7 @@ export const WAGE_RENEWAL_V2_KIND='wage-registry-current-source-pg16-http-renewa
 export const WAGE_RENEWAL_V2_SCHEMA='payrollph-wage-source-pg16-renewal-v2';
 export const WAGE_RENEWAL_V2_RECEIPT='scripts/qa/wage-registry-renewal-receipt-v2.json';
 // Set only after inspecting real exact-source successful jobs and their output.
-export const WAGE_RENEWAL_V2_RECEIPT_BLOB='45f477d56b17d1316b1e83a6bbe30889f7b1b061';
+export const WAGE_RENEWAL_V2_RECEIPT_BLOB='5b718513ca8537bec915c328d028d7b87f5dfb44';
 // Ledger bookkeeping only: never an executed runtime, HTTP assertion or fixture input.
 // The first 18 entries equal verify.mjs ACCOUNTING_ONLY (asserted by tests/wage-registry-renewal-v2.test.mjs).
 export const V2_ACCOUNTING_ONLY=Object.freeze([
