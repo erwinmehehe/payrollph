@@ -16,7 +16,7 @@ export function sourceHoldArchive(read=readFileSync){
  const archive=JSON.parse(raw);
  assert.equal(archive.kind,'exact-document-source-withdrawals-accounting-only');
  const separation=read('scripts/qa/phase25-separation-hold.json');
- assert.equal(blob(separation),'2048886ef9e2049c51e88ddc458c4b9025dc30fc','Phase 25 separation hold archive changed');
+ assert.equal(blob(separation),'005664e68e44abf709ae85ade1e5aee334a01fda','Phase 25 separation hold archive changed');
  archive.variants.push(JSON.parse(separation));
  return archive;
 }

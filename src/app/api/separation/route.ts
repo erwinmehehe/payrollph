@@ -40,6 +40,7 @@ import {
 } from "@/lib/access";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
+import { importedDeMinimisFinalPayAdjustment } from "@/lib/final-pay-imported-de-minimis";
 import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, releasedExemptAllowanceYtd, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
 import { assertFinalPayPriorSnapshot, loadReviewedPriorForFinalPay, priorEvidenceSnapshot } from "@/lib/final-pay-prior-employer-server";
 import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
@@ -282,6 +283,9 @@ async function loadFinalPaySources(input: {
     ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - Number(row.thirteenthMonth));
   }
 
+  // Imported de minimis shares one statutory ceiling per category and period with the released engine lines, as year end does.
+  const importedDeMinimis = importedDeMinimisFinalPayAdjustment(historical, released);
+
   const resolvedPayProfile = resolvePayProfile({
     payBasis: payProfile.payBasis,
     rateAmount: payProfile.rateAmount,
@@ -306,8 +310,8 @@ async function loadFinalPaySources(input: {
       ordinaryGrossYtd: Number(money(ordinaryGrossYtd)),
       statutoryContributionsYtd: Number(money(statutoryContributionsYtd)),
       taxWithheldYtd: Number(money(taxWithheldYtd)),
-      deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd))),
-      deMinimisExcessYtd: Number(money(deMinimisExcessYtd)),
+      deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd) + importedDeMinimis.exempt)),
+      deMinimisExcessYtd: Number(money(deMinimisExcessYtd + importedDeMinimis.excess)),
       mweTaxableSupplementaryCompensationYtd: Number(money(mweTaxableSupplementaryCompensationYtd)),
       activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
     },

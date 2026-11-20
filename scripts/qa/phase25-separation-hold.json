@@ -2,11 +2,11 @@
   "name": "phase25-separation",
   "records": {
     "src/app/api/separation/route.ts": {
-      "gitBlobSha": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+      "gitBlobSha": "8d7f6772cd2cb9298043cd646aa8883242dd5b84",
       "sourceRevisionReview": {
         "kind": "phase7-and-prior-employer-final-pay-provisional-source-reconciliation",
         "previousRouteBlobSha": "3cc5c7408d52dd0a0fe2c784d95466650acf9f8a",
-        "currentRouteBlobSha": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+        "currentRouteBlobSha": "8d7f6772cd2cb9298043cd646aa8883242dd5b84",
         "scope": "Phase 7 POST tax classification and PATCH legacy-exemption fail-closed approval/release checks. Reviewed unused vacation-leave de minimis / shared benefits-pool split, qualified separation taxable allocation, verified Released payroll payDate, and attested actual payout date; older checkbox-only exemption packages require recomputation. GET, POST and PATCH now check the selected legal-employer boundary with the multi-entity flag enabled; GET filters sensitive final-pay rows to one authorized legal employer. No new tenant method credits; independent tax/security review and exact-head CI PENDING. Approval also repeats linked Released-payroll tax-year verification within the locked serializable Finance transaction; drift is held. Superseding separation annualization change (this PR): GET/POST/PATCH changed; previous-employer Form 2316 is maker/checker approved, legal-entity scoped, and its approval digest/revision is revalidated inside initiation, finance approval and release transactions. The existing proof covers prior employer flag-OFF separation, NOT new flag-ON legal-employer cross-tenant HTTP. New flag-ON PostgreSQL read/denial/source-drift regression is synthetic only. Zero new method credits. Fresh exact-head flag-ON own/foreign HTTP and independent financial/security approval remain PENDING; no production activation. Security correction after transfer: Runtime GET now selects a released/computed separation by the frozen numeric legal-employer fingerprint, never by the worker's mutable current employer; only an unsnapshotted draft may use current entity. Missing/legacy attribution fails closed. Direct selected-employer PG16 HTTP transfer/denial proof must pass on exact PR head. PATCH now uses the same frozen historical employer for all record actions, including clearance and final-pay, and returns the same non-disclosing 404 for absent/foreign org, missing entity grant and invalid frozen source. Real PG16 must reprove permitted old-employer no-op 400 versus new-employer and unknown 404 without SQL mutation.",
         "priorEmployerFixPreviousRouteBlobSha": "eba576d431d4d0631c3b3b58941c9f9e065a0373",
         "priorEmployerTaxContractFile": "tests/final-pay-prior-employer-annualization.test.ts",
@@ -300,9 +300,9 @@
     }
   },
   "sourcePins": {
-    "src/app/api/separation/route.ts": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+    "src/app/api/separation/route.ts": "8d7f6772cd2cb9298043cd646aa8883242dd5b84",
     "src/lib/final-pay.ts": "271a2c70171a6d40190b4dc495a57d5534982b5b",
-    "src/lib/final-pay-source-fingerprint.ts": "1d37b893650b552935c5a44c067359a98e8d3297",
+    "src/lib/final-pay-source-fingerprint.ts": "8f24ca3e96f9f63182dd9d26c6d07516d6bd6b3d",
     "scripts/qa/payroll-approved-exit-http.mjs": "85832346e2a260efe2d9af008209af11a3331836"
   }
 }
