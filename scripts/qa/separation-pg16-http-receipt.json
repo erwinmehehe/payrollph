@@ -1,0 +1,72 @@
+{
+  "schema": "payrollph-separation-pg16-http-receipt-v1",
+  "label": "SOLO_VERIFIED_DEV_RECOVERY",
+  "base": "52133c136affa635f05cf353f1669ede47777b1c",
+  "head": "e6926ce10de2aaa4ccf39a8b25548126733f0744",
+  "sourceTree": "40f6b087c72438902c037ab7dcc7b5eca7d69d08",
+  "postgresMajor": 16,
+  "transport": "localhost-http",
+  "sourcePins": {
+    "src/app/api/separation/route.ts": "1d4733144baa72e4828cc40a087dbc0dbab3a77f",
+    "scripts/qa/payroll-approved-exit-http.mjs": "85832346e2a260efe2d9af008209af11a3331836",
+    "scripts/qa/final-pay-prior-employer-http.mjs": "f72e1f7e5a555328d1a0ae4a0f6a34c82dc1c3d8",
+    "scripts/qa/tenant-2316-ssr-transfer-http.mjs": "281d1a94bcfa1bee7eace8b8b6437c80972082b6",
+    ".github/workflows/payroll-e2e-fictional.yml": "04a4fc473771bce9a59d267d75a27e4189bb980c",
+    ".github/workflows/final-pay-prior-employer-http.yml": "07402e85918dd0ee900e74329729049c8d694d9d",
+    ".github/workflows/tenant-2316-ssr-transfer-qa.yml": "875d698563e690d95ecae7a97af25f21a88e5304",
+    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2"
+  },
+  "evidence": [
+    {
+      "name": "form2316-ssr-transfer",
+      "jobId": 135994739869,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794845/job/135994739869",
+      "httpStep": "Prove actual 2316 same-parent isolation and transfer/revocation with fictional PG16",
+      "conclusion": "success"
+    },
+    {
+      "name": "fictional-flag-on-separation",
+      "jobId": 135994732929,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794813/job/135994732929",
+      "httpStep": "Real authenticated flag-ON/OFF Separation HTTP, same-org foreign denial, three-actor fictional release",
+      "conclusion": "success"
+    },
+    {
+      "name": "Disposable PG16 fictional payroll",
+      "jobId": 135994719019,
+      "url": "https://github.com/erwinmehehe/payrollph/actions/runs/44647794893/job/135994719019",
+      "httpStep": "Real Separation POST through ordinary payroll and final-pay recomputation",
+      "conclusion": "success"
+    }
+  ],
+  "methods": {
+    "GET": {
+      "evidenceJobs": [
+        135994739869,
+        135994732929,
+        135994719019
+      ],
+      "result": "PASS",
+      "scope": "Authorized listing, organization and legal-employer scope, retained historical visibility after transfer."
+    },
+    "POST": {
+      "evidenceJobs": [
+        135994732929,
+        135994719019
+      ],
+      "result": "PASS",
+      "scope": "Authorized creation, organization and same-workspace denial, and the entire separation table unchanged immediately after the same-workspace denial."
+    },
+    "PATCH": {
+      "evidenceJobs": [
+        135994739869,
+        135994732929,
+        135994719019
+      ],
+      "result": "PASS",
+      "scope": "Authorized clearance and approval, legal-employer denial, frozen records after transfer and unchanged captured state."
+    }
+  },
+  "independentTaxAndSecurityReview": "PENDING",
+  "coverageCredits": 0
+}
