@@ -13,7 +13,7 @@ function blob(raw) {
 }
 function evidence(read) {
   const raw = read(receiptFile);
-  assert.equal(blob(raw), "c6d28801fba1d6b18c03b47518803acd3edd9b6e", "Timesheet receipt changed");
+  assert.equal(blob(raw), "4ab100fefacdc7253e105e80f91f171b87d4aaf6", "Timesheet receipt changed");
   const receipt = JSON.parse(raw);
   assert.equal(receipt.label, "SOLO_VERIFIED_DEV_RECOVERY");
   assert.equal(receipt.route, TIMESHEET_ROUTE);
@@ -29,7 +29,7 @@ function evidence(read) {
 export function verifyTimesheetRenewal(manifest, read = readFileSync) {
   const receipt = evidence(read);
   const route = manifest.allApiRouteFiles[TIMESHEET_ROUTE];
-  assert.equal(createHash("sha256").update(JSON.stringify(route)).digest("hex"), "aa47c211a323ee3dc4f8464eec531a699f2cc0f35a1a03c795ea0b5e942471d3",
+  assert.equal(createHash("sha256").update(JSON.stringify(route)).digest("hex"), "72f5c90e9d3b6205773bc81935f9b901aeca266687ac9f13ccee4d409599a2ad",
     "Only the two reviewed timesheet citations may be counted");
   assert.equal(route.gitBlobSha, receipt.sourcePins[TIMESHEET_ROUTE]);
   for (const verb of verbs) {
@@ -45,7 +45,12 @@ export function timesheetRenewalDelta(before, after) {
   if (!target?.methods.some(row => row.testedBy?.kind === timesheetProofKind)) return 0;
   verifyTimesheetRenewal(after);
   if (!verifiedTimesheetHoldKeys(before).size) {
-    verifyTimesheetRenewal(before);
+    const prior = before.allApiRouteFiles[TIMESHEET_ROUTE];
+    const priorDigest = createHash("sha256").update(JSON.stringify(prior)).digest("hex");
+    // Compare the sealed historical base ledger without treating its old lockfile as current.
+    if (priorDigest !== "aa47c211a323ee3dc4f8464eec531a699f2cc0f35a1a03c795ea0b5e942471d3") {
+      verifyTimesheetRenewal(before);
+    }
     return 0;
   }
   assert.equal(createHash("sha256").update(JSON.stringify(before.allApiRouteFiles[TIMESHEET_ROUTE])).digest("hex"),

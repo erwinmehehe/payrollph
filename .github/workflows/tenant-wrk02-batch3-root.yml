@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'package-lock.json'
       - '.github/workflows/tenant-wrk02-batch3-root.yml'
       - 'src/app/api/workforce-planning/route.ts'
       - 'scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs'
