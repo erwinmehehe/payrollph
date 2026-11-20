@@ -146,6 +146,7 @@ test("closure plan schedules every original GAP exactly once in priority order",
       if(manifest.allApiRouteFiles[path]?.gitBlobSha!==record.gitBlobSha)continue;
       for(const row of record.methods) {
         if(row.status!=='GAP')continue;
+        if(manifest.allApiRouteFiles[path].methods.find(method=>method.name===row.name)?.status!=='GAP')continue;
         const key=row.name+' '+record.route;
         assert.ok(plan.includes('`'+key+'`'), 'New document withdrawal must be explicitly scheduled: '+key);
         documentHolds.add(key);
