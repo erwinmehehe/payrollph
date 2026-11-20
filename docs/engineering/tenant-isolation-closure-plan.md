@@ -1,6 +1,6 @@
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 430 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 31 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 454 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
-> **CURRENT / WAGE-SOURCE API RENEWAL v2 (PER-METHOD SOURCE CLOSURES) — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = **430 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 31 GAP**. 51 of 75 wage-withdrawn methods renewed from [fresh PG16/real-HTTP run 44713061008](https://github.com/erwinmehehe/payrollph/actions/runs/44713061008) at `a9ce9c0301105bd1871d958fbbce444487a957ff`; each is bound to its own sealed source closure plus a global base, so a later edit withdraws only the methods that execute it. Independent/security/payroll and production acceptance PENDING. No live release, provider or money activation.
+> **CURRENT / WAGE-SOURCE API RENEWAL v2 (PER-METHOD SOURCE CLOSURES) — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = **454 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP**. 75 of 75 wage-withdrawn methods renewed from [fresh PG16/real-HTTP run 44740145138](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138) at `c5f9b8439a6a9f22742330b60da59fa50879787a`; each is bound to its own sealed source closure plus a global base, so a later edit withdraws only the methods that execute it. Independent/security/payroll and production acceptance PENDING. No live release, provider or money activation.
 
 > Separation GET, POST and PATCH have provisional [PG16 HTTP evidence](../../scripts/qa/separation-pg16-http-receipt.json) under solo-maintainer source review.
 
@@ -256,11 +256,11 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 
 | Phase | Batch | Frozen methods | COVERED | PUBLIC-BY-DESIGN | PRIVILEGED-OPERATIONS-TOKEN-ONLY | GAP | Batch status |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **DL-01** | 26 | 21 | 2 | 0 | 3 | INCOMPLETE |
+| 1 | **DL-01** | 26 | 23 | 2 | 0 | 1 | INCOMPLETE |
 | 1 | **DL-02** | 26 | 24 | 0 | 0 | 2 | INCOMPLETE |
-| 2 | **MNY-01** | 33 | 21 | 0 | 0 | 12 | INCOMPLETE |
+| 2 | **MNY-01** | 33 | 33 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 2 | **MNY-02** | 33 | 32 | 1 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 3 | **STA-01** | 27 | 26 | 0 | 0 | 1 | INCOMPLETE |
+| 3 | **STA-01** | 27 | 27 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-01** | 39 | 38 | 0 | 1 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 4 | **PII-02** | 38 | 36 | 2 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-01** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
@@ -269,7 +269,7 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 6 | **EDG-01** | 33 | 16 | 11 | 6 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 6 | **EDG-02** | 33 | 26 | 1 | 5 | 1 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **357 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 20 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **73 COVERED + 8 PUBLIC-BY-DESIGN + 11 GAP**. 6 batches remain INCOMPLETE; MNY-02, PII-01, PII-02, WRK-01, WRK-02, EDG-01 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **372 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **82 COVERED + 8 PUBLIC-BY-DESIGN + 2 GAP**. 4 batches remain INCOMPLETE; MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, EDG-01 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
@@ -877,17 +877,17 @@ These 22 additional methods were previously source-credited but are now individu
 - RENEWED `POST /api/compliance/remittance-month-close` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
 - RENEWED `GET /api/compliance/statutory-remittance-corrections` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
 - RENEWED `POST /api/compliance/statutory-remittance-corrections` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/dashboard` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/dashboard` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
 - RENEWED `GET /api/employees` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/first-payroll/preview` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/first-payroll/preview` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
 - RENEWED `GET /api/hcm/governance-readiness` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/assurance` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/release-checklist` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `POST /api/payroll-runs` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/assurance` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/explain/[employeeId]` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/payout-reconciliation` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/release-checklist` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `POST /api/payroll-runs` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- RENEWED `GET /api/payroll-runs/[id]/pre-run-readiness` — [per-method source-sealed v2 PG16 renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
 
 ## Page and server-action closure (20 independently requested wrong-employer surfaces)
 
