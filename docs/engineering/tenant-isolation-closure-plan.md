@@ -1,6 +1,6 @@
 > **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 376 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 85 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
-> Separation GET, POST and PATCH have provisional [PG16 HTTP evidence](../../scripts/qa/separation-pg16-http-receipt.json) under solo-maintainer source review.
+> **Dependency reproof hold:** `GET separation`, `POST separation` and `PATCH separation` remain GAP on this branch until the full fictional PG16 suite and current-source HTTP proofs pass. The [prior receipt](../../scripts/qa/separation-pg16-http-receipt.json) records historical evidence.
 
 > **Timesheet GET and POST** were renewed with [fictional PG16 HTTP evidence](../../scripts/qa/timesheet-employer-receipt.json).
 

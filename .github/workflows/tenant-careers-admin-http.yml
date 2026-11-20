@@ -5,7 +5,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
-      - 'package-lock.json'
       - '.github/workflows/tenant-careers-admin-http.yml'
       - 'scripts/qa/tenant-careers-admin-*.mjs'
       - 'tests/tenant-careers-admin-*.test.mjs'

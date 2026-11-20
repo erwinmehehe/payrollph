@@ -7,7 +7,7 @@ import {randomUUID,createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const ORIGIN="http://127.0.0.1:3000";
 const PINS={
-  "src/app/api/documents/route.ts":"fb0d1748dd25c6dd985894b9042f7eab427ce898",
+  "src/app/api/documents/route.ts":"ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
   "src/app/api/hcm/documents/route.ts":"47910bb8ecfaad37e031c708a5ea949692a3f8c3",
   "src/lib/multi-entity-server.ts":"f38a8bb77a5026d581d4a92b22533fc879ea7e00",
 };
@@ -115,6 +115,8 @@ export async function proveDocumentMetadata(){
    employees:await db.select().from(s.employees).orderBy(asc(s.employees.id)),
    audit:await db.select().from(s.auditEvents).orderBy(asc(s.auditEvents.id)),
    grants:await db.select().from(s.userLegalEntityGrants).orderBy(asc(s.userLegalEntityGrants.id)),
+   entityAssignments:await db.select().from(s.employeeEntityAssignments).orderBy(asc(s.employeeEntityAssignments.id)),
+   transferRequests:await db.select().from(s.entityTransferRequests).orderBy(asc(s.entityTransferRequests.id)),
   });
   const list=e=>"/api/documents?organizationId="+e.org.id;
   for(const e of [a,b,victim]){
@@ -133,6 +135,51 @@ export async function proveDocumentMetadata(){
      "Victim parent employer documents must not leak");
    assert.match(res.headers.get("cache-control")??"",/no-store/i);
   }
+  // Security acceptance: the legacy file GET refuses workers with historical
+  // legal-employer ambiguity. Their file names and document IDs must be held
+  // by the list GET as well; otherwise the metadata remains exposed.
+  const [historicA]=await db.insert(s.employeeEntityAssignments).values({
+   organizationId:a.org.id,employeeId:a.worker.id,legalEntityId:otherEntity.id,
+   effectiveFrom:"2025-01-01",effectiveUntil:"2025-12-31",
+  }).returning();
+  assert.ok(historicA?.id,"Fixture must persist a different prior legal employer");
+  const ambiguousDocumentA=await get("/api/documents/"+ownA.id,a.cookie);
+  assert.equal(ambiguousDocumentA.status,404,
+   "File download must refuse ambiguous issuance-time employer");
+  const ambiguousListA=await get(list(a),a.cookie);
+  assert.equal(ambiguousListA.status,200,"Parent-authorized list GET must remain available");
+  assert.ok(!ambiguousListA.json?.documents?.some(d=>d.id===ownA.id),
+   "SECURITY_ACCEPTANCE_FAIL: staff list exposes metadata for a historic-other-employer worker");
+  assert.ok(!ambiguousListA.text.includes("DML_A_"+nonce),
+   "SECURITY_ACCEPTANCE_FAIL: ambiguously issued document filename is exposed");
+
+  // Independently exercise the *applied transfer* path, not only the
+  // historical-assignment path, using a second authenticated employer.
+  const [priorB]=await db.insert(s.legalEntities).values({
+   organizationId:b.org.id,code:"DML_PREV_B_"+nonce,
+   legalName:"Fictional previous B legal employer",
+   displayName:"Previous B employer",primaryEntity:false,active:true,
+  }).returning();
+  const [appliedB]=await db.insert(s.entityTransferRequests).values({
+   organizationId:b.org.id,employeeId:b.worker.id,
+   fromLegalEntityId:priorB.id,toLegalEntityId:b.entity.id,
+   effectiveDate:"2025-12-31",status:"applied",
+   reason:"Synthetic historical document boundary",
+   serviceStartDate:"2025-01-01",
+   continuityNote:"Test-only legal employer ambiguity",
+   requestedByUserId:b.owner.id,
+  }).returning();
+  assert.ok(appliedB?.id,"Fixture must persist applied transfer");
+  const ambiguousDocumentB=await get("/api/documents/"+ownB.id,b.cookie);
+  assert.equal(ambiguousDocumentB.status,404,
+   "File download must refuse applied transfer history");
+  const ambiguousListB=await get(list(b),b.cookie);
+  assert.equal(ambiguousListB.status,200);
+  assert.ok(!ambiguousListB.json?.documents?.some(d=>d.id===ownB.id),
+   "SECURITY_ACCEPTANCE_FAIL: staff list exposes applied-transfer document metadata");
+  assert.ok(!ambiguousListB.text.includes("DML_B_"+nonce),
+   "SECURITY_ACCEPTANCE_FAIL: transferred worker's document filename is exposed");
+
   const before=await snapshot();
   const attackCases=[
    ["A query selects ungranted employer",list(a)+"&legalEntityId="+otherEntity.id,a.cookie,{}],
