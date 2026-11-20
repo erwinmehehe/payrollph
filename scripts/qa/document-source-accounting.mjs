@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {hasSeparationPromotions,separationRoute,verifySeparationRenewal} from './separation-pg16-credit.mjs';
+import {archivedSeparationPromotion,hasSeparationPromotions,separationDependencyChanged,separationRoute,verifySeparationRenewal} from './separation-pg16-credit.mjs';
 export const DOCUMENT_ACCOUNTING_ARCHIVE='scripts/qa/document-source-accounting-archive.json';
 export const DOCUMENT_ACCOUNTING_BLOB='b3ccc93613bce6b9ee6ec3dd32b074f7a7befa13';
 const blob=b=>{const raw=Buffer.from(b);return createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex');};
@@ -58,6 +58,12 @@ export function reviewedDocumentSourceWithdrawals(before,after,read=readFileSync
   const file=after.allApiRouteFiles[path];
   if(file?.gitBlobSha!==expected.gitBlobSha)continue;
   const prior=before.allApiRouteFiles[path];assert.ok(prior);
+  if(variant.name==='phase25-separation'&&hasSeparationPromotions(prior)){
+   assert.deepEqual(prior,archivedSeparationPromotion(read),'Only the exact sealed prior separation promotion can enter reproof');
+   assert.ok(separationDependencyChanged(read),'The separation dependency hold requires a changed lockfile');
+   for(const row of file.methods)keys.add(row.name+' '+path);
+   continue;
+  }
   assert.deepEqual(prior.methods.map(row=>row.name),file.methods.map(row=>row.name));
   for(const row of file.methods){
    const old=prior.methods.find(item=>item.name===row.name),hold=row.reviewedUncertified;
