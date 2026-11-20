@@ -6,18 +6,38 @@ import { thirteenthMonthFromCentavos } from "./thirteenth-month-centavos";
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { finalPaySignedBalance } from "./final-pay-signed-balance";
 
-/** Only settled payroll lines carry the engine's allowance type and tax decision. */
+/**
+ * Earnings the cutoff already exempted from withholding, read only from settled payroll lines that carry the engine's own tax
+ * decision. Year-end annualization exempts exactly these (plus de minimis and the shared pool, which final pay handles separately),
+ * so final pay must too or it taxes pay the cutoff did not and under-pays a separated worker:
+ *  - an EARN- supplementary allowance typed allowance/taxable_allowance and marked "Tax treatment: non-taxable";
+ *  - a company premium line (PREM-, OTPREM-, NDPREM-, DAYPREM-) whose single "Taxable:" note says "Taxable: no";
+ *  - a LEAVE_CONV- leave conversion whose single "Tax treatment:" note says "Tax treatment: exempt".
+ * A line with a missing, repeated or conflicting note is not exempted: the exemption is never inferred.
+ */
 export function releasedExemptAllowanceYtd(rows: ReadonlyArray<{ lineItems: unknown }>): number {
+  const noteList = (line: { notes?: unknown }, prefix: string) =>
+    (Array.isArray(line.notes) ? line.notes : []).filter((note: unknown): note is string => typeof note === "string" && note.startsWith(prefix));
   let cents = 0;
   for (const { lineItems } of rows) {
     if (!Array.isArray(lineItems)) continue;
     for (const line of lineItems) {
-      if (!line || !/^EARN-\d+$/.test(line.code) || line.benefitPool90k !== false
-        || !["allowance", "taxable_allowance"].includes(line.benefitPoolKind) || !Array.isArray(line.notes)) continue;
-      const types = line.notes.filter((note: unknown) => typeof note === "string" && note.startsWith("Type: "));
-      const treatments = line.notes.filter((note: unknown) => typeof note === "string" && note.startsWith("Tax treatment: "));
-      if (types.length !== 1 || types[0] !== `Type: ${line.benefitPoolKind}`
-        || treatments.length !== 1 || treatments[0] !== "Tax treatment: non-taxable") continue;
+      if (!line || typeof line.code !== "string" || !Array.isArray(line.notes)) continue;
+      let exempt = false;
+      if (/^EARN-\d+$/.test(line.code)) {
+        if (line.benefitPool90k !== false || !["allowance", "taxable_allowance"].includes(line.benefitPoolKind)) continue;
+        const types = noteList(line, "Type: ");
+        const treatments = noteList(line, "Tax treatment: ");
+        exempt = types.length === 1 && types[0] === `Type: ${line.benefitPoolKind}`
+          && treatments.length === 1 && treatments[0] === "Tax treatment: non-taxable";
+      } else if (/^(PREM|OTPREM|NDPREM|DAYPREM)-\d+$/.test(line.code)) {
+        const taxable = noteList(line, "Taxable: ");
+        exempt = taxable.length === 1 && taxable[0].startsWith("Taxable: no");
+      } else if (/^LEAVE_CONV-\d+$/.test(line.code)) {
+        const treatments = noteList(line, "Tax treatment: ");
+        exempt = treatments.length === 1 && treatments[0] === "Tax treatment: exempt";
+      }
+      if (!exempt) continue;
       const amount = storedMoneyCentavos(line.amount);
       if (amount === null || amount < 0) throw new Error("Invalid released exempt allowance amount.");
       cents += amount;
