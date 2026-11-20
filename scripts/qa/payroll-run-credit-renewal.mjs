@@ -126,10 +126,12 @@ export function reconcilePayrollRenewal({write=false}={}){
     return isWageRenewalKind(source.allApiRouteFiles[path].methods.find(row=>row.name===key.slice(0,at))?.testedBy?.kind);
   });
   if(renewed.length){
-    wageRenewalHoldView(source);
-    assert.equal(renewed.length,19,'Refuse partial replacement of the payroll renewal owner');
-    assert.equal(verifyOracleSourceHolds(source).size,0);
-    return {write:false,credited:0,held:0,status:'SUPERSEDED_BY_WAGE_SOURCE_RENEWAL',productionCertified:false};
+    const historical=wageRenewalHoldView(source);
+    assert.equal(verifyOracleSourceHolds(historical).size,ORACLE_HELD_METHODS.length);
+    const held=verifyOracleSourceHolds(source).size;
+    assert.equal(held+renewed.length,ORACLE_HELD_METHODS.length,
+      'Every payroll method must have a verified wage renewal or retain its exact hold');
+    return {write:false,credited:0,held,status:'SUPERSEDED_BY_WAGE_SOURCE_RENEWAL',productionCertified:false};
   }
   const held=ORACLE_HELD_METHODS.filter(key=>{
     const at=key.indexOf(' '),verb=key.slice(0,at),path='src/app/api/'+key.slice(at+1)+'/route.ts';

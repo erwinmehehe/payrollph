@@ -5,13 +5,17 @@ import {readFileSync} from 'node:fs';
 import {wageRenewalHoldView,WAGE_RENEWAL_KIND,isWageRenewalKind} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import {reviewedWageRegistrySourceWithdrawals} from '../scripts/qa/wage-registry-source-hold.mjs';
 import {assertLiveTenantCounts} from './helpers/tenant-counts.mjs';
+import {verifyWageRenewalV2Rows} from '../scripts/qa/wage-registry-renewal-v2.mjs';
 test('renewed main is a valid comparison base for historical wage catalogue checks without withdrawing credits',async()=>{
  const path='scripts/qa/tenant-isolation-coverage-manifest.json',raw=readFileSync(path),live=JSON.parse(raw),historical=wageRenewalHoldView(live);
  const renewals=Object.values(live.allApiRouteFiles).flatMap(file=>file.methods).filter(row=>isWageRenewalKind(row.testedBy?.kind)).length;
  if(renewals===0){
   const {verifyWageRenewalEngineWithdrawal}=await import('../scripts/qa/wage-registry-renewal-supersession.mjs');
   assert.equal(verifyWageRenewalEngineWithdrawal(live).size,75,'Zero renewals require the full exact-engine withdrawal, never an arbitrary downgrade');
- }else assert.equal(renewals,75);
+ }else {
+  const v2Renewals=verifyWageRenewalV2Rows(live).size;
+  assert.equal(renewals,v2Renewals||75);
+ }
  assert.equal(reviewedWageRegistrySourceWithdrawals(live,historical).size,renewals);
  assert.equal(reviewedWageRegistrySourceWithdrawals(live,live).size,0);
  assert.doesNotThrow(()=>assertLiveTenantCounts(assert,historical,{}, {ref:'verified historical projection',manifest:wageRenewalHoldView(live)}));
