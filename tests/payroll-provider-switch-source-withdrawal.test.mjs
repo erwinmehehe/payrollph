@@ -13,7 +13,7 @@ test('provider-switch source keeps all 75 renewals withdrawn and cannot reuse ol
   for(const file of ['src/lib/payroll-engine.ts','src/lib/imported-benefit-prior.ts']) {
     assert.throws(()=>verifyWageRenewalEngineWithdrawal(manifest,path=>path===file
       ? Buffer.concat([readFileSync(path),Buffer.from('\n// unreviewed source')])
-      : readFileSync(path)),/Unknown .*source/);
+      : readFileSync(path)),/Unknown .*source|Wage renewal v2 source drift/);
   }
   // Tamper with one of the 75: a captured hold (zero credit) or a v2 per-method renewal (credited).
   const rows=Object.values(manifest.allApiRouteFiles).flatMap(f=>f.methods);
