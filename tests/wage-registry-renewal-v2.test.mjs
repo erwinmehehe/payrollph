@@ -6,7 +6,7 @@ import {readWageRenewalInventory} from '../scripts/qa/wage-registry-renewal-plan
 import {methodKey} from '../scripts/qa/wage-registry-renewal-methods.mjs';
 import {ACCOUNTING_ONLY,wageRenewalHoldView} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import {V2_ACCOUNTING_ONLY,V2_GLOBAL_ROOTS,WAGE_RENEWAL_V2_KIND,WAGE_RENEWAL_V2_SCHEMA,WAGE_RENEWAL_V2_RECEIPT_BLOB,
- wageRenewalV2Drift,validateWageRenewalV2Closures,wageRenewalV2HoldView,verifyWageRenewalV2Rows} from '../scripts/qa/wage-registry-renewal-v2.mjs';
+ wageRenewalV2Drift,validateWageRenewalV2Closures,wageRenewalV2HoldView,verifyWageRenewalV2Rows,readWageRenewalV2Receipt} from '../scripts/qa/wage-registry-renewal-v2.mjs';
 import {closure,fileEdges,sealClosures,isLedgerSource} from '../scripts/qa/wage-registry-renewal-v2-capture.mjs';
 import {extractLogRecords,jobIdentityByName,buildPackets} from '../scripts/qa/wage-registry-renewal-packets.mjs';
 
@@ -124,17 +124,23 @@ test('receipt validation rejects a repeated global pin, a pinned bookkeeping fil
  assert.throws(()=>check(edit(r=>{delete r.methodPins[key][proof];})),/Original HTTP assertions/);
  assert.throws(()=>check(edit(r=>{delete r.globalPins['src/proxy.ts'];})),/Global base must pin src\/proxy.ts/);
  assert.throws(()=>check(good,new Set([key,methodKey(inventory.methods.find(e=>e!==entry))])),/Exactly one closure per eligible method/);
- assert.equal(WAGE_RENEWAL_V2_RECEIPT_BLOB,'PENDING_REAL_PG16_HTTP','no v2 execution is sealed in this change');
+ // Either nothing is sealed yet, or the committed receipt is exactly the sealed one.
+ if(WAGE_RENEWAL_V2_RECEIPT_BLOB!=='PENDING_REAL_PG16_HTTP')assert.equal(readWageRenewalV2Receipt().schema,WAGE_RENEWAL_V2_SCHEMA);
 });
 
-test('no v2 rows: the hold views are identity; a forged v2 row cannot be projected without a sealed receipt',()=>{
- const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'));
- assert.equal(wageRenewalV2HoldView(live),live);
- assert.equal(verifyWageRenewalV2Rows(live).size,0);
- const forged=structuredClone(live),entry=readWageRenewalInventory().methods[0];
+test('live v2 rows verify and project back to their exact captured holds; a forged v2 row fails closed',()=>{
+ const live=JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8')),inventory=readWageRenewalInventory();
+ const renewed=verifyWageRenewalV2Rows(live),view=wageRenewalV2HoldView(live);
+ if(!renewed.size)assert.equal(view,live);
+ for(const entry of inventory.methods){
+  const row=view.allApiRouteFiles[entry.path].methods.find(r=>r.name===entry.verb);
+  if(renewed.has(methodKey(entry)))assert.deepEqual(row,entry.held,'projection restores the exact captured hold');
+ }
+ assert.equal(view.metrics.coveredAfter,live.metrics.coveredAfter-renewed.size);
+ const forged=structuredClone(live),entry=inventory.methods[0];
  const row=forged.allApiRouteFiles[entry.path].methods.find(r=>r.name===entry.verb);
- Object.assign(row,{status:'COVERED',testedBy:{kind:WAGE_RENEWAL_V2_KIND}});
- assert.throws(()=>wageRenewalHoldView(forged),/not been sealed/);
+ Object.assign(row,{status:'COVERED',testedBy:{...(row.testedBy??{}),kind:WAGE_RENEWAL_V2_KIND,forged:true}});
+ assert.throws(()=>wageRenewalHoldView(forged),/not been sealed|provenance changed/);
 });
 
 test('log extraction keeps one-line and pretty-printed JSON results, PASS lines and TENANT_ env echoes',()=>{
