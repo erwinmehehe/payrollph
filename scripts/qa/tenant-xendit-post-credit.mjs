@@ -15,12 +15,12 @@ const blob=b=>createHash('sha1').update('blob '+Buffer.byteLength(b)+'\0').updat
 const seal=b=>createHash('sha256').update(b).digest('hex');
 export function readXenditPostExecution(read=readFileSync){
  const raw=read(XENDIT_POST_RECEIPT);
- assert.equal(seal(raw),'5fb5cc484575143ed391bc189d092edb4941eb97a298970f508b858acffbfd7c','Executed Xendit receipt changed');
+ assert.equal(seal(raw),'17122a36181e8aa405f3b8c0620aa6b1e81601be66244420d5f15fae9747eec5','Executed Xendit receipt changed');
  const r=JSON.parse(raw);
- assert.equal(r.sourceCommit,'5fcff5d201fbfe510842c2b755cdac7f764ca30a');
- assert.equal(r.workflowRunId,43445170899);assert.equal(r.workflowJobId,131952613984);
+ assert.equal(r.sourceCommit,'b31bb5661f09f7e92020cf8db84c669e83971c0d');
+ assert.equal(r.workflowRunId,44751051564);assert.equal(r.workflowJobId,136338729007);
  assert.equal(r.jobConclusion,'success');
- assert.equal(r.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/43445170899/job/131952613984');
+ assert.equal(r.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/44751051564/job/136338729007');
  assert.equal(r.evidenceLabel,'SOLO_VERIFIED_DEV_RECOVERY');
  assert.equal(r.independentSecurityReview,'PENDING');assert.equal(r.productionTested,false);
  assert.equal(r.profileApproval,'synthetic-only-user-approved');
