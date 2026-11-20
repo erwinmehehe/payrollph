@@ -26,6 +26,19 @@ function reviewedHistoricalDocumentListRefresh(path,expected,live,read=readFileS
  prior.sourceRevisionReview.newRouteBlobSha=HISTORIC_LIST_PRIOR;
  return JSON.stringify(prior)===JSON.stringify(expected);
 }
+/**
+ * The only source-only historical-document list refresh accepted by older
+ * proof-ledger guards. Compare the complete base route record with the sealed
+ * archive, then require the exact new source, both GAPs and zero credits.
+ */
+export function isReviewedHistoricalDocumentListRefresh(path,before,after,read=readFileSync){
+ if(path!==HISTORIC_LIST_PATH)return false;
+ const archive=sourceHoldArchive(read);
+ const metadata=archive.variants.find(variant=>variant.name==='metadata');
+ const expected=metadata?.records[path];
+ return Boolean(expected&&JSON.stringify(before)===JSON.stringify(expected)&&
+  reviewedHistoricalDocumentListRefresh(path,expected,after,read));
+}
 const activeVariant=(manifest,variant)=>(variant.triggerPaths??Object.keys(variant.records)).some(path=>{
  const expected=variant.records[path],file=manifest.allApiRouteFiles[path];
  return file?.gitBlobSha===expected.gitBlobSha||file?.methods.some(row=>

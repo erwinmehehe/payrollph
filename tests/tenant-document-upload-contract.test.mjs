@@ -1,4 +1,5 @@
 import {verifyHistoricalSecurityCredits,SECURITY_TARGETS,readHistoricalSecurityEvidence} from "./helpers/document-security-fixture.mjs";
+import {reviewedDocumentSourceHoldCount,sourceHoldArchive} from "../scripts/qa/document-source-accounting.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -81,13 +82,24 @@ test("source is precisely pinned and cannot silently earn manifest credit", () =
   const bytes = readFileSync("src/app/api/documents/route.ts");
   const gitSha = createHash("sha1").update("blob " + bytes.length + "\0")
     .update(bytes).digest("hex");
-  assert.equal(gitSha, "fb0d1748dd25c6dd985894b9042f7eab427ce898",
-    "Source change requires independent review of the upload proof");
+  // The reviewed source-only GET privacy change leaves the POST handler
+  // byte-identical to main; keep the *entire* route pinned, not just POST.
+  assert.equal(gitSha, "ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
+    "Source change requires re-review of document GET and POST proofs");
   const manifest = JSON.parse(readFileSync(
     "scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
   const methods = manifest.allApiRouteFiles["src/app/api/documents/route.ts"].methods;
   const post = methods.find(method => method.name === "POST");
-  assert.equal(post.status,'GAP');assert.equal(verifyHistoricalSecurityCredits(manifest),3);
+  assert.equal(post.status,'GAP');
+  assert.equal(post.testedBy,null);
+  assert.equal(post.reviewedUncertified?.routeBlobSha,gitSha);
+  assert.equal(post.reviewedUncertified?.coverageCredits,0);
+  const archived=sourceHoldArchive().variants.find(variant=>variant.name==='metadata');
+  assert.equal(archived.records["src/app/api/documents/route.ts"].gitBlobSha,
+    "fb0d1748dd25c6dd985894b9042f7eab427ce898");
+  assert.ok(reviewedDocumentSourceHoldCount(manifest)>=6,
+    "All historical document and HCM zero-credit holds must remain source-current");
+  assert.equal(verifyHistoricalSecurityCredits(manifest),3);
   assert.equal(readHistoricalSecurityEvidence().runs['documents-vault'].result.protectedFinalVetoes,2);
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED/);
   const preload = readFileSync("scripts/qa/tenant-document-upload-scan-preload.cjs", "utf8");
