@@ -1,6 +1,5 @@
 import { verifyJournalRenewal } from "../scripts/qa/tenant-journal-renewal.mjs";
 import { timesheetProofKind, verifyTimesheetRenewal } from "../scripts/qa/timesheet-employer-credit.mjs";
-import { separationRoute, separationProofKind, verifySeparationRenewal } from "../scripts/qa/separation-pg16-credit.mjs";
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
 import { verifySamlMetadataPrivacyHold, SAML_METADATA_ROUTE } from "../scripts/qa/tenant-saml-metadata-privacy-verify.mjs";
 import {verifySsoResolveClassification} from '../scripts/qa/tenant-sso-resolve-public-classification.mjs';
@@ -320,10 +319,6 @@ function verifyIssuedDemandSoloRecovery(method, routePath, currentBlob) {
 }
 
 function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
-  if (method.testedBy?.kind === separationProofKind) {
-    assert.equal(key, separationRoute + " " + method.name);
-    return verifySeparationRenewal(liveManifest) === 3;
-  }
   if (method.testedBy?.kind === timesheetProofKind) {
     assert.equal(key, "src/app/api/workforce/timesheets/route.ts " + method.name);
     return verifyTimesheetRenewal(liveManifest) === 2;
@@ -4970,11 +4965,6 @@ test("all credited proof links point to the claimed route and every recertified 
     const routeFragments = ("/api/" + entry.route).split(/\[[^\]]+\]/).filter(Boolean);
     for (const method of entry.methods) {
       if (method.status !== "COVERED") continue;
-      if (method.testedBy?.kind === separationProofKind) {
-        assert.equal(path, separationRoute);
-        assert.equal(verifySeparationRenewal(liveManifest), 3);
-        continue;
-      }
       if (method.testedBy?.kind === timesheetProofKind) {
         assert.equal(path, "src/app/api/workforce/timesheets/route.ts");
         assert.equal(verifyTimesheetRenewal(liveManifest), 2);

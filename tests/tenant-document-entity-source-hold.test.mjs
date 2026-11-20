@@ -59,14 +59,12 @@ test("forged source, receipt, approval and unrelated method downgrades cannot bo
 
 test("Historical receipt view includes the verified download and metadata holds", async () => {
   const {historicalDocumentHoldView} = await import("../scripts/qa/document-source-accounting.mjs");
-  const {hasSeparationPromotions,separationRoute,verifySeparationRenewal} = await import("../scripts/qa/separation-pg16-credit.mjs");
   const currentSnapshot = structuredClone(current);
   const projected = historicalDocumentHoldView(current);
   assert.equal(current.allApiRouteFiles[path].methods[0].status, "GAP");
   assert.equal(projected.allApiRouteFiles[path].methods[0].status, "COVERED");
-  const renewed = hasSeparationPromotions(current.allApiRouteFiles[separationRoute]) ? verifySeparationRenewal(current) : 0;
-  assert.equal(projected.metrics.gap, current.metrics.gap - 10 + renewed);
-  assert.equal(projected.metrics.coveredAfter, current.metrics.coveredAfter + 10 - renewed);
+  assert.equal(projected.metrics.gap, current.metrics.gap - 10);
+  assert.equal(projected.metrics.coveredAfter, current.metrics.coveredAfter + 10);
   assert.deepEqual(current, currentSnapshot, "Historical receipt must never change live inventory");
   for (const mutate of [
     x => { x.allApiRouteFiles[path].gitBlobSha = "0".repeat(40); },
