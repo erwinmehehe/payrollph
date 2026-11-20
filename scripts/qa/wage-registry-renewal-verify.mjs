@@ -18,7 +18,7 @@ export function isExactHistoricalLoaderChange(file,sha,raw){
   assert.equal(blob(archive),'b3ccc93613bce6b9ee6ec3dd32b074f7a7befa13');
   const original=JSON.parse(archive).fiveSource;
   assert.equal(blob(original),sha,'Original five-page receipt source must remain immutable');
-  assert.equal(blob(readFileSync('scripts/qa/document-source-accounting.mjs')),'7c4153b1049bae56d880818ab754b1e3e5b15ec0');
+  assert.equal(blob(readFileSync('scripts/qa/document-source-accounting.mjs')),'14d02037655e57fc2a422a58829e8ed0e452722a');
   const expected=original
    .replace('import assert from "node:assert/strict";','import assert from "node:assert/strict";\nimport {reviewedDocumentSourceHoldCount} from "./document-source-accounting.mjs";')
    .replace('const expectedApiGaps = marketing?.status === "COVERED" ? 4 : 5;','const expectedApiGaps = (marketing?.status === "COVERED" ? 4 : 5) + reviewedDocumentSourceHoldCount(m, read);')
