@@ -5,8 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCcw } from "lucide-react";
 import { PeopleIntelligenceOverview } from "@/components/workspace/people-intelligence";
 import { readVerifiedReportPayload, type VerifiedReportPayload } from "@/lib/report-read-payload";
-import { hcmManilaDay } from "@/lib/hcm-people-intelligence";
 import {
+  assertPeopleAnalyticsSnapshot,
+  peopleAnalyticsExportQuery,
   peopleAnalyticsReportQuery,
   type PeopleAnalyticsWindow,
 } from "@/lib/people-analytics-report-query";
@@ -18,16 +19,17 @@ import {
 export function PeopleAnalyticsDashboard({
   organizationId,
   organizationName,
+  today,
 }: {
   organizationId: number;
   organizationName: string;
+  today: string;
 }) {
   const [asOf, setAsOf] = useState("");
   const [windowDays, setWindowDays] = useState<PeopleAnalyticsWindow>(90);
   const [refreshToken, setRefreshToken] = useState(0);
   const [resolved, setResolved] = useState<{ key: string; payload: VerifiedReportPayload } | null>(null);
   const [failed, setFailed] = useState<{ key: string; message: string } | null>(null);
-  const today = hcmManilaDay(new Date());
   const requestKey = JSON.stringify({ organizationId, asOf, windowDays, refreshToken });
   const visible = resolved?.key === requestKey ? resolved.payload : null;
   const error = failed?.key === requestKey ? failed.message : null;
@@ -38,6 +40,8 @@ export function PeopleAnalyticsDashboard({
     readVerifiedReportPayload(organizationId, "people", query)
       .then((payload) => {
         if (!current) return;
+        if (!payload.peopleIntelligence) throw new Error("People Analytics source snapshot is missing.");
+        assertPeopleAnalyticsSnapshot(payload.peopleIntelligence, windowDays, asOf);
         setResolved({ key: requestKey, payload });
         setFailed(null);
       })
@@ -57,8 +61,8 @@ export function PeopleAnalyticsDashboard({
     () => Math.max(1, ...(summary?.trends.map((point) => point.headcount ?? 0) ?? [])),
     [summary],
   );
-  const csvHref = visible
-    ? `/api/reports?${peopleAnalyticsReportQuery(organizationId, windowDays, asOf, "csv").toString()}`
+  const csvHref = visible?.peopleIntelligence
+    ? `/api/reports?${peopleAnalyticsExportQuery(organizationId, windowDays, asOf, visible.peopleIntelligence).toString()}`
     : null;
 
   return (
