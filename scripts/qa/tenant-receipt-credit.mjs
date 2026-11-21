@@ -15,7 +15,16 @@ export function receiptProofs(reader=read) {
   const bytes=reader(RECEIPT);
   assert.equal(sha(bytes),"c5ea33bc673d60c769f000d26f1f166745df3e6e09135c8ddf4c7885f82bd252","receipt identity changed");
   const receipt=JSON.parse(bytes);
-  for(const [path,hash] of Object.entries(receipt.pins)) assert.equal(sha(reader(path)),hash,"receipt input drift: "+path);
+  const raw = reader("scripts/qa/tenant-receipt-next-reproof.json");
+  assert.equal(sha(raw), "6b1c4a871083ae187e6c729673795983ad8bdc5d0e14653170aebe32371b4433", "unreviewed receipt-boundary reproof");
+  const reproof = JSON.parse(raw);
+  assert.equal(reproof.conclusion, "success");
+  assert.equal(reproof.result.result, "PASS");
+  assert.deepEqual([reproof.result.attackers,reproof.result.ownGet,reproof.result.ownPost], [2,2,2]);
+  assert.equal(reproof.result.newCoverageCredits, 0);
+  assert.equal(reproof.result.productionCertified, false);
+  assert.deepEqual(Object.keys(reproof.inputs), Object.keys(receipt.pins));
+  for(const [path,hash] of Object.entries(reproof.inputs)) assert.equal(sha(reader(path)),hash,"receipt input drift: "+path);
   const text=reader(FILE).toString().replaceAll("\r\n","\n");
   const lines=text.split("\n");
   const anchor=fragment=>{

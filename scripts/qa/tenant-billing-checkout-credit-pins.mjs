@@ -1,4 +1,17 @@
-// Exact merged #1900 production HTTP input bytes. No source substitution.
+// Exact merged #1900 production HTTP input bytes and the sealed dependency reproof.
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+
+export function checkoutReproofInputs(read, originalResult) {
+  const bytes = Buffer.from(read('scripts/qa/tenant-billing-checkout-next-reproof.json'));
+  const sha = createHash('sha1').update('blob ' + bytes.length + '\0').update(bytes).digest('hex');
+  assert.equal(sha, '4c2a99c678a775fc9d6ad2202c85c18fd3f9c9b0', 'Unreviewed checkout reproof');
+  const r = JSON.parse(bytes);
+  assert.equal(r.conclusion, 'success');
+  assert.deepEqual(r.result, originalResult);
+  assert.deepEqual(Object.keys(r.inputs), Object.keys(CHECKOUT_INPUT_BLOBS));
+  return r.inputs;
+}
 export const CHECKOUT_RECEIPT_BLOB = "7330249926c65e31fa31c8ed4dea0cc5bb61cc5a";
 export const CHECKOUT_INPUT_BLOBS = Object.freeze({
   ".github/workflows/tenant-billing-paymongo-http.yml": "869c93aa1183a585ae905863bc042b4bd495ec89",
