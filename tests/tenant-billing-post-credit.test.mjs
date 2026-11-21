@@ -22,6 +22,7 @@ import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '.
 import {APPROVALS_PATH,verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { WAGE_RENEWAL_V2_KIND } from "../scripts/qa/wage-registry-renewal-v2.mjs";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
@@ -106,8 +107,17 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
     }
     return baseFiles.get(path);
   };
-  const base=inspectedBase?{...inspectedBase,manifest:historicalWageHoldProjection(inspectedBase.manifest,
-    readBaseFile)}:null;
+  // For a reseal, the general guard reconciles the base rows onto the current
+  // receipt. When all v2 credits are held, verify the original base inputs.
+  const liveManifest = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json", "utf8"));
+  const manifestHasRenewedCredits = Object.values(liveManifest.allApiRouteFiles).some(file =>
+    file.methods.some(row => row.testedBy?.kind === WAGE_RENEWAL_V2_KIND));
+  const base = inspectedBase ? {
+    ref: inspectedBase.ref,
+    manifest: manifestHasRenewedCredits
+      ? historicalWageHoldProjection(inspectedBase.manifest)
+      : historicalWageHoldProjection(inspectedBase.manifest, readBaseFile),
+  } : null;
   // This is explicitly the historical 75-hold fixture, never the live ledger.
   assertLiveTenantCounts(assert, m, process.env, base);
   if (base) {
