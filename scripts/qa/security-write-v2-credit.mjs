@@ -17,7 +17,7 @@ export const SECURITY_V2_KIND='security-write-current-source-pg16-http-v2';
 export const SECURITY_V2_SCHEMA='payrollph-security-write-source-pg16-v2';
 export const SECURITY_V2_RECEIPT='scripts/qa/security-write-v2-receipt.json';
 /** Set only after inspecting the real exact-head job and its output. */
-export const SECURITY_V2_RECEIPT_BLOB='3d45e3f10381e6c0b38b7ab5fe8deb430b1247ec';
+export const SECURITY_V2_RECEIPT_BLOB='154b1e46ba29cc4a2ea6951542b222acf3526bc2';
 export const SECURITY_V2_MANIFEST='scripts/qa/tenant-isolation-coverage-manifest.json';
 export const SECURITY_V2_WORKFLOW='.github/workflows/tenant-security-write-recovery.yml';
 export const SECURITY_V2_JOB_STEP='Fresh fictional database per method/profile, real production HTTP';
