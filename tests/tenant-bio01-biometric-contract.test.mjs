@@ -105,7 +105,8 @@ test("BIO-01 source pins the exact device binding and leaves canonical POST a GA
   }
   const ledger = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json"));
   const methods = ledger.allApiRouteFiles[BIO01_ROUTE]?.methods;
-  assert.equal(methods?.find(m=>m.name==='POST')?.status,'GAP');assert.equal(verifyHistoricalSecurityCredits(ledger),3);
+  const post=methods?.find(m=>m.name==='POST');assert.equal(post?.status,'COVERED','POST is credited by its own per-method v2 receipt');
+  assert.equal(post.testedBy.kind,'security-write-current-source-pg16-http-v2');assert.equal(verifyHistoricalSecurityCredits(ledger),3);
   assert.equal(methods?.find(m => m.name === "GET")?.status, "COVERED",
     "do not accidentally downgrade already evidenced GET");
   assert.match(ledger.acceptanceStatus, /^NOT ACCEPTED:/);

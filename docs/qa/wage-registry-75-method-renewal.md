@@ -1,7 +1,7 @@
 <!-- wage-renewal-v2:start -->
 # Wage-source API renewal v2 (per-method source closures)
 
-SOLO_VERIFIED_DEV_RECOVERY. 498 methods = **454 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP**. 75 of 75 methods CREDITED from one fresh run; 0 remain zero-credit holds.
+SOLO_VERIFIED_DEV_RECOVERY. 498 methods = **456 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP**. 75 of 75 methods CREDITED from one fresh run; 0 remain zero-credit holds.
 
 Execution: [run 44857718850](https://github.com/erwinmehehe/payrollph/actions/runs/44857718850), 42 successful jobs at exact source head `ff5809aa7de6317adbecdd50bbbf9b88ffc1c869`. Receipt: [`wage-registry-renewal-receipt-v2.json`](../../scripts/qa/wage-registry-renewal-receipt-v2.json) (27 global pins; one closure per method).
 

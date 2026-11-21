@@ -2,6 +2,7 @@
 import {readFileSync,cpSync,mkdirSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {historicalDocumentSecurityFixture as archivedDocumentFixture,protectedDocumentCreditKeys,sourceHoldArchive} from '../../scripts/qa/document-source-accounting.mjs';
+import {readSecurityV2Receipt} from '../../scripts/qa/security-write-v2-credit.mjs';
 import {readSecurityEvidence,verifySecurityCredits} from '../../scripts/qa/tenant-security-write-credit.mjs';
 export {SECURITY_TARGETS} from '../../scripts/qa/tenant-security-write-credit.mjs';
 // The historical receipt verifies this archived source against its original Git
@@ -25,7 +26,10 @@ export function copyDocumentHoldInputs(root){
  protectedDocumentCreditKeys(live());
  const archive=sourceHoldArchive();
  const receipt=JSON.parse(readFileSync('scripts/qa/separation-pg16-http-receipt.json','utf8'));
- const paths=new Set([...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),...Object.keys(receipt.sourcePins)]);
+ // The per-method security-write receipt verifies its own executed closure wherever a promoted row is read.
+ const v2=readSecurityV2Receipt();
+ const paths=new Set([...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),...Object.keys(receipt.sourcePins),
+  ...Object.keys(v2.globalPins),...Object.values(v2.methodPins).flatMap(pins=>Object.keys(pins))]);
  for(const file of paths) {
   mkdirSync(dirname(join(root,file)),{recursive:true});cpSync(file,join(root,file));
  }

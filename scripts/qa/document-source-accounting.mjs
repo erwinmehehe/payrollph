@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {securityV2HoldView,securityV2PromotedCount} from './security-write-v2-credit.mjs';
 import {hasSeparationPromotions,separationRoute,verifySeparationRenewal} from './separation-pg16-credit.mjs';
 export const DOCUMENT_ACCOUNTING_ARCHIVE='scripts/qa/document-source-accounting-archive.json';
 export const DOCUMENT_ACCOUNTING_BLOB='b3ccc93613bce6b9ee6ec3dd32b074f7a7befa13';
@@ -55,6 +56,7 @@ export function sourceHoldArchive(read=readFileSync){
  return archive;
 }
 export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
+ const live=manifest;manifest=securityV2HoldView(manifest,read); // verified per-method renewals are explained by their sealed holds
  const archive=sourceHoldArchive(read);
  let count=0;
  for(const variant of archive.variants){
@@ -83,10 +85,11 @@ export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
      'Document withdrawal requires exact current route/contract source: '+path);
   }
  }
- return count;
+ return count-securityV2PromotedCount(live); // promoted methods are COVERED in the live ledger, not holds
 }
 /** Source-exact demotions only; inherited holds are not counted twice. */
 export function reviewedDocumentSourceWithdrawals(before,after,read=readFileSync){
+ before=securityV2HoldView(before,read);after=securityV2HoldView(after,read);
  reviewedDocumentSourceHoldCount(after,read);
  const archive=sourceHoldArchive(read),keys=new Set();
  for(const variant of archive.variants){
@@ -128,6 +131,7 @@ export function isPhase34SeparationHoldRefresh(path,before,after){
 }
 
 export function protectedDocumentCreditKeys(manifest,read=readFileSync){
+ manifest=securityV2HoldView(manifest,read);
  reviewedDocumentSourceHoldCount(manifest,read);
  const archive=sourceHoldArchive(read),keys=new Set();
  for(const variant of archive.variants){
@@ -141,6 +145,7 @@ export function protectedDocumentCreditKeys(manifest,read=readFileSync){
 
 /** Old citations only, after verifying every exact current zero-credit hold. */
 export function historicalDocumentHoldView(manifest,read=readFileSync){
+ manifest=securityV2HoldView(manifest,read);
  const keys=protectedDocumentCreditKeys(manifest,read);
  const view=structuredClone(manifest);
  for(const key of keys){
@@ -157,6 +162,7 @@ export function historicalDocumentHoldView(manifest,read=readFileSync){
 
 /** An immutable historic receipt fixture, NEVER a source-current credit view. */
 export function historicalDocumentSecurityFixture(manifest,read=readFileSync){
+ manifest=securityV2HoldView(manifest,read);
  assert.ok(reviewedDocumentSourceHoldCount(manifest,read)>0);
  const archive=JSON.parse(read(DOCUMENT_ACCOUNTING_ARCHIVE));
  const variant=archive.variants.find(v=>v.name==='metadata');

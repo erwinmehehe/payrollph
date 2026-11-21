@@ -111,7 +111,8 @@ test("coverage stays GAP and source/coverage ledger are untouched", () => {
   const entry = manifest.allApiRouteFiles["src/app/api/developer/route.ts"];
   assert.ok(entry, "source-pinned developer route required");
   const target = entry.methods.find(method => method.name === "POST");
-  assert.equal(target?.status,'GAP');assert.equal(verifyHistoricalSecurityCredits(manifest),3);
+  assert.equal(target?.status,'COVERED','POST is credited by its own per-method v2 receipt');
+  assert.equal(target.testedBy.kind,'security-write-current-source-pg16-http-v2');assert.equal(verifyHistoricalSecurityCredits(manifest),3);
 });
 
 

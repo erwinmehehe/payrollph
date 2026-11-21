@@ -16,6 +16,7 @@ import { verifyCheckoutCredit, CHECKOUT_PATH } from './tenant-billing-checkout-c
 import { verifyYearEndCredits } from "./tenant-year-end-credit.mjs";
 import { verifyWorker360LegalEmployerCredits } from "./tenant-worker360-legal-employer-credit.mjs";
 import {verifiedOracleRenewalKeys} from './payroll-run-oracle-hold.mjs';
+import {SECURITY_V2_TARGETS,verifySecurityV2Rows} from './security-write-v2-credit.mjs';
 export const PINS={
   "src/app/api/invitations/accept/route.ts": "7387b8d7cd01c8fb43c155d406b4f8cbcd52f19e",
   "src/lib/tokens.ts": "a13f719b62cfb34f82f496e984987d82168bc262",
@@ -238,6 +239,8 @@ export function verifyInvitationAcceptCredits(m) {
       if(oidcStartPromotions.length)assert.equal(verifyOidcBatchMethod(m,OIDC_START),1);
       const xenditPromotions=promoted.filter(key=>key==='POST '+XENDIT_POST_PATH);
       if(xenditPromotions.length)assert.equal(verifyXenditPostCredit(m),1);
+      const securityV2Promotions=promoted.filter(key=>SECURITY_V2_TARGETS.some(t=>t.key===key));
+      if(securityV2Promotions.length)assert.equal(verifySecurityV2Rows(m).size,securityV2Promotions.length);
       // Exactly one operator-only report GET may coexist with invitations.
       // It must carry its own exact route/runner/contract/workflow/job receipt;
       // unlike ordinary employer methods it is not PUBLIC-BY-DESIGN.
@@ -248,7 +251,7 @@ export function verifyInvitationAcceptCredits(m) {
         assert.equal(verifyMkt01Credit(m),1,
           "Only the executed source-sealed MKT-01 operator GET credit may coexist");
       }
-      assert.deepEqual(promoted, [...separationPromotions,...timesheetPromotions,...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...oidcStartPromotions,...xenditPromotions,...mkt01Promotions,...payrollRenewals].sort(),
+      assert.deepEqual(promoted, [...separationPromotions,...timesheetPromotions,...birPromotions, ...filingPromotions, ...checkoutPromotions,...readinessPromotions,...approvalPromotions,...studioPromotions,...exportsPromotions,...yearEndPromotions,...worker360Promotions,...oidcPromotions,...oidcStartPromotions,...xenditPromotions,...mkt01Promotions,...securityV2Promotions,...payrollRenewals].sort(),
         "Only separately source- and proof-verified method promotions may coexist with invitation credits");
       // The base already earned these two provisional source-pinned credits.
       // Their route and complete receipt objects must be unchanged by this PR.

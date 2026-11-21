@@ -9,6 +9,7 @@ import { METHODS as developmentMethods, verifyCredit as verifyDevelopmentCredit 
 import { METHODS as coreMethods } from "./tenant-performance-core-contract.mjs";
 import { verifyCredit as verifyCoreCredit } from "./tenant-performance-core-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS} from './tenant-security-write-credit.mjs';
+import {isSecurityV2Row,verifySecurityV2Rows} from './security-write-v2-credit.mjs';
 import { verifyEnterprisePostCredit } from "./tenant-enterprise-admin-credit.mjs";
 
 export const RECONCILIATION_FILE = "scripts/qa/tenant-merged-family-reconciliation.json";
@@ -80,7 +81,8 @@ export function verifyReconciledFamilyCredits(manifest, read) {
     const [verb, route] = key.split(" ");
     const method = manifest.allApiRouteFiles["src/app/api/" + route + "/route.ts"].methods.find(method => method.name === verb);
     if(verifyWageRenewalMethod(manifest,'src/app/api/'+route+'/route.ts',verb))continue;
-    if (method.status === 'COVERED' && SECURITY_TARGETS.some(t=>t.path==='src/app/api/'+route+'/route.ts'&&t.method===verb)) verifySecurityCredits(manifest);
+    if (method.status === 'COVERED' && isSecurityV2Row(method)) verifySecurityV2Rows(manifest, read);
+    else if (method.status === 'COVERED' && SECURITY_TARGETS.some(t=>t.path==='src/app/api/'+route+'/route.ts'&&t.method===verb)) verifySecurityCredits(manifest);
     else if (method.status === "COVERED" && coreMethods.includes(key)) verifyCoreCredit(key, method);
     else if (method.status === "COVERED" && developmentMethods.includes(key)) verifyDevelopmentCredit(key, method, read);
     else if (method.status === "COVERED" && key === "POST enterprise") verifyEnterprisePostCredit(manifest, read);

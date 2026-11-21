@@ -97,7 +97,7 @@ test("source is precisely pinned and cannot silently earn manifest credit", () =
   const archived=sourceHoldArchive().variants.find(variant=>variant.name==='metadata');
   assert.equal(archived.records["src/app/api/documents/route.ts"].gitBlobSha,
     "fb0d1748dd25c6dd985894b9042f7eab427ce898");
-  assert.ok(reviewedDocumentSourceHoldCount(manifest)>=6,
+  assert.ok(reviewedDocumentSourceHoldCount(manifest)>=5,
     "All historical document and HCM zero-credit holds must remain source-current");
   assert.equal(verifyHistoricalSecurityCredits(manifest),3);
   assert.equal(readHistoricalSecurityEvidence().runs['documents-vault'].result.protectedFinalVetoes,2);
