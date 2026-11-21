@@ -41,3 +41,39 @@ test("rejects ambiguous or unsafe employer identifiers", () => {
     assert.throws(() => buildClientOnboardingChecklist(id, base));
   }
 });
+
+test("multi-entity registration evidence cannot be satisfied by organization-level identifiers", () => {
+  const report = buildClientOnboardingChecklist(15, {
+    ...base, employeeRecords: 2, employerRegistrationFields: 4,
+    hasMultipleLegalEmployers: true, legalEmployerScopeEnabled: true,
+    legalEmployerCount: 2, legalEmployerRegistrationsComplete: 1,
+  });
+  const registrations = report.steps.find((step) => step.id === "registrations");
+  assert.equal(registrations?.recorded, false);
+  assert.match(registrations!.detail, /1 of 2 active legal employers/);
+  assert.equal(report.recordedRequired, 2);
+});
+
+test("only fully recorded active legal employers advance registration presence", () => {
+  for (const count of [1, 2]) {
+    const report = buildClientOnboardingChecklist(15, {
+      ...base, employerRegistrationFields: 0,
+      hasMultipleLegalEmployers: count > 1, legalEmployerScopeEnabled: true,
+      legalEmployerCount: count, legalEmployerRegistrationsComplete: count,
+    });
+    assert.equal(report.steps.find((step) => step.id === "registrations")?.recorded, true);
+    assert.match(report.steps.find((step) => step.id === "registrations")!.detail, /independent review/);
+  }
+});
+
+test("feature-enabled onboarding refuses zero, missing or contradictory legal-employer evidence", () => {
+  for (const [count, complete] of [[0, 0], [2, 0], [2, 1], [2, 3], [-1, -1]]) {
+    const report = buildClientOnboardingChecklist(15, {
+      ...base, employerRegistrationFields: 4,
+      legalEmployerScopeEnabled: true, legalEmployerCount: count,
+      legalEmployerRegistrationsComplete: complete,
+      hasMultipleLegalEmployers: count > 1,
+    });
+    assert.equal(report.steps.find((step) => step.id === "registrations")?.recorded, false);
+  }
+});
