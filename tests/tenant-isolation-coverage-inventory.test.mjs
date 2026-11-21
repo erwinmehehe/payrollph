@@ -1,4 +1,5 @@
 import { verifyJournalRenewal } from "../scripts/qa/tenant-journal-renewal.mjs";
+import { verifyOperationsCopilotReviewOnly } from "../scripts/qa/operations-copilot-isolation-supplement-verify.mjs";
 import { timesheetProofKind, verifyTimesheetRenewal } from "../scripts/qa/timesheet-employer-credit.mjs";
 import { separationRoute, separationProofKind, verifySeparationRenewal } from "../scripts/qa/separation-pg16-credit.mjs";
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from '../scripts/qa/tenant-xendit-post-credit.mjs';
@@ -95,6 +96,8 @@ const documentedSourceHolds = protectedDocumentCreditKeys(manifest);
 verifyMergedProofCredits(manifest);
 verifyReconciledFamilyCredits(manifest);
 const baseline = JSON.parse(readFileSync("scripts/qa/tenant-isolation-inventory/baseline.json", "utf8"));
+// Exact-source, ZERO-credit supplement. Historical ledger and sealed proof counts stay unchanged.
+const copilotReviewOnly = verifyOperationsCopilotReviewOnly();
 
 function normalize(value) { return value.split(sep).join("/"); }
 function allFiles(directory) {
@@ -4358,9 +4361,14 @@ test("whole API manifest inventories exactly every route, exported method, and o
   assert.equal(manifest.baseCommit, BASE);
   assert.equal(baseline.baseCommit, BASE);
   const files = routeFiles();
-  const declared = Object.keys(manifest.allApiRouteFiles).sort();
+  const declared = [...Object.keys(manifest.allApiRouteFiles),
+    ...copilotReviewOnly.apiRoutePaths].sort();
   assert.deepEqual(declared, files,
     "new/removed route files require an explicit method-level isolation manifest review");
+  // Additional disabled pilot methods remain GAP / zero credit. The supplement
+  // checks their exact sources and cannot certify or change historic methods.
+  assert.equal(copilotReviewOnly.apiCredits, 0);
+  assert.equal(copilotReviewOnly.apiMethods, 2);
   assert.equal(Object.keys(baseline.api).length, 288,
     "original baseline scope is pinned to the audited 288-route snapshot");
 
@@ -4370,6 +4378,7 @@ test("whole API manifest inventories exactly every route, exported method, and o
   let tokenOnly = 0;
   let gaps = 0;
   for (const path of files) {
+    if (copilotReviewOnly.apiRoutePaths.includes(path)) continue;
     const sourceBytes = readFileSync(path);
     const currentBlob = gitBlobSha(sourceBytes);
     const record = manifest.allApiRouteFiles[path];
@@ -4390,7 +4399,7 @@ test("whole API manifest inventories exactly every route, exported method, and o
       count++;
     }
   }
-  assert.equal(files.length, manifest.metrics.routeFiles);
+  assert.equal(files.length, manifest.metrics.routeFiles + copilotReviewOnly.apiRoutePaths.length);
   assert.equal(count, manifest.metrics.methods);
   assert.equal(covered, manifest.metrics.coveredAfter);
   assert.equal(publicByDesign, manifest.metrics.publicByDesign);
@@ -7195,6 +7204,10 @@ test("page and server-action inventory cannot silently omit new or changed busin
     }
     if (scopedCandidate && changed) {
       if (aliases.some((alias) => alias.path === path)) continue;
+      // The new Copilot SSR has not earned real-HTTP tenant coverage.
+      // It is explicitly pinned as GAP in the additive review-only ledger,
+      // and hard-disabled in production until independent acceptance.
+      if (copilotReviewOnly.pagePaths.includes(path)) continue;
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
       // Public Careers is deliberately anonymous; being public does NOT make
@@ -8483,6 +8496,9 @@ test("page and server-action inventory cannot silently omit new or changed busin
     }
   }
   assert.equal(manifest.metrics.scopedPagesAndActions, manifest.scopedPages.length);
+  assert.ok(copilotReviewOnly.pagePaths.every(path => files.includes(path)),
+    "Every unaccepted Copilot SSR must exist in the complete page inventory");
+  assert.equal(copilotReviewOnly.pageCredits, 0);
 });
 
 test("original three-employer HTTP hard-refuse and anti-false-pass guards remain intact", () => {
