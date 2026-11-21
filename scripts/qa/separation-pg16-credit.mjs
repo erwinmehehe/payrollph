@@ -44,7 +44,22 @@ function sealedReceipt(read) {
 
 export function buildSeparationRenewal(read = readFileSync) {
   const { receipt } = sealedReceipt(read);
-  for (const [file, expected] of Object.entries(receipt.sourcePins)) {
+  const source = read("scripts/qa/separation-pg16-next-reproof.json");
+  assert.equal(blob(source), "9334d0a98c20845ce74cc1eba33368004af651a4", "Separation reproof receipt changed");
+  const reproof = JSON.parse(source);
+  assert.equal(reproof.label, receipt.label);
+  assert.equal(reproof.postgresMajor, 16);
+  assert.equal(reproof.transport, "localhost-http");
+  assert.equal(reproof.newCredits, 0);
+  assert.equal(reproof.productionCertified, false);
+  assert.equal(reproof.fullPg16Suite.conclusion, "success");
+  assert.equal(reproof.fullPg16Suite.httpConcluded, "success");
+  assert.equal(reproof.separationFlagOnOff.conclusion, "success");
+  assert.equal(reproof.form2316Transfer.conclusion, "success");
+  assert.deepEqual(reproof.methods, methods);
+  assert.deepEqual(Object.keys(reproof.sourcePins), [...Object.keys(receipt.sourcePins), "package.json"]);
+  assert.equal(reproof.sourcePins[separationRoute], receipt.sourcePins[separationRoute]);
+  for (const [file, expected] of Object.entries(reproof.sourcePins)) {
     assert.equal(blob(read(file)), expected, "Separation proof input changed: " + file);
   }
   return archivedSeparationPromotion(read);
