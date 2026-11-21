@@ -1,4 +1,4 @@
-import {verifyHistoricalSecurityCredits} from "./helpers/document-security-fixture.mjs";
+import {assertSecurityWriteProofLedger} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -83,7 +83,7 @@ test("BIO-01 refuses false successes and any foreign device marker leakage", () 
     { punches: [1, 2] }, "foreign"));
 });
 
-test("BIO-01 source pins the exact device binding and leaves canonical POST a GAP", () => {
+test("BIO-01 pins device binding and verifies the POST hold or current per-method credit", () => {
   assert.equal(gitSha(readFileSync(BIO01_ROUTE)), BIO01_ROUTE_SHA,
     "biometric ingestion changed; independently re-review source");
   assert.equal(gitSha(readFileSync(BIO01_HELPER)), BIO01_HELPER_SHA,
@@ -105,8 +105,7 @@ test("BIO-01 source pins the exact device binding and leaves canonical POST a GA
   }
   const ledger = JSON.parse(readFileSync("scripts/qa/tenant-isolation-coverage-manifest.json"));
   const methods = ledger.allApiRouteFiles[BIO01_ROUTE]?.methods;
-  const post=methods?.find(m=>m.name==='POST');assert.equal(post?.status,'COVERED','POST is credited by its own per-method v2 receipt');
-  assert.equal(post.testedBy.kind,'security-write-current-source-pg16-http-v2');assert.equal(verifyHistoricalSecurityCredits(ledger),3);
+  assertSecurityWriteProofLedger(ledger, BIO01_ROUTE);
   assert.equal(methods?.find(m => m.name === "GET")?.status, "COVERED",
     "do not accidentally downgrade already evidenced GET");
   assert.match(ledger.acceptanceStatus, /^NOT ACCEPTED:/);

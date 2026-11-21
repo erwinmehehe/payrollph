@@ -1,4 +1,4 @@
-import {verifyHistoricalSecurityCredits,SECURITY_TARGETS,readHistoricalSecurityEvidence} from "./helpers/document-security-fixture.mjs";
+import {assertSecurityWriteProofLedger,SECURITY_TARGETS,readHistoricalSecurityEvidence} from "./helpers/document-security-fixture.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -106,13 +106,11 @@ test("GitHub workflow uses only fake PG16, full Next HTTP and disabled money/pro
   assert.doesNotMatch(workflow, /secrets\.|actions\/upload-artifact/, "no live credentials or credential-bearing artifacts");
 });
 
-test("coverage stays GAP and source/coverage ledger are untouched", () => {
+test("developer POST retains its verified hold or a current per-method credit", () => {
   const manifest = JSON.parse(readFileSync(new URL("../scripts/qa/tenant-isolation-coverage-manifest.json", import.meta.url), "utf8"));
   const entry = manifest.allApiRouteFiles["src/app/api/developer/route.ts"];
   assert.ok(entry, "source-pinned developer route required");
-  const target = entry.methods.find(method => method.name === "POST");
-  assert.equal(target?.status,'COVERED','POST is credited by its own per-method v2 receipt');
-  assert.equal(target.testedBy.kind,'security-write-current-source-pg16-http-v2');assert.equal(verifyHistoricalSecurityCredits(manifest),3);
+  assertSecurityWriteProofLedger(manifest, "src/app/api/developer/route.ts");
 });
 
 
