@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'package-lock.json'
       - 'src/app/api/account/email/verify/route.ts'
       - 'src/lib/account.ts'
       - 'scripts/qa/tenant-account-email-verify-http.mjs'

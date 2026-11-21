@@ -28,7 +28,7 @@ export function hasSeparationPromotions(file) {
   return file?.methods.some(method => method.testedBy?.kind === separationProofKind);
 }
 
-export function buildSeparationRenewal(read = readFileSync) {
+function sealedReceipt(read) {
   const source = read(receiptPath);
   const receiptBlobSha = blob(source);
   assert.equal(receiptBlobSha, "e46ff86cc28c17fc4524eb3977c78b5ed337f3a5", "Separation receipt changed");
@@ -39,9 +39,35 @@ export function buildSeparationRenewal(read = readFileSync) {
   assert.equal(receipt.coverageCredits, 0);
   assert.equal(receipt.fullPg16Suite.conclusion, "success");
   assert.deepEqual(Object.keys(receipt.methods), methods);
-  for (const [file, expected] of Object.entries(receipt.sourcePins)) {
+  return { receipt, receiptBlobSha };
+}
+
+export function buildSeparationRenewal(read = readFileSync) {
+  const { receipt } = sealedReceipt(read);
+  const source = read("scripts/qa/separation-pg16-next-reproof.json");
+  assert.equal(blob(source), "9334d0a98c20845ce74cc1eba33368004af651a4", "Separation reproof receipt changed");
+  const reproof = JSON.parse(source);
+  assert.equal(reproof.label, receipt.label);
+  assert.equal(reproof.postgresMajor, 16);
+  assert.equal(reproof.transport, "localhost-http");
+  assert.equal(reproof.newCredits, 0);
+  assert.equal(reproof.productionCertified, false);
+  assert.equal(reproof.fullPg16Suite.conclusion, "success");
+  assert.equal(reproof.fullPg16Suite.httpConcluded, "success");
+  assert.equal(reproof.separationFlagOnOff.conclusion, "success");
+  assert.equal(reproof.form2316Transfer.conclusion, "success");
+  assert.deepEqual(reproof.methods, methods);
+  assert.deepEqual(Object.keys(reproof.sourcePins), [...Object.keys(receipt.sourcePins), "package.json"]);
+  assert.equal(reproof.sourcePins[separationRoute], receipt.sourcePins[separationRoute]);
+  for (const [file, expected] of Object.entries(reproof.sourcePins)) {
     assert.equal(blob(read(file)), expected, "Separation proof input changed: " + file);
   }
+  return archivedSeparationPromotion(read);
+}
+
+// The sealed receipt reconstructs historical ledger entries, not current proof.
+export function archivedSeparationPromotion(read = readFileSync) {
+  const { receipt, receiptBlobSha } = sealedReceipt(read);
   const held = exactHold(read);
   assert.equal(held.gitBlobSha, receipt.sourcePins[separationRoute]);
   const file = "scripts/qa/final-pay-prior-employer-http.mjs";
@@ -60,6 +86,11 @@ export function buildSeparationRenewal(read = readFileSync) {
     delete method.reviewedUncertified;
   }
   return held;
+}
+
+export function separationDependencyChanged(read = readFileSync) {
+  const { receipt } = sealedReceipt(read);
+  return blob(read("package-lock.json")) !== receipt.sourcePins["package-lock.json"];
 }
 
 export function verifySeparationRenewal(manifest, read = readFileSync) {

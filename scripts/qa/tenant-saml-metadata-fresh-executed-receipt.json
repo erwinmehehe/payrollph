@@ -1,7 +1,7 @@
 {
   "schema": "saml-public-metadata-fresh-pg16-v1",
-  "sourceHead": "b951f2de1bb15f0694a8699ea531e7937db82661",
-  "runId": "43603213932",
+  "sourceHead": "7d21d41e3b68da9c7be6ff3c7a84273c3deff902",
+  "runId": "44758373079",
   "inputs": {
     "roots": [
       "src/app/api/auth/saml/metadata/[providerId]/route.ts",
@@ -342,7 +342,7 @@
     ],
     "algorithm": "git-blob-sha1",
     "pins": {
-      ".github/workflows/tenant-saml-metadata-fresh-http.yml": "823cd8308d5e4eac6d8e6bd83d6824f45f315ae7",
+      ".github/workflows/tenant-saml-metadata-fresh-http.yml": "ad643fc350b0c1667a1c50216aef8a62854ecb3a",
       "docs/qa/tenant-saml-metadata-fresh-decision.md": "1182f4554af6ceedadad64e701eb8598d4564f30",
       "docs/qa/tenant-saml-metadata-owner-approval.json": "460a8cdba65eeeb929ca858c44e132b1906bb5ae",
       "docs/sql/source-baseline-supplement.sql": "9acc7896f4ea382917da7acd53984e73c6aface3",
@@ -500,8 +500,8 @@
       "drizzle/0137_immutable_payroll_calculation_history.sql": "6c4853a5f0212c01b2a02a36fec08e4144c53b4a",
       "drizzle/0138_labor_vertical_dimensions.sql": "949717153b8cc3b34e8c5c181f7e35d6413a957b",
       "next.config.ts": "3e79ee0460883938173d31349a6b62146e97fdcf",
-      "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2",
-      "package.json": "7078c01f09c85f79dd79ba5517a80e80cdb72ae3",
+      "package-lock.json": "e6a6ef7e48346838ed16052288acef4d87dcc375",
+      "package.json": "d327bc82bcedc19d76a91860a59c2270c4b12434",
       "scripts/lib/drizzle-kit-03111-ordinality-hotfix.mjs": "6b388956a1156a13cea76ea5a7de9f5208386452",
       "scripts/lib/isolated-db-push-target.mjs": "ea85bf71d722e43431bd7a5e22799ad0bb5131bb",
       "scripts/lib/migration-only-objects.mjs": "07ed3903f0aa2f482c34ff79a7c0e487ba49976d",
@@ -517,7 +517,7 @@
       "scripts/qa/tenant-saml-metadata-privacy-archive.json": "de43e70e3adf9060cc089eca113e4add758488f0",
       "scripts/qa/tenant-saml-metadata-privacy-verify.mjs": "adb087454e668257a9f149dbe7574ce2f7042557",
       "scripts/qa/tenant-saml-metadata-public-contract.mjs": "ceae351aa208659d25fb37ce26bcf2ba01b96a83",
-      "scripts/qa/tenant-saml-metadata-public-policy.mjs": "13571ec83005ee6220ee99a9649482597d61c682",
+      "scripts/qa/tenant-saml-metadata-public-policy.mjs": "d26291f6f1a640ef77d6190ad33e610c10ace9ee",
       "scripts/qa/tenant-table-catalog.mjs": "77a8814d522fa89a9ac890f2b4725a4259847ad4",
       "scripts/qa/tenant-table-env.mjs": "05dcdcdbd513b0e257b6aefb5d9449117224b357",
       "scripts/qa/tenant-table-http.mjs": "31894982d768e34c1653be7c4335194f60233c6e",
@@ -547,9 +547,9 @@
       "src/lib/workforce-schedule-receipt.ts": "1a1719a9681eaadb0caa0ff933192f846645d3c6",
       "tests/tenant-saml-metadata-artifact.test.mjs": "91f02789e3f6fc294789b448ae78126fcc31a343",
       "tests/tenant-saml-metadata-disabled-route.test.mjs": "7e28f98ad85a393f44c69e16ccb1a1ed3f827bf7",
-      "tests/tenant-saml-metadata-fresh.test.mjs": "1e152bb763100976ad5c8fd86fda5d0f12319128",
+      "tests/tenant-saml-metadata-fresh.test.mjs": "6331ffd13e7380a438255c2f386cde245d2eb515",
       "tests/tenant-saml-metadata-privacy-verify.test.mjs": "bbd1796f51295a69488b695682f55f40a6377ccd",
-      "tests/tenant-saml-metadata-public-policy.test.mjs": "c1ef713f7360fbca1c64ce3b284c149491c3651a",
+      "tests/tenant-saml-metadata-public-policy.test.mjs": "66ca8cbfc45b468f4874df1712baed9e8f224ccd",
       "tests/tenant-saml-metadata-public.test.mjs": "1cd0fccb248c8c4697e08e0a127c27143ae3ab0f",
       "tsconfig.json": "51b2236817d4f86d64198a483b0207941862d212"
     }
@@ -557,7 +557,7 @@
   "result": {
     "target": "GET /api/auth/saml/metadata/[providerId]",
     "test": "disposable-postgresql16-production-next-real-http",
-    "proofHeadSha": "b951f2de1bb15f0694a8699ea531e7937db82661",
+    "proofHeadSha": "7d21d41e3b68da9c7be6ff3c7a84273c3deff902",
     "routeBlobSha": "4f8d12b9867de0c18aea8e447208e8470773350b",
     "attackers": 2,
     "higherIdRealVictim": true,
@@ -575,7 +575,7 @@
     "noTenantOrProviderSecrets": true,
     "unchangedDbDuringHttp": true,
     "classificationCandidate": "PUBLIC-BY-DESIGN",
-    "currentStatus": "GAP",
+    "currentStatus": "PUBLIC-BY-DESIGN",
     "coverageCredits": 0,
     "independentlyAccepted": false,
     "productionCertified": false,

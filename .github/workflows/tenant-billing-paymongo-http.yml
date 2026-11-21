@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - "package-lock.json"
       - ".github/workflows/tenant-billing-paymongo-http.yml"
       - "scripts/qa/tenant-billing-paymongo-preload.mjs"
       - "scripts/qa/tenant-billing-paymongo-http.mjs"

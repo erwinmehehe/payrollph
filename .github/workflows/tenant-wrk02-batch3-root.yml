@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
+      - 'package-lock.json'
       - '.github/workflows/tenant-wrk02-batch3-root.yml'
       - 'src/app/api/workforce-planning/route.ts'
       - 'scripts/qa/tenant-table-rows/write/workforce-planning-root.mjs'
@@ -48,8 +49,6 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Guard exact root method contracts and zero coverage credits
-        run: node --test tests/tenant-wrk02-batch3-root-contract.test.mjs
       - name: Export disposable fictional tenant profile
         shell: bash
         run: |
@@ -98,6 +97,8 @@ jobs:
           PAYMONGO_DISBURSEMENTS_ENABLED: "false"
           XENDIT_PAYOUTS_ENABLED: "false"
         run: npx tsx scripts/qa/tenant-write-table-http.mjs
+      - name: Guard exact root method contracts and zero coverage credits
+        run: node --test tests/tenant-wrk02-batch3-root-contract.test.mjs
       - name: Show test server diagnostics on failure
         if: failure()
         run: cat /tmp/wrk02-batch3-root.log || true
