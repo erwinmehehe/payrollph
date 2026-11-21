@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { AssuranceFinding } from "../src/lib/payroll-assurance";
+import { CRITICAL_RELEASE_FLAGS, criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import {
   buildPayrollOperationsBrief, buildHrOperationsBrief, modelSafeOperationsSnapshot,
   operationsCopilotEnabled, operationsCopilotAiAllowed, OPERATIONS_COPILOT_PREVIEW_LIMIT,
@@ -17,6 +18,15 @@ const consent = {
   OPENAI_AUTOMATION_NOTICE_CONFIRMED: "true",
   OPENAI_AUTOMATION_APPROVED_ORG_IDS: "17",
 };
+
+test("both sensitive pilot gates are registered with accountable release owners", () => {
+  for (const name of ["operationsCopilotReadonly", "operationsCopilotModel"] as const) {
+    const gate = CRITICAL_RELEASE_FLAGS[name];
+    assert.ok(gate.owner && gate.risk && gate.approval);
+    assert.equal(criticalReleaseFlagEnabled(name, {}), false);
+    assert.equal(criticalReleaseFlagEnabled(name, { [gate.env]: "true" }), true);
+  }
+});
 
 test("read-only and external AI are independent default-off tenant gates", () => {
   assert.equal(operationsCopilotEnabled({}), false);

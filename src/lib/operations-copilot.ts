@@ -1,6 +1,7 @@
 import type { AssuranceFinding, AssuranceSeverity } from "./payroll-assurance";
 import { PAYROLL_FINDING_EXPLANATION_TEMPLATES } from "./payroll-finding-explanations";
 import { automationModelAllowedForOrganization } from "./automation-model-consent";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 /**
  * Read-only source-linked operations triage. This module never calculates wages,
@@ -58,7 +59,7 @@ const safeCaseType = (type: string) => /^[a-z][a-z0-9_]{0,79}$/.test(type) ? typ
 export function operationsCopilotEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
-  return env.OPERATIONS_COPILOT_READONLY_ENABLED === "true";
+  return criticalReleaseFlagEnabled("operationsCopilotReadonly", env);
 }
 
 export function operationsCopilotAiAllowed(
@@ -66,7 +67,7 @@ export function operationsCopilotAiAllowed(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
   return operationsCopilotEnabled(env)
-    && env.OPERATIONS_COPILOT_MODEL_ENABLED === "true"
+    && criticalReleaseFlagEnabled("operationsCopilotModel", env)
     && automationModelAllowedForOrganization(organizationId, env);
 }
 
