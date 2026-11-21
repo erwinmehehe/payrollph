@@ -9,6 +9,7 @@ import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId } from "@/lib/access";
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 import { buildClientOnboardingChecklist } from "@/lib/client-onboarding-checklist";
+import { ClientSetupTour } from "@/components/client-setup-tour";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -147,6 +148,8 @@ export default async function ClientOnboardingPage({
           ))}
         </ol>
       </section>
+
+      <ClientSetupTour organizationId={organizationId} />
 
       <section className="mt-9 grid gap-4 md:grid-cols-2" aria-labelledby="next-steps">
         <div className="rounded-2xl bg-slate-900 p-6 text-white">
