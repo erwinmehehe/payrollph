@@ -1,7 +1,7 @@
 <!-- wage-renewal-v2:start -->
 # Wage-source API renewal v2 (per-method source closures)
 
-SOLO_VERIFIED_DEV_RECOVERY. 498 methods = **454 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP**. 75 of 75 methods CREDITED from one fresh run; 0 remain zero-credit holds.
+SOLO_VERIFIED_DEV_RECOVERY. 498 methods = **453 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 8 GAP**. 74 of 75 methods CREDITED from one fresh run; 1 remain zero-credit holds.
 
 Execution: [run 44740145138](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138), 42 successful jobs at exact source head `c5f9b8439a6a9f22742330b60da59fa50879787a`. Receipt: [`wage-registry-renewal-receipt-v2.json`](../../scripts/qa/wage-registry-renewal-receipt-v2.json) (27 global pins; one closure per method).
 
@@ -11,7 +11,7 @@ A later change withdraws only the methods whose own closure or the global base c
 | --- | --- | --- | --- |
 | `PATCH /api/approvals/[id]` | CREDITED | 216 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503565) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503583) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503683) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503729) + [PG16 5](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503877) + [PG16 6](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504016) |
 | `GET /api/auth/me` | CREDITED | 177 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503652) |
-| `POST /api/automation-studio` | CREDITED | 317 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504296) + [PG16 2](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504167) + [PG16 3](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503747) + [PG16 4](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504342) + [PG16 5](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503798) + [PG16 6](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504294) + [PG16 7](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503964) + [PG16 8](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504083) |
+| `POST /api/automation-studio` | HELD | 317 | zero credit |
 | `POST /api/bir/annual-employer/candidate` | CREDITED | 217 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503699) |
 | `GET /api/bir/annual-employer/module-evidence` | CREDITED | 261 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136314010607) |
 | `POST /api/bir/annual-employer/module-evidence` | CREDITED | 261 | [PG16 1](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136314010607) |
