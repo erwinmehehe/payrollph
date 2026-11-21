@@ -21,6 +21,7 @@ import {verifyMkt01Credit} from '../scripts/qa/tenant-mkt01-marketing-credit.mjs
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from '../scripts/qa/tenant-workspace-readiness-credit.mjs';
 import {APPROVALS_PATH,verifyApprovalsCredit} from '../scripts/qa/tenant-approvals-credit.mjs';
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
@@ -98,7 +99,15 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
   assert.equal(m.metrics.publicByDesign, counts.publicByDesign);
   assert.equal(m.metrics.privilegedOperationsTokenOnly, counts.privilegedOperationsTokenOnly);
   const inspectedBase = baseTenantManifest();
-  const base=inspectedBase?{...inspectedBase,manifest:historicalWageHoldProjection(inspectedBase.manifest)}:null;
+  const baseFiles = new Map();
+  const readBaseFile = path => {
+    if (!baseFiles.has(path)) {
+      baseFiles.set(path, execFileSync("git", ["show", inspectedBase.ref + ":" + path], { maxBuffer: 64 * 1024 * 1024 }));
+    }
+    return baseFiles.get(path);
+  };
+  const base=inspectedBase?{...inspectedBase,manifest:historicalWageHoldProjection(inspectedBase.manifest,
+    readBaseFile)}:null;
   // This is explicitly the historical 75-hold fixture, never the live ledger.
   assertLiveTenantCounts(assert, m, process.env, base);
   if (base) {
