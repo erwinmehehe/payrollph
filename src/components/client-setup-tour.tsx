@@ -9,7 +9,7 @@ const STAGES = [
     title: "Review your organization",
     description: "Confirm the business name and company details recorded in the workspace. Check any legal-employer details before using the information for actual payroll.",
     instruction: "From your workspace, choose Settings, then Organization.",
-    action: "Go to workspace settings",
+    action: "Open workspace",
     page: "",
   },
   {
@@ -23,14 +23,14 @@ const STAGES = [
     title: "Organize your team",
     description: "Set up the right HR and finance access. Keep payroll preparation, checking and release responsibilities independently authorized.",
     instruction: "In Settings, choose Team. Review Approvals separately.",
-    action: "Open team workspace",
+    action: "Open workspace",
     page: "",
   },
   {
     title: "Read the reports",
     description: "Find People Intelligence and other existing reports. Historical numbers appear only when their source evidence supports them.",
     instruction: "From your workspace, open Reports (Analytics).",
-    action: "Open reporting workspace",
+    action: "Open workspace",
     page: "",
   },
 ] as const;
