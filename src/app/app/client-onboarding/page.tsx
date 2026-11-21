@@ -38,7 +38,7 @@ export default async function ClientOnboardingPage({
   const access = denied ? null : await getAccess(user.id, organizationId);
   // Only company-wide authorized People administrators may inspect these
   // company-wide setup counts. A unit-scoped role must not gain wider scope.
-  if (denied || !access?.companyWide) notFound();
+  if (denied || !access?.companyWide || !["owner", "admin"].includes(access.role)) notFound();
 
   // Preserve the same self-service billing entry gate as /app.
   // A direct guide/dashboard URL must not bypass pending-payment access.
