@@ -12744,7 +12744,7 @@
       }
     },
     "src/app/api/documents/route.ts": {
-      "gitBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+      "gitBlobSha": "ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
       "route": "documents",
       "methods": [
         {
@@ -12757,7 +12757,7 @@
             "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
             "method": "GET",
             "previousRouteBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
-            "routeBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+            "routeBlobSha": "ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
             "previousMethodProof": {
               "file": "scripts/qa/tenant-second-pass-http.mjs",
               "line": 500,
@@ -12781,7 +12781,7 @@
             "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
             "method": "POST",
             "previousRouteBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
-            "routeBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+            "routeBlobSha": "ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
             "previousMethodProof": {
               "file": "scripts/qa/tenant-document-upload-http.mjs",
               "line": 198,
@@ -12939,7 +12939,7 @@
       "sourceRevisionReview": {
         "kind": "document-metadata-legal-employer-source-withdrawal-zero-credit",
         "oldRouteBlobSha": "cd8d559e9186ddae6c0f00e7af4bc4c4f5e37d38",
-        "newRouteBlobSha": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+        "newRouteBlobSha": "ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
         "historicalSourceReview": null,
         "scope": "Legal-employer restricted GET or no-data HCM 503; all POST requests explicitly fail closed with 503 while multi-entity is ON pending issuer/requirements attribution, OFF behavior retained",
         "exactHeadPg16Http": "PENDING",

@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {verifyJournalRenewal} from '../../scripts/qa/tenant-journal-renewal.mjs';
-import {isPhase34SeparationHoldRefresh,reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
+import {isPhase34SeparationHoldRefresh,isReviewedHistoricalDocumentListRefresh,reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
 import {reviewedTimesheetSourceHold} from "../../scripts/qa/timesheet-source-accounting.mjs";
 import {timesheetRenewalDelta, timesheetProofKind} from "../../scripts/qa/timesheet-employer-credit.mjs";
 import {hasSeparationPromotions,separationRenewalDelta,separationRoute} from "../../scripts/qa/separation-pg16-credit.mjs";
@@ -47,6 +47,7 @@ export function assertWageLedgerDelta(assert,manifest){
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
     const previous=prior.allApiRouteFiles[path];
     if(isPhase34SeparationHoldRefresh(path,previous,file))continue; // Both records retain zero credit.
+    if(isReviewedHistoricalDocumentListRefresh(path,previous,file))continue; // Exact source-only document privacy fix: both methods remain GAP.
     if(path===separationRoute&&hasSeparationPromotions(file))continue;
     if (path === 'src/app/api/workforce/timesheets/route.ts' && file.methods[0]?.testedBy?.kind === timesheetProofKind) continue; // Exact base and result checked above.
     if(path==='src/app/api/v1/journal-entries/route.ts' && file.methods[0]?.testedBy?.kind==='released-journal-philhealth-pg16'){
