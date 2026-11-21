@@ -219,7 +219,7 @@ export async function syncSecurityV2Docs(manifest,read=readFileSync){
  return [[OVERVIEW,regeneratedOverview(overview,manifest)],[PLAN,regeneratedClosure(reconcilePlan(read(PLAN,'utf8'),manifest),manifest)]];
 }
 
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)(async()=>{
  const mode=process.argv[2],manifest=JSON.parse(readFileSync(SECURITY_V2_MANIFEST,'utf8'));
  assert.ok(['--check','--credit','--withdraw-drifted'].includes(mode)&&process.argv.length===3,'Usage: --check | --credit | --withdraw-drifted');
  if(mode==='--check')console.log(JSON.stringify({verified:[...verifySecurityV2Rows(manifest)],write:false}));
@@ -229,4 +229,4 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   if(changed){writeFileSync(SECURITY_V2_MANIFEST,JSON.stringify(next,null,2)+'\n');for(const [file,text]of await syncSecurityV2Docs(next))writeFileSync(file,text);}
   console.log(JSON.stringify({covered:next.metrics.coveredAfter,gap:next.metrics.gap,promoted:promoted??[],withdrawn:withdrawn??[],wrote:changed}));
  }
-}
+})();
