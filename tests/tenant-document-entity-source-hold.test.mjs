@@ -65,8 +65,10 @@ test("Historical receipt view includes the verified download and metadata holds"
   assert.equal(current.allApiRouteFiles[path].methods[0].status, "GAP");
   assert.equal(projected.allApiRouteFiles[path].methods[0].status, "COVERED");
   const renewed = hasSeparationPromotions(current.allApiRouteFiles[separationRoute]) ? verifySeparationRenewal(current) : 0;
-  assert.equal(projected.metrics.gap, current.metrics.gap - 10 + renewed);
-  assert.equal(projected.metrics.coveredAfter, current.metrics.coveredAfter + 10 - renewed);
+  const {securityV2PromotedCount} = await import("../scripts/qa/security-write-v2-credit.mjs");
+  const promoted = securityV2PromotedCount(current); // per-method v2 credits are projected back to holds first
+  assert.equal(projected.metrics.gap, current.metrics.gap - 10 + renewed + promoted);
+  assert.equal(projected.metrics.coveredAfter, current.metrics.coveredAfter + 10 - renewed - promoted);
   assert.deepEqual(current, currentSnapshot, "Historical receipt must never change live inventory");
   for (const mutate of [
     x => { x.allApiRouteFiles[path].gitBlobSha = "0".repeat(40); },

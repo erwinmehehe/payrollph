@@ -1,8 +1,10 @@
 /** Historical test inputs only. Never call this from a current-credit writer. */
+import assert from 'node:assert/strict';
 import {readFileSync,cpSync,mkdirSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {historicalNext16DependencyInput} from './historical-next16-dependencies.mjs';
 import {historicalDocumentSecurityFixture as archivedDocumentFixture,protectedDocumentCreditKeys,sourceHoldArchive} from '../../scripts/qa/document-source-accounting.mjs';
+import {readSecurityV2Receipt,verifySecurityV2Rows} from '../../scripts/qa/security-write-v2-credit.mjs';
 import {readSecurityEvidence,verifySecurityCredits} from '../../scripts/qa/tenant-security-write-credit.mjs';
 export {SECURITY_TARGETS} from '../../scripts/qa/tenant-security-write-credit.mjs';
 // The historical receipt verifies this archived source against its original Git
@@ -24,14 +26,27 @@ export function verifyHistoricalSecurityCredits(manifest){
  const old=historicalDocumentSecurityFixture(manifest);
  return verifySecurityCredits(old.manifest,old.read);
 }
+export function assertSecurityWriteProofLedger(manifest, path) {
+ const method = manifest.allApiRouteFiles[path]?.methods.find(row => row.name === 'POST');
+ const key = 'POST ' + path;
+ if (method?.status === 'GAP') {
+   assert.deepEqual(method, readSecurityV2Receipt().holds[key], 'Uncredited proof must retain its exact archived hold');
+ } else {
+   assert.ok(verifySecurityV2Rows(manifest).has(key), 'A credited POST must have current per-method evidence');
+ }
+ assert.equal(verifyHistoricalSecurityCredits(manifest), 3);
+}
 export function copyDocumentHoldInputs(root){
  protectedDocumentCreditKeys(live());
  const archive=sourceHoldArchive();
  const receipt=JSON.parse(readFileSync('scripts/qa/separation-pg16-http-receipt.json','utf8'));
+ // The per-method security-write receipt verifies its own executed closure wherever a promoted row is read.
+ const v2=readSecurityV2Receipt();
  const reproofPath='scripts/qa/separation-pg16-next-reproof.json';
  const reproof=JSON.parse(readFileSync(reproofPath,'utf8'));
  const paths=new Set([reproofPath,...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),
-  ...Object.keys(receipt.sourcePins),...Object.keys(reproof.sourcePins)]);
+  ...Object.keys(receipt.sourcePins),...Object.keys(reproof.sourcePins),
+  ...Object.keys(v2.globalPins),...Object.values(v2.methodPins).flatMap(pins=>Object.keys(pins))]);
  for(const file of paths) {
   mkdirSync(dirname(join(root,file)),{recursive:true});cpSync(file,join(root,file));
  }

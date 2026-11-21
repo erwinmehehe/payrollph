@@ -7,6 +7,7 @@ import {hasSeparationPromotions,separationRenewalDelta,separationRoute} from "..
 import {wageHeldPriorProof} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {verifiedWageCreditHolds} from '../../scripts/qa/wage-registry-credit-holds.mjs';
 import {historicWageRegistryProofView} from '../../scripts/qa/wage-registry-source-hold.mjs';
+import {securityV2RenewalDelta,isSecurityV2Row} from '../../scripts/qa/security-write-v2-credit.mjs';
 import {baseTenantManifest,assertLiveTenantCounts} from './tenant-counts.mjs';
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
@@ -55,6 +56,7 @@ export function assertWageLedgerDelta(assert,manifest){
   const priorLive=base.manifest;
   const timesheetRenewals=timesheetRenewalDelta(priorLive,liveManifest);
   const separationRenewals=separationRenewalDelta(priorLive,liveManifest);
+  const securityRenewals=securityV2RenewalDelta(priorLive,liveManifest);
   const otherWithdrawals=new Set([
     ...reviewedDocumentSourceWithdrawals(priorLive,liveManifest),
     ...reviewedTimesheetSourceHold(priorLive,liveManifest),
@@ -86,6 +88,7 @@ export function assertWageLedgerDelta(assert,manifest){
     for(const row of file.methods){
       const old=previous.methods.find(x=>x.name===row.name),key=row.name+' '+path;
       if(otherWithdrawals.has(key))continue;
+      if(isSecurityV2Row(row))continue; // Exact base hold and per-method receipt verified by securityV2RenewalDelta above.
       if(holds.has(key)){
         if(old.status==='GAP')assert.deepEqual(row,old,'Inherited hold must stay exact: '+key);
         else if(revoked.has(key)) {
@@ -134,8 +137,8 @@ export function assertWageLedgerDelta(assert,manifest){
   }
   assert.deepEqual(manifest.scopedPages,prior.scopedPages,'Wage withdrawal cannot alter page credits');
   const {live}=assertLiveTenantCounts(assert,liveManifest);
-  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-otherWithdrawals.size+timesheetRenewals+separationRenewals);
-  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+otherWithdrawals.size-timesheetRenewals-separationRenewals);
+  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-otherWithdrawals.size+timesheetRenewals+separationRenewals+securityRenewals);
+  assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+otherWithdrawals.size-timesheetRenewals-separationRenewals-securityRenewals);
   assert.equal(live.publicByDesign,prior.metrics.publicByDesign);
   assert.equal(live.privilegedOperationsTokenOnly,prior.metrics.privilegedOperationsTokenOnly);
   return true;

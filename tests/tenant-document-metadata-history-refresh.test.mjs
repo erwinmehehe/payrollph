@@ -19,7 +19,7 @@ test("historical-document metadata source refresh has zero method credits and un
     assert.equal(method.reviewedUncertified.routeBlobSha, currentSha);
     assert.equal(method.reviewedUncertified.independentSecurityReview, "PENDING");
   }
-  assert.ok(reviewedDocumentSourceHoldCount(manifest) >= 6);
+  assert.ok(reviewedDocumentSourceHoldCount(manifest) >= 5); // biometrics and developer POST now carry per-method v2 credits
   assert.match(manifest.acceptanceStatus, /^NOT ACCEPTED:/);
 });
 

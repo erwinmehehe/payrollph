@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {reviewedDocumentSourceHoldCount,reviewedDocumentSourceWithdrawals,protectedDocumentCreditKeys,sourceHoldArchive} from '../scripts/qa/document-source-accounting.mjs';
+import {securityV2PromotedCount} from '../scripts/qa/security-write-v2-credit.mjs';
 import {isExactHistoricalLoaderChange} from '../scripts/qa/wage-registry-renewal-verify.mjs';
 import {baseTenantManifest,assertLiveTenantCounts} from './helpers/tenant-counts.mjs';
 import {hasSeparationPromotions,separationRoute,verifySeparationRenewal} from '../scripts/qa/separation-pg16-credit.mjs';
@@ -11,7 +12,7 @@ const load=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-man
 test('only the exact metadata methods and two dependent security writes may lose source-current credits',()=>{
  const m=load(),before=structuredClone(m);
  const renewed=hasSeparationPromotions(m.allApiRouteFiles[separationRoute])?verifySeparationRenewal(m):0;
- assert.equal(reviewedDocumentSourceHoldCount(m),paths.length*2+2+1+3-renewed);
+ assert.equal(reviewedDocumentSourceHoldCount(m),paths.length*2+2+1+3-renewed-securityV2PromotedCount(m));
  const base=baseTenantManifest().manifest;
  const newlyWithdrawn=[...protectedDocumentCreditKeys(m)].filter(key=>{
    const at=key.indexOf(' '),verb=key.slice(0,at),path=key.slice(at+1);
