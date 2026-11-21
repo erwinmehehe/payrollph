@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { buildClientOnboardingChecklist } from "../src/lib/client-onboarding-checklist";
 
 const base = {
@@ -76,4 +77,21 @@ test("feature-enabled onboarding refuses zero, missing or contradictory legal-em
     });
     assert.equal(report.steps.find((step) => step.id === "registrations")?.recorded, false);
   }
+});
+
+test("onboarding SSR gates legal-employer metadata before aggregate reads", () => {
+  const page = readFileSync("src/app/app/client-onboarding/page.tsx", "utf8");
+  const settings = readFileSync("src/components/workspace/panels.tsx", "utf8");
+  const auth = page.indexOf("await assertOrganizationRole(");
+  const scope = page.indexOf("await resolveMultiEntityContext(");
+  const aggregate = page.indexOf("const [orgs, workforce, team, entityRegistrations]");
+  assert.ok(auth >= 0 && scope > auth && aggregate > scope,
+    "Company membership, custom permissions and employer selection must precede aggregate reads");
+  assert.match(page, /entityScope\.context\.enabled\s*\?\s*db\.select\(/,
+    "Feature-OFF cannot read legal-employer metadata");
+  assert.match(page, /entityScope\.context\.legalEntityId !== null\)\) notFound\(\)/,
+    "An explicitly selected employer cannot see a mislabeled organization-wide count");
+  assert.match(page, /eq\(legalEntities\.active, true\)/);
+  assert.match(settings, /!data\.multiEntity\?\.enabled \|\| data\.multiEntity\.legalEntityId === null/,
+    "Settings must not offer a group-wide guide in single-employer context");
 });
