@@ -1,0 +1,365 @@
+{
+  "version": "phase39-multi-pay-revisions-2026-11-21",
+  "toleranceCentavos": 0,
+  "description": "Eight synthetic real-engine cases for two effective-dated changes and overtime. Every expected money value is an independently derived literal, never computed with PayrollPH functions.",
+  "sources": {
+    "pay": "Dated 09:00–18:00 punch with noon hour unpaid = eight paid hours. 11 workdays in Sep 16-30: 5 at old rate, 3 at Sep23 rate, 3 at Sep28 rate. Each workday uses the effective rate on that date.",
+    "overtime": "Approved ordinary overtime = 2h x 1.25 x hourly effective rate for Sep22, Sep24 and Sep29, with daily wage divided by eight.",
+    "sss": "SSS 2025: 5% employee share at nearest-PHP500 MSC. Sep 1–15 gross PHP8000 contributes PHP400; final cutoff reconciles full September gross including overtime less PHP400 (product's Phase8 policy).",
+    "philHealth": "PhilHealth 5% total split equally, based on fixed monthly equivalent at cutoff-end (daily rate x22, hourly rate x176). Second cutoff employee contribution = monthly employee share minus PHP220 first cutoff.",
+    "pagIbig": "Pag-IBIG employee PHP200 monthly at salary cap, PHP100 per cutoff.",
+    "withholding": "BIR 2023+ semi-monthly cutoff no-withholding band through taxable PHP10417. All eight cases are below this band."
+  },
+  "assumptions": [
+    "Fictional employees, NCR, September 2026 and employer statutory split collection, hired 2026-01-01. No other earnings, loans, leave, holidays, prior-provider imports or special premiums.",
+    "Cutoff 1 has 10 workdays and 800/day or 100/hour; common literal gross 8000 SSS400 PH220 Pag-IBIG100 tax0 net7280. Cutoff 2 has 11 workdays, split 5/3/3 around Sep23 and Sep28.",
+    "All dated punches contain the 12:00–13:00 unpaid break. Approved 2h ordinary overtime is on Sep22, Sep24 and Sep29. PH rate is the last effective rate of the cutoff; SSS includes OT.",
+    "Every payslip must independently reconcile printed gross, deductions and net to stored centavos."
+  ],
+  "employees": {
+    "dailyOvertimeNoRevisionControl": {
+      "description": "Control, daily 800 all month; 11x800 basic plus 3x250 ordinary overtime. September total 17550, MSC 17500.",
+      "payBasis": "daily",
+      "rate": 800,
+      "overtime": [
+        {
+          "date": "2026-09-22",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-24",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-29",
+          "minutes": 120
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9550,
+          "sss": 475,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 8755
+        }
+      ]
+    },
+    "dailyTwoRaises": {
+      "description": "Daily 800 -> 860 Sep 23 -> 920 Sep 28. Basic 5x800 + 3x860 + 3x920 = 9340. Total September 17340; SSS MSC 17500, final PH (920x22x2.5%) -220 = 286.",
+      "payBasis": "daily",
+      "rate": 800,
+      "changes": [
+        {
+          "effectiveDate": "2026-09-23",
+          "newRate": 860,
+          "recordedBeforeCutoff": 2
+        },
+        {
+          "effectiveDate": "2026-09-28",
+          "newRate": 920,
+          "recordedBeforeCutoff": 2
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9340,
+          "sss": 475,
+          "philHealth": 286,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 8479
+        }
+      ]
+    },
+    "hourlyTwoRaises": {
+      "description": "Hourly 100 ->110 Sep23 ->117.50 Sep28. Basic 5x800+3x880+3x940=9460; total September 17460 MSC17500, final PH (117.50x176x2.5%)-220=297.",
+      "payBasis": "hourly",
+      "rate": 100,
+      "changes": [
+        {
+          "effectiveDate": "2026-09-23",
+          "newRate": 110,
+          "recordedBeforeCutoff": 2
+        },
+        {
+          "effectiveDate": "2026-09-28",
+          "newRate": 117.5,
+          "recordedBeforeCutoff": 2
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9460,
+          "sss": 475,
+          "philHealth": 297,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 8588
+        }
+      ]
+    },
+    "dailyTwoRaisesWithOvertime": {
+      "description": "Daily 800 ->860 ->920, plus 2h OT Sep22=250, Sep24=268.75, Sep29=287.50; OT=806.25, gross=10146.25; September MSC18000; PH286.",
+      "payBasis": "daily",
+      "rate": 800,
+      "changes": [
+        {
+          "effectiveDate": "2026-09-23",
+          "newRate": 860,
+          "recordedBeforeCutoff": 2
+        },
+        {
+          "effectiveDate": "2026-09-28",
+          "newRate": 920,
+          "recordedBeforeCutoff": 2
+        }
+      ],
+      "overtime": [
+        {
+          "date": "2026-09-22",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-24",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-29",
+          "minutes": 120
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 10146.25,
+          "sss": 500,
+          "philHealth": 286,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9260.25
+        }
+      ]
+    },
+    "hourlyTwoRaisesWithOvertime": {
+      "description": "Hourly 100 ->110 ->117.50, plus 2h OT Sep22=250, Sep24=275, Sep29=293.75; OT818.75, gross10278.75; September MSC18500; PH297.",
+      "payBasis": "hourly",
+      "rate": 100,
+      "changes": [
+        {
+          "effectiveDate": "2026-09-23",
+          "newRate": 110,
+          "recordedBeforeCutoff": 2
+        },
+        {
+          "effectiveDate": "2026-09-28",
+          "newRate": 117.5,
+          "recordedBeforeCutoff": 2
+        }
+      ],
+      "overtime": [
+        {
+          "date": "2026-09-22",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-24",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-29",
+          "minutes": 120
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 10278.75,
+          "sss": 525,
+          "philHealth": 297,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9356.75
+        }
+      ]
+    },
+    "dailyRaiseThenCutWithOvertime": {
+      "description": "Daily 800 ->940 Sep23 ->840 Sep28. Basic 4000+2820+2520=9340; OT=250+293.75+262.50=806.25, gross10146.25; final PH (840x22x2.5%)-220=242.",
+      "payBasis": "daily",
+      "rate": 800,
+      "changes": [
+        {
+          "effectiveDate": "2026-09-23",
+          "newRate": 940,
+          "recordedBeforeCutoff": 2
+        },
+        {
+          "effectiveDate": "2026-09-28",
+          "newRate": 840,
+          "recordedBeforeCutoff": 2
+        }
+      ],
+      "overtime": [
+        {
+          "date": "2026-09-22",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-24",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-29",
+          "minutes": 120
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 10146.25,
+          "sss": 500,
+          "philHealth": 242,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9304.25
+        }
+      ]
+    },
+    "hourlyRaiseThenCutWithOvertime": {
+      "description": "Hourly 100 ->120 Sep23 ->105 Sep28. Basic 4000+2880+2520=9400; OT250+300+262.50=812.50, gross10212.50; September MSC18000, final PH242.",
+      "payBasis": "hourly",
+      "rate": 100,
+      "changes": [
+        {
+          "effectiveDate": "2026-09-23",
+          "newRate": 120,
+          "recordedBeforeCutoff": 2
+        },
+        {
+          "effectiveDate": "2026-09-28",
+          "newRate": 105,
+          "recordedBeforeCutoff": 2
+        }
+      ],
+      "overtime": [
+        {
+          "date": "2026-09-22",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-24",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-29",
+          "minutes": 120
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 10212.5,
+          "sss": 500,
+          "philHealth": 242,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9370.5
+        }
+      ]
+    },
+    "dailyTwoRaisesRecordedEarly": {
+      "description": "Daily 800 ->860 Sep23 ->920 Sep28, both revisions recorded before the first unprocessed cutoff. Earlier cutoff remains 800/day; second is 9340 gross and 8479 net.",
+      "payBasis": "daily",
+      "rate": 800,
+      "changes": [
+        {
+          "effectiveDate": "2026-09-23",
+          "newRate": 860,
+          "recordedBeforeCutoff": 1
+        },
+        {
+          "effectiveDate": "2026-09-28",
+          "newRate": 920,
+          "recordedBeforeCutoff": 1
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9340,
+          "sss": 475,
+          "philHealth": 286,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 8479
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Engineering proof only: independent Philippine payroll/tax practitioner signoff and real payroll parallel-run acceptance have not occurred.",
+    "Change records mirror the employees API tables but not its approval/auth/date validation or released-cutoff retro adjustment.",
+    "No night, holiday, rest-day premium, absence, leave, two separate calendar months, final-pay or annualized daily/hourly refund test.",
+    "Phase 4 source refund payslip fix is merged; browser/PDF rendered verification remains separate and unproven."
+  ]
+}
