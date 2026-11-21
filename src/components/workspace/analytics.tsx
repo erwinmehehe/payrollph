@@ -162,9 +162,18 @@ export function AnalyticsView({ data, notify, tenantReportBuilderEnabled = false
         title="Reports"
         copy="Explore payroll, people and workforce records. Preview a report before exporting."
         actions={
-          <button className="secondary-button" onClick={reload} disabled={visibleState === "loading"}>
-            <RefreshCw size={15} className="i-blue" /> Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {data.access?.companyWide === true &&
+              ["owner", "admin", "bookkeeper", "hr", "payroll"].includes(data.access.role) &&
+              (!data.multiEntity?.enabled || data.multiEntity.legalEntityId === null) && (
+                <a className="secondary-button" href={`/app/people-analytics?organizationId=${organizationId}`}>
+                  <UsersRound size={15} className="i-purple" /> People Analytics
+                </a>
+              )}
+            <button className="secondary-button" onClick={reload} disabled={visibleState === "loading"}>
+              <RefreshCw size={15} className="i-blue" /> Refresh
+            </button>
+          </div>
         }
       />
 
