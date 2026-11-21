@@ -74,7 +74,16 @@ export function verifyCareersPatchCredit(manifest, read = readFileSync) {
   assert.equal(method.status, "COVERED", "Careers PATCH must not claim unsupported credit");
   assert.equal(method.reviewedUncertified, undefined, "Stale zero-credit exception not allowed");
   assert.deepEqual(method.testedBy, CAREERS_CREDIT_RECEIPT, "Exact executed PG16 proof receipt required");
-  for (const [file, hash] of Object.entries(CAREERS_PROOF_PINS)) {
+  const raw = read("scripts/qa/tenant-careers-next-reproof.json");
+  assert.equal(gitBlobSha(raw), "6507befe48ba755e119e0f80d657af21c9777a9b", "Unreviewed careers reproof");
+  const reproof = JSON.parse(raw);
+  assert.equal(reproof.httpStep, "success");
+  assert.equal(reproof.result.victimAndDraftPayrollUnchanged, true);
+  assert.deepEqual([reproof.result.realOwnedPublishes, reproof.result.realOwnedUnpublishes, reproof.result.verifiedDeniedCalls], [3, 2, 20]);
+  assert.equal(reproof.result.moneyMoved, false);
+  assert.equal(reproof.result.coverageCredits, 0);
+  assert.deepEqual(Object.keys(reproof.inputs), Object.keys(CAREERS_PROOF_PINS));
+  for (const [file, hash] of Object.entries(reproof.inputs)) {
     assert.equal(gitBlobSha(read(file)), hash, "Executed careers route, workflow or dependency drift: " + file);
   }
   const lines = read(CAREERS_CREDIT_RECEIPT.file).toString("utf8").split("\n");

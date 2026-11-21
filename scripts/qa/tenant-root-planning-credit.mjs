@@ -10,11 +10,16 @@ const hash=value=>createHash("sha256").update(value.toString().replaceAll("\r\n"
 const read=path=>readFileSync(path);
 const git=(...args)=>execFileSync("git",args,{encoding:"utf8"}).trim();
 export function verifyRootCredits(manifest,reader=read){
-  assert.equal(hash(reader(FILE)),"0ad6015febbbd52a0216a34f5044859d8b0d32036f1be99c48dd3fcd359248d2","root receipt identity changed");
+  assert.equal(hash(reader(FILE)),"08f4d9dfacc3326f1bf05d70b30c3e639728ecf9ce09abb9b55df836af3fa3c1","root receipt identity changed");
   const receipt=JSON.parse(reader(FILE));
   assert.deepEqual(Object.keys(receipt.methods),ROOT_METHODS);
   assert.equal(receipt.head,"3cc07639c617f447187447d3fd2f5cf2d0fd7ec6");
   assert.equal(receipt.run,41815695216);assert.equal(receipt.job,126525742584);
+  const {httpStep,result}=receipt.reproof;
+  assert.equal(httpStep,"success");
+  assert.deepEqual([result.rows,result.ownAndForeignPairs,result.discriminatingProofs,result.forgedReferenceProofs],[2,4,2,4]);
+  assert.equal(result.victimDatabaseUnchanged,true);
+  assert.equal(result.productionTested,false);
   for(const [path,digest] of Object.entries(receipt.pins))assert.equal(hash(reader(path)),digest,path+": root proof input drift");
   for(const key of ROOT_METHODS){
     const verb=key.split(" ")[0], method=manifest.allApiRouteFiles["src/app/api/workforce-planning/route.ts"].methods.find(m=>m.name===verb);

@@ -13,7 +13,27 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {wageRenewalHoldView,verifyWageRenewalMethod,WAGE_RENEWAL_KIND,isWageRenewalKind} from '../../scripts/qa/wage-registry-renewal-verify.mjs';
 import { reviewedWageRenewalEngineWithdrawal } from '../../scripts/qa/wage-registry-renewal-supersession.mjs';
+import {withdrawDriftedWageRenewalV2} from '../../scripts/qa/wage-registry-renewal-v2.mjs';
+import {verifyEmailCredit} from '../../scripts/qa/tenant-email-verification-credit.mjs';
+import {verifyOidcBatchMethod} from '../../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
+import {verifyXenditPostCredit} from '../../scripts/qa/tenant-xendit-post-credit.mjs';
 export {wageHeldPriorProof};
+
+const renewedDependencyCitations = new Map([
+  ['POST src/app/api/account/email/verify/route.ts', [
+    '9f86b46d98dfe463a936a97029c6058d95c740c62a3c607883e86599d6125a73',
+    m => verifyEmailCredit(m, JSON.parse(readFileSync('scripts/qa/tenant-email-verification-credit-receipt.json'))),
+  ]],
+  ['GET src/app/api/auth/sso/callback/route.ts', [
+    '3fb42c78d6cc2766245a9b524502f43863333708e9a4f8334208128fb26861ed', verifyOidcBatchMethod,
+  ]],
+  ['GET src/app/api/auth/sso/start/route.ts', [
+    '97bdbc92cbc348f8754d60a07b909c00f58d0ccf9a819e331c287aa44d38b581', verifyOidcBatchMethod,
+  ]],
+  ['POST src/app/api/payroll-runs/[id]/xendit-payout/route.ts', [
+    '846f8a53b9d81464f11e08dd20d2bccc3fef9d7c3b157a931a821fe7a0fdd2a1', m => verifyXenditPostCredit(m),
+  ]],
+]);
 
 export function historicalWageCatalog(manifest){
   // Only immutable catalogue citations may use this view. Current credit
@@ -42,7 +62,7 @@ export function assertWageLedgerDelta(assert,manifest){
     ...reviewedTimesheetSourceHold(priorLive,liveManifest),
   ]);
   const revoked=reviewedWageRenewalEngineWithdrawal(priorLive,liveManifest);
-  const prior=revoked.size?priorLive:wageRenewalHoldView(priorLive);
+  const prior=revoked.size?priorLive:wageRenewalHoldView(withdrawDriftedWageRenewalV2(priorLive).manifest);
   const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>isWageRenewalKind(m.testedBy?.kind)).length;
   assert.deepEqual(Object.keys(manifest.allApiRouteFiles).sort(),Object.keys(prior.allApiRouteFiles).sort());
   let withdrawn=0;
@@ -89,6 +109,15 @@ export function assertWageLedgerDelta(assert,manifest){
       // scopes, source hashes, statuses and other fields must remain exact.
       const expected=structuredClone(old);
       if(JSON.stringify(row.testedBy)!==JSON.stringify(old.testedBy)){
+        const renewal=renewedDependencyCitations.get(key);
+        if(renewal){
+          const [priorDigest,verify]=renewal;
+          assert.equal(createHash('sha256').update(JSON.stringify(old)).digest('hex'),priorDigest);
+          assert.equal(verify(liveManifest,path),1);
+          assert.deepEqual(row,{...old,reason:row.reason,testedBy:row.testedBy},
+            'Dependency reproof may only renew the existing method citation: '+key);
+          continue;
+        }
         assert.equal(row.testedBy?.file,'scripts/qa/tenant-manifest-driven-http.mjs');
         assert.equal(old.testedBy?.file,row.testedBy.file);
         const before=execFileSync('git',['show',base.ref+':'+row.testedBy.file],{encoding:'utf8'}).split('\n');

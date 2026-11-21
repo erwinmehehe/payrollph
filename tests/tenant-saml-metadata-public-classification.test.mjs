@@ -6,7 +6,6 @@ import {assertSsoResolveHeldOrApproved} from '../scripts/qa/tenant-sso-resolve-p
 import {historicalSamlMetadataView,SAML_PUBLIC_PATH} from '../scripts/qa/tenant-saml-metadata-public-policy.mjs';
 import {verifyFreshSamlExecution,FRESH_SAML_RECEIPT} from '../scripts/qa/tenant-saml-metadata-fresh-execution-verify.mjs';
 import {collectRenewalInputs} from '../scripts/qa/payroll-run-renewal-inputs.mjs';
-import {samlExecutedInputRead} from '../scripts/qa/tenant-saml-adapted-inputs.mjs';
 import {collectFreshSamlInputs} from '../scripts/qa/tenant-saml-metadata-fresh-inputs.mjs';
 const manifest=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
 test('only the exact approved public GET closes one GAP and adds zero COVERED credits',()=>{
@@ -25,6 +24,6 @@ test('owner approval without executed evidence, source drift or expanded labels 
  assert.throws(()=>verifyFreshSamlExecution(readFileSync,p=>[...readdirSync(p),'9999_unexecuted.sql']),/SQL inventory changed/);
 });
 test('the complete locked-compiler import graph and every execution root still match',()=>{
- const r=verifyFreshSamlExecution(),c=collectFreshSamlInputs();assert.deepEqual({...c,pins:collectRenewalInputs(c.roots,samlExecutedInputRead())},r.inputs);
+ const r=verifyFreshSamlExecution(),c=collectFreshSamlInputs();assert.deepEqual({...c,pins:collectRenewalInputs(c.roots,readFileSync)},r.inputs);
  assert.equal(Object.keys(r.inputs.pins).length,210);
 });
