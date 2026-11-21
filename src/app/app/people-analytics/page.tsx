@@ -9,6 +9,7 @@ import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES, primaryCompany
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { PeopleAnalyticsDashboard } from "@/components/people-analytics-dashboard";
+import { hcmManilaDay } from "@/lib/hcm-people-intelligence";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -52,5 +53,6 @@ export default async function PeopleAnalyticsPage({
   if (!organization) notFound();
 
   return <PeopleAnalyticsDashboard key={organizationId}
-    organizationId={organizationId} organizationName={organization.name} />;
+    organizationId={organizationId} organizationName={organization.name}
+    today={hcmManilaDay(new Date())} />;
 }
