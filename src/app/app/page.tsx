@@ -131,12 +131,6 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     access?.role === "manager" && !access.companyWide && access.orgUnitId !== null;
   return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}>
     <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
-      {access?.companyWide && ["owner", "admin"].includes(access.role) && (
-        <Link href={`/app/client-onboarding?organizationId=${companyOrganizationId}`}
-          className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
-          Company setup guide
-        </Link>
-      )}
       {canSeeHrCases && (
         <Link href={"/hcm/hr-cases?organizationId=" + data.selectedOrganization.id}
           className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
