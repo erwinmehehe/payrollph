@@ -7102,6 +7102,13 @@ test("page and server-action inventory cannot silently omit new or changed busin
   // source-pinned, UNACCEPTED exception for one actual inspected route, not a
   // blanket exemption for newly edited pages.
   const aliases = manifest.scopedRedirectAliases ?? [];
+  // The sealed 21-page ledger is historical evidence and may not be silently
+  // repinned. The *one* new client-onboarding SSR must instead have an
+  // exact-source, zero-credit, independently tested pending record.
+  const pendingScopedPages = liveManifest.pendingScopedPageCandidates ?? [];
+  assert.deepEqual(pendingScopedPages.map((entry) => entry.path),
+    ["src/app/app/client-onboarding/page.tsx"],
+    "New scoped SSR pages require explicit recorded zero-credit evidence, not an inventory bypass");
   assert.deepEqual(aliases.map((entry) => entry.path),
     ["src/app/billing/manage/page.tsx"], "No undeclared page alias is permitted");
   for (const alias of aliases) {
@@ -7190,6 +7197,76 @@ test("page and server-action inventory cannot silently omit new or changed busin
     }
     if (scopedCandidate && changed) {
       if (aliases.some((alias) => alias.path === path)) continue;
+      if (path === "src/app/app/client-onboarding/page.tsx") {
+        // This uncredited proof candidate is distinct from the original
+        // fixed 21 source-sealed pages. It is NOT a coverage or launch credit.
+        const hold = pendingScopedPages[0];
+        assert.deepEqual(hold, {
+          path: "src/app/app/client-onboarding/page.tsx",
+          blob: "2c89dc0d053e7270b61e5325f855f356d9b02f17",
+          kind: "authenticated-company-setup-SSR-disposable-PG16-unreviewed",
+          status: "GAP",
+          reason: "New source-backed onboarding page. Exact-source fictional PG16 own/foreign/revoked/role read-only HTTP proof must pass and independent tenant/privacy review is still pending; no historical page ledger credits.",
+          proofFile: "scripts/qa/tenant-client-onboarding-page-http.mjs",
+          proofBlob: "98e50a6c4a6d2682e1ae437cc3fb119e28a919c6",
+          workflowFile: ".github/workflows/client-onboarding-tenant-http.yml",
+          workflowBlob: "a5874b94eb8a63631ff82149d0a6af1a516e7349",
+          contractTestFile: "tests/client-onboarding-page-boundary.test.mjs",
+          contractBlob: "491721e46d2201fce8999b81c9ea8ac1ec6b703d",
+          pageCredits: 0, methodCredits: 0,
+          independentSecurityReview: "PENDING",
+          independentHrPrivacyReview: "PENDING",
+          independentlyAccepted: false, productionCertified: false,
+        }, "The onboarding SSR must not inherit a historical page credit");
+        assert.equal(current, hold.blob,
+          "Onboarding page changed; renew exact-head fictional SSR proof before declaring any readiness");
+        for (const [file, sha] of [
+          [hold.proofFile, hold.proofBlob],
+          [hold.workflowFile, hold.workflowBlob],
+          [hold.contractTestFile, hold.contractBlob],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "Onboarding SSR proof/workflow contract changed without renewed review: " + file);
+        }
+        const session = actual.indexOf("await getSessionUser()");
+        const canonical = actual.indexOf("canonicalPeoplePageOrganizationId(raw)");
+        const role = actual.indexOf("await assertOrganizationRole(");
+        const companyWide = actual.indexOf("if (denied || !access?.companyWide");
+        const entity = actual.indexOf("await resolveMultiEntityContext(");
+        const groupBoundary = actual.indexOf("entityScope.context.legalEntityId !== null");
+        const employeeReads = actual.indexOf("const [orgs, workforce, team, entityRegistrations]");
+        assert.ok(0 < session && session < canonical && canonical < role &&
+          role < companyWide && companyWide < entity &&
+          entity < groupBoundary && groupBoundary < employeeReads,
+          "Onboarding SSR must refuse unauthorized employer selection before staff, legal-employer or company records");
+        assert.match(actual, /entityScope\.context\.enabled\s*\?\s*db\.select\(/,
+          "Feature OFF may not read the new legal-employer table");
+        assert.match(actual, /eq\(legalEntities\.active, true\)/);
+        assert.match(actual, /\["owner", "admin"\]\.includes\(access\.role\)/);
+        assert.doesNotMatch(actual, /db\.(?:insert|delete|update)\(/,
+          "The onboarding page is read-only and cannot write financial/HR records");
+        const proof = readFileSync(hold.proofFile, "utf8");
+        const workflow = readFileSync(hold.workflowFile, "utf8");
+        assert.ok(proof.indexOf("requireDisposableClientOnboardingEnv();") > 0 &&
+          proof.indexOf("requireDisposableClientOnboardingEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "Synthetic proof must reject unsafe targets before loading database code");
+        for (const marker of [
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          'for (const actor of [a, b])', 'assertOwnOnboardingPage(myPage, actor,',
+          'assertDeniedOnboardingPage(denied, employers, "authenticated cross-employer")',
+          'assert.equal(deniedForeign, 4)', 'assert.equal(ownPages, 2)',
+          'assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id)',
+          '"unit-scoped admin"', '"revoked membership"',
+          'pageCredits: 0, methodCredits: 0, productionCertified: false',
+        ]) assert.ok(proof.includes(marker),
+          "Fictional two-owner/victim SSR proof missing a mandatory negative control: " + marker);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-client-onboarding-page-http\.mjs/);
+        assert.ok(workflow.includes('"src/app/app/client-onboarding/**"'));
+        continue; // Unaccepted, exact-source, provisional SSR proof. Zero credits.
+      }
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
       // Public Careers is deliberately anonymous; being public does NOT make
