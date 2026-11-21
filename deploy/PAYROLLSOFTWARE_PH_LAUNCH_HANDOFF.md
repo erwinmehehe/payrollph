@@ -14,6 +14,7 @@
 | Resend | Vercel production environment inventory includes the **name** `RESEND_API_KEY` (and `RESEND_EMAIL_DOMAIN`), but no secret value was inspected; delivery/domain verification not demonstrated | Reuse and validate the existing credential through the authorized provider/secret manager, rather than creating a second key without cause |
 | Plan | Hosting team is on Vercel **Hobby** as inspected | Vercel Hobby is non-commercial; the responsible operator must move the existing team to an eligible paid plan **before a commercial deployment**: https://vercel.com/docs/plans/hobby |
 | Source release flags | `vercel.json` only enables Git deployment from `main`; all other patterns are disabled | Preserve this release hold; a PR or documentation commit is not permission to deploy |
+| Deployment protection | Current Vercel project reports authentication enabled with `deploymentType: all_except_custom_domains` | **Custom production domains are not protected** by the current scope; before a private hosted UAT, independently enable and verify full deployment protection. Decide on public exposure only as a separate launch act. Vercel's 2026 protection controls must be checked in the current dashboard |
 | Payroll acceptance | `PILOT_GATES.md` records independent payroll/agency/bank/restore and owner review as outstanding | No customer payroll GA or live payment/filing authorization |
 
 ## 2. Release lanes — distinguish website from payroll
@@ -25,7 +26,7 @@
 ## 3. Domain acquisition and DNS handoff
 
 1. **Registrant/owner:** Ask the chosen `.ph` registrar to confirm whether `payrollsoftware.ph` is available, already registered, or belongs to the intended business before paying. The Vercel association is **not** proof of purchase; the Vercel registration API did not establish availability. Save the receipt, registrar account owner, renewal date and DNS access privately.
-2. **Do not overwrite unrelated records:** Identify the authoritative DNS provider from registrar nameserver settings. Export existing DNS/TTL/MX/TXT configuration privately before editing. No live DNS change is authorized by this document.
+2. **Do not overwrite unrelated records:** Identify the authoritative DNS provider from the **registrar's actual delegation after registration**. The nameservers Vercel currently displays for the unconfigured domain also appear in IANA's delegation for the entire `.ph` top-level domain; they must **not** be assumed to be this business domain's own DNS provider. Export existing DNS/TTL/MX/TXT configuration privately before editing. No live DNS change is authorized by this document.
 3. **Website routing:** In existing Vercel project > Settings > Domains, recheck exact apex A/ALIAS and `www` CNAME recommendations and verification status. At the actual authoritative DNS host, publish **only** the reviewed project-specific records. Keep `www` -> apex redirect. Do not guess A or CNAME values, and do not switch nameservers merely to avoid correcting a record.
 4. **Email routing:** Maintain separate DNS entries for Resend sending verification (SPF/DKIM, recommended DMARC); do not delete MX records for any human inbox and do not create duplicate SPF policies at the same hostname. Take exact values from the verified Resend domain's dashboard; no arbitrary filler TXT values.
 5. **Validation:** Confirm fresh authoritative DNS, correct HTTPS certificate, apex URL, `www` redirect, expected Vercel commit and no public secrets. Re-run verification after propagation. Do not open customer registration or invite flows until the final approved launch stage.
@@ -79,6 +80,7 @@ Review existing `deploy/PROD_ENV_CHECKLIST.md` and `.env.local.example` before e
 - [ ] Appropriate **commercial** Vercel plan approved; existing project reused.
 - [ ] Vercel integration provisioning root cause identified, repaired and independently accepted; issue #1974 handled.
 - [ ] DNS, HTTPS, apex and `www` redirect verified without loss of inbox/MX records.
+- [ ] Before private UAT, verify Vercel deployment protection also applies to the **custom production domain**; do not rely on protection of generated preview URLs only.
 - [ ] Exact GitHub commit approved; required CI/security checks green; deployment metadata matches that commit.
 - [ ] Resend domain verified, sender approved, webhook signed and delivered event actually reconciled.
 - [ ] Security preflight and protected readiness checks passed against the correct environment; secrets are not exposed; PII/bank encryption, RBAC/MFA and tenant isolation independently verified.
