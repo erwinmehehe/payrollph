@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
-import { organizations } from "@/db/schema";
+import { organizations, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
+import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES, primaryCompanyOrganizationId } from "@/lib/access";
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
@@ -33,6 +34,16 @@ export default async function PeopleAnalyticsPage({
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES);
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !access?.companyWide) notFound();
+  // Preserve the same self-service billing entry gate as /app.
+  // A direct guide/dashboard URL must not bypass pending-payment access.
+  if (await isSelfServeOrganization(organizationId)) {
+    const [billing] = await db.select({ status: subscriptions.status })
+      .from(subscriptions).where(eq(subscriptions.organizationId, organizationId)).limit(1);
+    if (!billing || billing.status === "pending_payment") {
+      redirect(`/billing/setup?organizationId=${organizationId}`);
+    }
+  }
+
   const scope = await resolveMultiEntityContext({ userId: user.id, organizationId });
   if (!scope.ok || (scope.context.enabled && scope.context.legalEntityId !== null)) notFound();
 
