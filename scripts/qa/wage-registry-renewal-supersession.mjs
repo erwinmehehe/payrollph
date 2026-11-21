@@ -10,6 +10,7 @@ import {
   WAGE_RENEWAL_RECEIPT, WAGE_RENEWAL_RECEIPT_BLOB,
   WAGE_RENEWAL_KIND, wageRenewalRow, validateWageReceiptResults,
 } from "./wage-registry-renewal-verify.mjs";
+import {wageRenewalV2HoldView} from "./wage-registry-renewal-v2.mjs";
 
 export const PRIOR_ENGINE_BLOB = "dc5719a2c34094b5449bf4ecacb198ab0d74a313";
 // #2013 composes the reviewed provider-switch correction with #2003. This
@@ -40,6 +41,8 @@ function originalProof(read = readFileSync) {
 }
 
 export function verifyWageRenewalEngineWithdrawal(manifest, read = readFileSync) {
+  // A v2 per-method renewal re-credits these methods from fresh execution; project it back to the exact hold first.
+  manifest = wageRenewalV2HoldView(manifest, read);
   const {inventory} = originalProof(read);
   const keys = new Set();
   for (const entry of inventory.methods) {
@@ -56,6 +59,7 @@ export function verifyWageRenewalEngineWithdrawal(manifest, read = readFileSync)
 /** Historical zero-credit projection for legacy guard comparisons ONLY.
  * Never use this as a current manifest or to assert live method coverage. */
 export function historicalWageHoldProjection(before, read = readFileSync) {
+  before = wageRenewalV2HoldView(before, read);
   const {inventory, receipt} = originalProof(read);
   const view = structuredClone(before);
   let withdrawn = 0;

@@ -8,6 +8,7 @@ import {validateWageReceiptResults,readWageRenewalReceipt,WAGE_RENEWAL_RECEIPT,W
 import {reconcileWageRenewal} from '../scripts/qa/wage-registry-renewal-credit.mjs';
 import {verifyWageRenewalEngineWithdrawal} from '../scripts/qa/wage-registry-renewal-supersession.mjs';
 import {assertWageLedgerDelta} from './helpers/wage-source-holds.mjs';
+import {WAGE_RENEWAL_V2_KIND} from '../scripts/qa/wage-registry-renewal-v2.mjs';
 import {renewalWorkflow} from '../scripts/qa/wage-registry-renewal-workflow.mjs';
 const receipt=()=>JSON.parse(readFileSync(WAGE_RENEWAL_RECEIPT,'utf8'));
 test('source-only Worker 360 CI validates current receipts without any npm dependency',()=>{
@@ -92,8 +93,9 @@ test('unsealed or altered execution cannot change the manifest or borrow the old
  }else{
   assert.throws(()=>readWageRenewalReceipt(p=>p===WAGE_RENEWAL_RECEIPT?Buffer.concat([readFileSync(p),Buffer.from('\n')]):readFileSync(p)),/receipt changed/);
   const m=JSON.parse(before),entry=readWageRenewalInventory().methods[0];
-  m.allApiRouteFiles[entry.path].methods.find(x=>x.name===entry.verb).status='COVERED';
-  assert.throws(()=>verifyWageRenewalEngineWithdrawal(m),/Stale renewal must be fully withdrawn/);
+  // The captured hold (zero credit) or its v2 per-method renewal (credited): any edit fails closed.
+  m.allApiRouteFiles[entry.path].methods.find(x=>x.name===entry.verb).reason+=' forged';
+  assert.throws(()=>verifyWageRenewalEngineWithdrawal(m),/Stale renewal must be fully withdrawn|provenance changed/);
  }
  assert.deepEqual(readFileSync(path),before);
 });
@@ -110,6 +112,8 @@ test('the ACTUAL live manifest has only sealed complete-method renewals and exac
   assert.equal(verifyWageRenewalEngineWithdrawal(m).size,75);
   for(const entry of readWageRenewalInventory().methods){
     const row=m.allApiRouteFiles[entry.path].methods.find(x=>x.name===entry.verb);
+    // Either the exact captured hold or a v2 per-method renewal (verified above through the v2 hold view).
+    if(row.testedBy?.kind===WAGE_RENEWAL_V2_KIND){assert.equal(row.status,'COVERED');continue;}
     assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
   }
   assert.throws(()=>readWageRenewalReceipt(),/Executed runtime\/HTTP\/source drift/);

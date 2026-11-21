@@ -4,6 +4,7 @@ import {separationRoute,verifySeparationRenewal} from './separation-pg16-credit.
 import {verifyXenditPostCredit,XENDIT_POST_PATH} from './tenant-xendit-post-credit.mjs';
 import {verifyMkt01Credit} from './tenant-mkt01-marketing-credit.mjs';
 import {verifyApprovalsCredit,APPROVALS_PATH} from './tenant-approvals-credit.mjs';
+import {verifyWageRenewalV2Rows} from './wage-registry-renewal-v2.mjs';
 import {verifyStudioPostCredit,STUDIO_POST_PATH} from './tenant-studio-post-credit.mjs';
 import {ROUTE_PATH as READINESS_GET_PATH,verifyWorkspaceReadinessCredit} from './tenant-workspace-readiness-credit.mjs';
 import assert from "node:assert/strict";
@@ -158,8 +159,10 @@ export function verifyInvitationAcceptCredits(m) {
     const previouslyCredited = inheritedStatuses.every(status => status === "COVERED");
     assert.ok(newlyCredited || previouslyCredited,
       "Invitation proof must be an atomic GET/POST pair, never a partially inherited credit");
+    // A v2 wage-source renewal is authorized only by its own sealed per-method receipt (verified here, exactly).
+    const wageRenewed = verifyWageRenewalV2Rows(m);
     const promoted = [...live.byKey].filter(([key, method]) =>
-      method.status === "COVERED" && base.byKey.get(key)?.status === "GAP")
+      method.status === "COVERED" && base.byKey.get(key)?.status === "GAP" && !wageRenewed.has(key))
       .map(([key]) => key).sort();
     if (newlyCredited) {
       assert.deepEqual(promoted, ["GET " + ROUTE, "POST " + ROUTE].sort(),
