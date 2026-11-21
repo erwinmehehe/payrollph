@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, legalEntities, organizations, userOrganizations } from "@/db/schema";
+import { employees, legalEntities, organizations, subscriptions, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId } from "@/lib/access";
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 import { buildClientOnboardingChecklist } from "@/lib/client-onboarding-checklist";
@@ -37,6 +38,16 @@ export default async function ClientOnboardingPage({
   // Only company-wide authorized People administrators may inspect these
   // company-wide setup counts. A unit-scoped role must not gain wider scope.
   if (denied || !access?.companyWide) notFound();
+
+  // Preserve the same self-service billing entry gate as /app.
+  // A direct guide/dashboard URL must not bypass pending-payment access.
+  if (await isSelfServeOrganization(organizationId)) {
+    const [billing] = await db.select({ status: subscriptions.status })
+      .from(subscriptions).where(eq(subscriptions.organizationId, organizationId)).limit(1);
+    if (!billing || billing.status === "pending_payment") {
+      redirect(`/billing/setup?organizationId=${organizationId}`);
+    }
+  }
 
   const [orgs, workforce, team, entityCounts] = await Promise.all([
     db.select({
