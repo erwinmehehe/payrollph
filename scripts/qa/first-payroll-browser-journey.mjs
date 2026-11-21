@@ -120,7 +120,7 @@ try{
  assert.deepEqual(errors,[]);
  for(const width of [1280,390]){await owner.setViewportSize({width,height:900});await owner.screenshot({path:`outputs/first-payroll-browser-owner-${width}.png`,fullPage:true});}
  writeFileSync('outputs/first-payroll-browser-progress.json',JSON.stringify({steps,errors},null,2));
- writeFileSync('outputs/first-payroll-browser-journey.json',JSON.stringify({result:'PASS',sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),steps,gross:runs[0].grossPay,net:runs[0].netPay,providerCalls:0,coverageCredits:0,authentication:'distinct seeded fictional MFA-verified sessions; password/email/MFA enrollment not exercised',setup:'SQL-only fictional employee/pay profile/punch/template fixtures; payroll lifecycle driven by browser controls, no intercepted API responses'},null,2));
+ writeFileSync('outputs/first-payroll-browser-journey.json',JSON.stringify({result:'PASS',sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),runId:runs[0].id,steps,gross:runs[0].grossPay,net:runs[0].netPay,providerCalls:0,coverageCredits:0,authentication:'distinct seeded fictional MFA-verified sessions; password/email/MFA enrollment not exercised',setup:'SQL-only fictional employee/pay profile/punch/template fixtures; payroll lifecycle driven by browser controls, no intercepted API responses'},null,2));
  console.log('PASS full local browser payroll create, submit, checker approve, owner release, PDF and exact CSV');
 }catch(error){if(browser){for(const context of browser.contexts())for(const page of context.pages())console.error('BROWSER_STATE '+(await page.locator('body').innerText()).slice(-18000));}throw error;}
 finally{if(browser)await browser.close();await pool.end();}
