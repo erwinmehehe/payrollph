@@ -104,6 +104,14 @@ proofs are cryptographically sealed to it. The two new copilot API methods
 (GET and POST) and one new HCM SSR page instead appear in the separate
 scripts/qa/operations-copilot-isolation-supplement.json.
 
+Two separately source-sealed versions of the preexisting manifest are
+accepted: the exact PR-base blob `df3e1301b67ec1b2c271f4393f91511b7e8035c5`
+and the preexisting newer `main` blob
+`c024f9699f3770693625fcaf9982e7ed39eed57f` used by GitHub's
+synthetic PR merge jobs. An arbitrary repin or changed manifest is refused.
+Neither version adds a Copilot credit, and the PR does not alter the
+historical ledger itself.
+
 The supplement is source-pinned and verified by
 scripts/qa/operations-copilot-isolation-supplement-verify.mjs and the shared
 inventory test. Each new entry has status GAP, zero credits, no asserted

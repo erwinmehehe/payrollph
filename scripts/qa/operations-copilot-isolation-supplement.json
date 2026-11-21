@@ -61,5 +61,6 @@
     "Tenant, role, unit, legal-employer, revocation and forged/duplicate selector negative controls for both API methods and SSR page.",
     "Optional external narration payload privacy, DPA, retention, notice, rate limiting, MFA and zero money/HR mutation proof.",
     "Independent Payroll, HR, Privacy and Security acceptance before any production flag or coverage promotion."
-  ]
+  ],
+  "upstreamManifestBlob": "c024f9699f3770693625fcaf9982e7ed39eed57f"
 }

@@ -55,6 +55,23 @@ test("an unaccepted method or SSR page may never be silently promoted to COVERED
   }
 });
 
+test("only exact PR-base and preexisting upstream manifest blobs are eligible", () => {
+  const original = JSON.parse(readFileSync(OPERATIONS_COPILOT_SUPPLEMENT, "utf8"));
+  assert.equal(original.baselineManifestBlob, "df3e1301b67ec1b2c271f4393f91511b7e8035c5");
+  assert.equal(original.upstreamManifestBlob, "c024f9699f3770693625fcaf9982e7ed39eed57f");
+  for (const wrong of [
+    {baselineManifestBlob: "0".repeat(40)},
+    {upstreamManifestBlob: "0".repeat(40)},
+    {upstreamManifestBlob: original.baselineManifestBlob},
+  ]) {
+    const mutant = {...original, ...wrong};
+    assert.throws(() => verifyOperationsCopilotReviewOnly(file =>
+      file === OPERATIONS_COPILOT_SUPPLEMENT
+        ? JSON.stringify(mutant) : readFileSync(file)), /AssertionError|Expected values to be strictly equal/,
+      "An arbitrary upstream manifest or rebased pin must be rejected");
+  }
+});
+
 test("sealed historic tenant ledger must remain exact and cannot borrow new-method credit", () => {
   assert.throws(() => verifyOperationsCopilotReviewOnly(file =>
     file === "scripts/qa/tenant-isolation-coverage-manifest.json"

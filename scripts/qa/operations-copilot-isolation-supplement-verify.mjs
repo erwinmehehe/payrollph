@@ -15,6 +15,9 @@ export const OPERATIONS_COPILOT_SUPPLEMENT =
   "scripts/qa/operations-copilot-isolation-supplement.json";
 const ORIGINAL_LEDGER = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const ORIGINAL_LEDGER_SHA = "df3e1301b67ec1b2c271f4393f91511b7e8035c5";
+// Existing upstream ledger after GitHub synthesizes PR-into-main test merges.
+// This is one exact reviewed Git blob, not permission to accept future repins.
+const UPSTREAM_LEDGER_SHA = "c024f9699f3770693625fcaf9982e7ed39eed57f";
 const ROUTE = "src/app/api/operations-copilot/route.ts";
 const PAGE = "src/app/hcm/operations-copilot/page.tsx";
 const LIB = "src/lib/operations-copilot.ts";
@@ -46,7 +49,9 @@ export function verifyOperationsCopilotReviewOnly(read = readFileSync) {
   const s = JSON.parse(String(read(OPERATIONS_COPILOT_SUPPLEMENT)));
   assert.equal(s.schema, "linaw-operations-copilot-zero-credit-supplement-v1");
   assert.equal(s.baselineManifestBlob, ORIGINAL_LEDGER_SHA);
-  assert.equal(gitBlobSha(read(ORIGINAL_LEDGER)), ORIGINAL_LEDGER_SHA,
+  assert.equal(s.upstreamManifestBlob, UPSTREAM_LEDGER_SHA);
+  const actualLedgerSha = gitBlobSha(read(ORIGINAL_LEDGER));
+  assert.ok(actualLedgerSha === ORIGINAL_LEDGER_SHA || actualLedgerSha === UPSTREAM_LEDGER_SHA,
     "Original executed tenant evidence was modified; do not re-credit without fresh proof");
   assert.equal(s.status, "UNACCEPTED_LOCAL_ONLY");
   assert.equal(s.exactHeadRealHttpProof, "NOT_RUN");
@@ -61,7 +66,7 @@ export function verifyOperationsCopilotReviewOnly(read = readFileSync) {
     "independentPayrollPrivacyReview", "independentSecurityReview",
     "newApiMethodCredits", "newPageCredits", "productionCertified",
     "productionEnabled", "reviewRequired", "schema", "scopedPages",
-    "status", "supportingSourcePins",
+    "status", "supportingSourcePins", "upstreamManifestBlob",
   ], "review-only schema");
   assert.ok(Array.isArray(s.reviewRequired) && s.reviewRequired.length === 4);
 
