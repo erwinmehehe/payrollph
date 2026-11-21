@@ -4,6 +4,7 @@
  * A status-only flip, borrowed BIR/subscription receipt or source repin fails.
  */
 import assert from "node:assert/strict";
+import { checkoutReproofInputs } from "./tenant-billing-checkout-credit-pins.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -70,8 +71,9 @@ export function readBillingPostReceipt(read = readFileSync) {
   assert.equal(receipt.noProductionPayouts, true);
   assert.equal(receipt.sourceReviewRequiredIfAnyPinnedBlobDrifts, true);
   assert.equal(Object.keys(receipt.inputBlobs).length, 9);
-  for (const [file, sha] of Object.entries(receipt.inputBlobs)) {
-    assert.equal(GIT_BLOB_SHA(read(file)), sha,
+  const currentInputs = checkoutReproofInputs(read, receipt.executedResult);
+  for (const file of Object.keys(receipt.inputBlobs)) {
+    assert.equal(GIT_BLOB_SHA(read(file)), currentInputs[file],
       "BILLING_CREDIT_REFUSED: current input differs from executed HTTP proof: " + file);
   }
   assert.equal(receipt.inputBlobs[BILLING_POST_PATH], "6ccf4135f824f5c46ea7aceabdcae811c75d2e15");
