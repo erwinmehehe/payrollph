@@ -20,6 +20,7 @@ import { verifyCheckoutCredit, CHECKOUT_PATH } from "../scripts/qa/tenant-billin
 import {verifyFilingPatchCredit,FILING_PATH} from "../scripts/qa/tenant-filing-patch-credit.mjs";
 import { ROUTE_PATH as READINESS_GET_PATH, verifyWorkspaceReadinessCredit } from "../scripts/qa/tenant-workspace-readiness-credit.mjs";
 import {verifySecurityCredits,SECURITY_TARGETS,readSecurityEvidence} from '../scripts/qa/tenant-security-write-credit.mjs';
+import {isSecurityV2Row,readSecurityV2Receipt,verifySecurityV2Rows} from '../scripts/qa/security-write-v2-credit.mjs';
 import { verifyAccountEmailRequestCredit } from '../scripts/qa/tenant-account-email-request-credit.mjs';
 import {verifySpendManaged, TARGETS as spendManagedTargets} from '../scripts/qa/tenant-spend-managed-credit.mjs';
 import {verifyRecoveryCredits, RECOVERY_TARGETS} from '../scripts/qa/tenant-merged-recovery-credit.mjs';
@@ -442,6 +443,11 @@ function reviewedStatus(method, key, isNewOrChanged, currentBlob) {
     assert.match(readFileSync(candidate.workflowFile,"utf8"),/image: postgres:16/);
     assert.equal(candidate.currentSourceHttpAcceptance,"PENDING");
     assert.equal(candidate.newMethodCredits,0);
+  }
+  if (isSecurityV2Row(method)) { // per-method v2 receipt: own closure, own route blob
+    const v2Key=key.slice(key.lastIndexOf(' ')+1)+' '+key.slice(0,key.lastIndexOf(' '));
+    assert.ok(verifySecurityV2Rows(manifest).has(v2Key));
+    assert.equal(currentBlob,readSecurityV2Receipt().methodPins[v2Key][key.slice(0,key.lastIndexOf(' '))]);return true;
   }
   if (SECURITY_TARGETS.some(t=>key===t.path+' '+t.method) && method.status==='COVERED') {
     assert.equal(verifySecurityCredits(manifest),3);
@@ -5015,6 +5021,7 @@ test("all credited proof links point to the claimed route and every recertified 
       if(spendManagedTargets.includes(method.name+" "+manifest.allApiRouteFiles[path].route)){ assert.equal(verifySpendManaged(manifest),3); continue; }
       const proof = method.testedBy;
       if(path===XENDIT_POST_PATH&&method.name==='POST'){assert.equal(verifyXenditPostCredit(manifest),1);continue;}
+      if (isSecurityV2Row(method)) {assert.ok(verifySecurityV2Rows(manifest).has(method.name+' '+path));continue;}
       if (SECURITY_TARGETS.some(t=>t.path===path&&t.method===method.name)) {assert.equal(verifySecurityCredits(manifest),3);continue;}
       if (RECOVERY_TARGETS.some(t => t.path === path && t.method === method.name)) {
         assert.equal(verifyRecoveryCredits(manifest), 3);
