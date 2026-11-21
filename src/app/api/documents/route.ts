@@ -1,11 +1,11 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq, isNull, ne, notLike, or } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, notExists, notLike, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
   documents,
-  employees,
+  employees, employeeEntityAssignments, entityTransferRequests,
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
 } from "@/db/schema";
@@ -118,7 +118,7 @@ export async function GET(request: Request) {
   const staff = await db.select({ id: employees.id, first: employees.firstName, last: employees.lastName, orgUnitId: employees.orgUnitId })
     .from(employees).where(and(
       eq(employees.organizationId, organizationId),
-      selectedLegalEntityId == null ? undefined : eq(employees.legalEntityId, selectedLegalEntityId),
+      selectedLegalEntityId == null ? undefined : and(eq(employees.legalEntityId, selectedLegalEntityId), unambiguousHistoricalDocumentEmployer(organizationId, selectedLegalEntityId)),
     ));
   const visibleStaff = access.companyWide ? staff : staff.filter((row) => row.orgUnitId === access.orgUnitId);
   const names = new Map(visibleStaff.map((row) => [row.id, `${row.first} ${row.last}`]));
@@ -552,4 +552,28 @@ export async function POST(request: Request) {
     scan,
     note: "Stored in Postgres. Configure object storage (S3/R2) before production volume.",
   }, { status: 201 });
+}
+
+/**
+ * The legacy document row has no immutable legal-employer-at-issuance field.
+ * Under multi-entity mode, the staff metadata list must withhold ambiguous
+ * historical-worker documents just as GET documents/[id] withholds their bytes.
+ * These correlated EXISTS predicates run inside the employer-scoped roster SQL;
+ * feature-OFF behavior is unchanged. Do not guess an issuing employer.
+ */
+function unambiguousHistoricalDocumentEmployer(organizationId: number, currentEntityId: number) {
+  return and(
+    notExists(db.select({ id: employeeEntityAssignments.id }).from(employeeEntityAssignments)
+      .where(and(
+        eq(employeeEntityAssignments.organizationId, organizationId),
+        eq(employeeEntityAssignments.employeeId, employees.id),
+        ne(employeeEntityAssignments.legalEntityId, currentEntityId),
+      ))),
+    notExists(db.select({ id: entityTransferRequests.id }).from(entityTransferRequests)
+      .where(and(
+        eq(entityTransferRequests.organizationId, organizationId),
+        eq(entityTransferRequests.employeeId, employees.id),
+        eq(entityTransferRequests.status, "applied"),
+      ))),
+  );
 }

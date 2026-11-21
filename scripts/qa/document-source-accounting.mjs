@@ -6,6 +6,39 @@ import {hasSeparationPromotions,separationRoute,verifySeparationRenewal} from '.
 export const DOCUMENT_ACCOUNTING_ARCHIVE='scripts/qa/document-source-accounting-archive.json';
 export const DOCUMENT_ACCOUNTING_BLOB='b3ccc93613bce6b9ee6ec3dd32b074f7a7befa13';
 const blob=b=>{const raw=Buffer.from(b);return createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex');};
+// Exact source-only refresh for the historical-document metadata privacy repair.
+// The immutable archive stays untouched and every GET/POST row remains GAP.
+const HISTORIC_LIST_PATH='src/app/api/documents/route.ts';
+const HISTORIC_LIST_PRIOR='fb0d1748dd25c6dd985894b9042f7eab427ce898';
+const HISTORIC_LIST_CURRENT='ad7d168d50cf2dbba1e20c3e4b05d298b66afc02';
+function reviewedHistoricalDocumentListRefresh(path,expected,live,read=readFileSync){
+ if(path!==HISTORIC_LIST_PATH||expected?.gitBlobSha!==HISTORIC_LIST_PRIOR||
+   live?.gitBlobSha!==HISTORIC_LIST_CURRENT)return false;
+ if(blob(read(path))!==HISTORIC_LIST_CURRENT)return false;
+ if(live.methods?.length!==2||live.methods.some(m=>
+   m.status!=='GAP'||m.testedBy!==null||
+   m.reviewedUncertified?.coverageCredits!==0||
+   m.reviewedUncertified?.routeBlobSha!==HISTORIC_LIST_CURRENT))return false;
+ if(live.sourceRevisionReview?.newRouteBlobSha!==HISTORIC_LIST_CURRENT)return false;
+ const prior=structuredClone(live);
+ prior.gitBlobSha=HISTORIC_LIST_PRIOR;
+ prior.methods.forEach(m=>{m.reviewedUncertified.routeBlobSha=HISTORIC_LIST_PRIOR});
+ prior.sourceRevisionReview.newRouteBlobSha=HISTORIC_LIST_PRIOR;
+ return JSON.stringify(prior)===JSON.stringify(expected);
+}
+/**
+ * The only source-only historical-document list refresh accepted by older
+ * proof-ledger guards. Compare the complete base route record with the sealed
+ * archive, then require the exact new source, both GAPs and zero credits.
+ */
+export function isReviewedHistoricalDocumentListRefresh(path,before,after,read=readFileSync){
+ if(path!==HISTORIC_LIST_PATH)return false;
+ const archive=sourceHoldArchive(read);
+ const metadata=archive.variants.find(variant=>variant.name==='metadata');
+ const expected=metadata?.records[path];
+ return Boolean(expected&&JSON.stringify(before)===JSON.stringify(expected)&&
+  reviewedHistoricalDocumentListRefresh(path,expected,after,read));
+}
 const activeVariant=(manifest,variant)=>(variant.triggerPaths??Object.keys(variant.records)).some(path=>{
  const expected=variant.records[path],file=manifest.allApiRouteFiles[path];
  return file?.gitBlobSha===expected.gitBlobSha||file?.methods.some(row=>
@@ -34,7 +67,8 @@ export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
   for(const [path,expected]of Object.entries(variant.records)){
    const file=manifest.allApiRouteFiles[path];
    assert.ok(file,'Document source hold cannot omit a route');
-   assert.deepEqual(file,expected,'Only exact archived zero-credit document holds may alter historical gap accounting');
+   if(!reviewedHistoricalDocumentListRefresh(path,expected,file,read))
+    assert.deepEqual(file,expected,'Only exact archived zero-credit document holds may alter historical gap accounting');
    for(const row of file.methods){
     if(row.status!=='GAP')continue; // Exact archived sibling credits stay unchanged.
     assert.equal(row.status,'GAP');assert.equal(row.testedBy,null);
@@ -42,8 +76,12 @@ export function reviewedDocumentSourceHoldCount(manifest,read=readFileSync){
     count++;
    }
   }
-  for(const [path,pin]of Object.entries(variant.sourcePins))
-   assert.equal(blob(read(path)),pin,'Document withdrawal requires exact current route/contract source: '+path);
+  for(const [path,pin]of Object.entries(variant.sourcePins)){
+   const refresh=reviewedHistoricalDocumentListRefresh(path,variant.records[path],
+     manifest.allApiRouteFiles[path],read);
+   assert.equal(blob(read(path)),refresh?HISTORIC_LIST_CURRENT:pin,
+     'Document withdrawal requires exact current route/contract source: '+path);
+  }
  }
  return count;
 }

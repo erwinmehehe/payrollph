@@ -1,0 +1,241 @@
+{
+  "version": "phase38-daily-hourly-raise-2026-11-20",
+  "toleranceCentavos": 0,
+  "description": "A daily-paid or hourly-paid worker gets a raise in September 2026. Hand-derived literals for each of the two September cutoffs (gross pay, SSS, PhilHealth, Pag-IBIG, withholding, net pay). Nothing here is computed with PayrollPH functions.",
+  "sources": {
+    "dailyHourlyPay": "A daily-paid worker earns the daily rate in force on each worked date; an hourly-paid worker earns the hourly rate in force on each worked date for the paid hours. A raise therefore never rewrites a day that was already worked. A 09:00-18:00 punch with a 12:00-13:00 break is 8 paid hours.",
+    "sss": "SSS 2025 schedule: employee share 5% of the monthly salary credit, the compensation rounded to the nearest 500 between 5,000 and 35,000. For a daily or hourly worker the base is the pay actually earned in the cutoff (Phase 8): the first cutoff collects half of twice its earned pay; the month-final cutoff collects the difference to the contribution on the month's actual earned pay.",
+    "philHealth": "PhilHealth PA2025-0002: premium 5% of the monthly basic salary, shared equally. For a daily or hourly worker the monthly basic salary is the fixed monthly equivalent of the rate in force at the end of the cutoff (daily rate x 22 days; hourly rate x 8 hours x 22 days), so an absence does not lower it (Phase 8).",
+    "pagIbig": "Pag-IBIG: employee share 2% of a fund salary capped at 10,000, so 200 a month and 100 a cutoff.",
+    "bir": "BIR RR 11-2018 as amended by TRAIN: semi-monthly withholding table effective 2023 onward; taxable compensation up to 10,417 a cutoff is not taxed."
+  },
+  "assumptions": [
+    "September 2026, 'split' timing, every worker hired 2026-01-01 and paid by the engine. Cutoff 1 is Sep 1-15 with 10 worked days (Sep 1, 2, 3, 4, 7, 8, 9, 10, 11, 14). Cutoff 2 is Sep 16-30 with 11 worked days (Sep 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30). Every day is a full 09:00-18:00 punch with a 12:00-13:00 break (8 paid hours). No holiday or rest-day premium falls on a worked date.",
+    "Cutoff 1 at 800 a day (or 100 an hour): gross 10 x 800 = 8,000; SSS is estimated on 2 x 8,000 = 16,000 (credit 16,000, 800, so 400); PhilHealth on 800 x 22 = 17,600 (880, so 440, so 220 in the cutoff); Pag-IBIG 100; contributions 720; taxable 7,280 (no withholding); net 7,280. This is Phase 8's baseline.",
+    "Control, no raise: cutoff 2 gross 11 x 800 = 8,800; the month's earned pay is 8,000 + 8,800 = 16,800 (credit 17,000, SSS 850, so 450 is collected); PhilHealth target 440 less 220 = 220; Pag-IBIG 100; contributions 770; net 8,030.",
+    "Daily raise to 900 effective Sep 23, inside cutoff 2: gross 5 x 800 + 6 x 900 = 4,000 + 5,400 = 9,400; the month's earned pay is 17,400 (credit 17,500, SSS 875, so 475 is collected); PhilHealth on the 900 x 22 = 19,800 in force at the end of the cutoff (990, so 495, less 220 = 275); Pag-IBIG 100; contributions 850; net 8,550.",
+    "Hourly raise to 115 an hour effective Sep 23: a day is 8 x 100 = 800 before and 8 x 115 = 920 after, so gross 5 x 800 + 6 x 920 = 9,520; the month's earned pay is 17,520 (credit 17,500, SSS 875, so 475); PhilHealth on 115 x 8 x 22 = 20,240 (1,012, so 506, less 220 = 286); Pag-IBIG 100; contributions 861; net 8,659.",
+    "Daily raise to 900 effective Sep 16, the first day of cutoff 2: gross 11 x 900 = 9,900; the month's earned pay is 17,900 (credit 18,000, SSS 900, so 500); PhilHealth 275 as above; Pag-IBIG 100; contributions 875; net 9,025.",
+    "The last case records the same Sep 16 raise while cutoff 1 (Sep 1-15) is still an unprocessed draft. Cutoff 1 must still pay the 800 a day in force on those days, so its figures equal the control's, and cutoff 2 equals the Sep 16 case.",
+    "Overtime on an ordinary weekday is paid at 1.25 x the hourly rate in force on that date (the daily rate / 8 for a daily worker) and lifts the SSS base but not the PhilHealth or Pag-IBIG base (Phase 22). Two hours of approved overtime on Sep 22, before a Sep 23 raise, and on Sep 24, after it: the hourly worker earns 2 x 100 x 1.25 + 2 x 115 x 1.25 = 250.00 + 287.50 = 537.50 (cutoff 2 gross 10,057.50; the month's earned pay is 18,057.50, credit 18,000, SSS 900, so 500 is collected; PhilHealth 286; contributions 886; taxable 9,171.50, no withholding; net 9,171.50). The daily worker earns 2 x 100 x 1.25 + 2 x 112.50 x 1.25 = 250.00 + 281.25 = 531.25 (gross 9,931.25; the month's earned pay is 17,931.25, credit 18,000, SSS 500; PhilHealth 275; contributions 875; net 9,056.25)."
+  ],
+  "employees": {
+    "dailyNoRaise": {
+      "description": "Control: 800 a day, no raise. Cutoff 1 net 7,280.00; cutoff 2 gross 8,800.00, SSS 450.00, PhilHealth 220.00, Pag-IBIG 100.00, net 8,030.00.",
+      "payBasis": "daily",
+      "rate": 800,
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 8800,
+          "sss": 450,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 8030
+        }
+      ]
+    },
+    "dailyRaiseInsideSecondCutoff": {
+      "description": "800 to 900 a day effective Sep 23. Cutoff 2 gross 5 x 800 + 6 x 900 = 9,400.00; SSS 475.00; PhilHealth 275.00; Pag-IBIG 100.00; net 8,550.00.",
+      "payBasis": "daily",
+      "rate": 800,
+      "raise": {
+        "effectiveDate": "2026-09-23",
+        "newRate": 900,
+        "recordedBeforeCutoff": 2
+      },
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9400,
+          "sss": 475,
+          "philHealth": 275,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 8550
+        }
+      ]
+    },
+    "hourlyRaiseInsideSecondCutoff": {
+      "description": "100 to 115 an hour effective Sep 23. Cutoff 2 gross 5 x 800 + 6 x 920 = 9,520.00; SSS 475.00; PhilHealth 286.00; Pag-IBIG 100.00; net 8,659.00.",
+      "payBasis": "hourly",
+      "rate": 100,
+      "raise": {
+        "effectiveDate": "2026-09-23",
+        "newRate": 115,
+        "recordedBeforeCutoff": 2
+      },
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9520,
+          "sss": 475,
+          "philHealth": 286,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 8659
+        }
+      ]
+    },
+    "dailyRaiseOnCutoffBoundary": {
+      "description": "800 to 900 a day effective Sep 16, the first day of cutoff 2. Cutoff 2 gross 11 x 900 = 9,900.00; SSS 500.00; PhilHealth 275.00; Pag-IBIG 100.00; net 9,025.00.",
+      "payBasis": "daily",
+      "rate": 800,
+      "raise": {
+        "effectiveDate": "2026-09-16",
+        "newRate": 900,
+        "recordedBeforeCutoff": 2
+      },
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9900,
+          "sss": 500,
+          "philHealth": 275,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9025
+        }
+      ]
+    },
+    "dailyRaiseRecordedWhileEarlierCutoffOpen": {
+      "description": "The same Sep 16 raise as dailyRaiseOnCutoffBoundary, recorded while cutoff 1 is an unprocessed draft. Cutoff 1 still pays 800 a day, so every figure equals dailyRaiseOnCutoffBoundary.",
+      "payBasis": "daily",
+      "rate": 800,
+      "raise": {
+        "effectiveDate": "2026-09-16",
+        "newRate": 900,
+        "recordedBeforeCutoff": 1
+      },
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9900,
+          "sss": 500,
+          "philHealth": 275,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9025
+        }
+      ]
+    },
+    "dailyRaiseWithOvertimeAroundIt": {
+      "description": "800 to 900 a day effective Sep 23, with 2 hours of approved overtime on Sep 22 (before the raise) and Sep 24 (after it). Overtime 2 x 100 x 1.25 + 2 x 112.50 x 1.25 = 250.00 + 281.25 = 531.25; cutoff 2 gross 9,400.00 + 531.25 = 9,931.25; SSS 500.00; PhilHealth 275.00; Pag-IBIG 100.00; net 9,056.25.",
+      "payBasis": "daily",
+      "rate": 800,
+      "raise": {
+        "effectiveDate": "2026-09-23",
+        "newRate": 900,
+        "recordedBeforeCutoff": 2
+      },
+      "overtime": [
+        {
+          "date": "2026-09-22",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-24",
+          "minutes": 120
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 9931.25,
+          "sss": 500,
+          "philHealth": 275,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9056.25
+        }
+      ]
+    },
+    "hourlyRaiseWithOvertimeAroundIt": {
+      "description": "100 to 115 an hour effective Sep 23, with 2 hours of approved overtime on Sep 22 and Sep 24. Overtime 2 x 100 x 1.25 + 2 x 115 x 1.25 = 250.00 + 287.50 = 537.50; cutoff 2 gross 9,520.00 + 537.50 = 10,057.50; SSS 500.00; PhilHealth 286.00; Pag-IBIG 100.00; net 9,171.50.",
+      "payBasis": "hourly",
+      "rate": 100,
+      "raise": {
+        "effectiveDate": "2026-09-23",
+        "newRate": 115,
+        "recordedBeforeCutoff": 2
+      },
+      "overtime": [
+        {
+          "date": "2026-09-22",
+          "minutes": 120
+        },
+        {
+          "date": "2026-09-24",
+          "minutes": 120
+        }
+      ],
+      "cutoffs": [
+        {
+          "grossPay": 8000,
+          "sss": 400,
+          "philHealth": 220,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 7280
+        },
+        {
+          "grossPay": 10057.5,
+          "sss": 500,
+          "philHealth": 286,
+          "pagIbig": 100,
+          "withholdingTax": 0,
+          "netPay": 9171.5
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "One raise per worker, no night differential, holiday or rest-day premium, no absence and no leave on a worked date. Overtime is exercised on ordinary weekdays only, two hours on one day before and one day after a raise.",
+    "Only September 2026 is run, so year end and final pay for a daily or hourly worker are not exercised; Phase 37 does those for a monthly worker.",
+    "The raise is written straight into the tables the employees API writes (the pay revision, the new stored rate and the monthly equivalent); the API's own checks and its retro-adjustment path for released cutoffs are not exercised.",
+    "That SSS follows the earned pay of a daily or hourly worker is a position Phase 8 pins, not a legal conclusion."
+  ]
+}
