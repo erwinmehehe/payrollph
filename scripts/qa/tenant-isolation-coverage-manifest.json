@@ -51968,5 +51968,26 @@
       "creditedMethods": 4
     },
     "newMethod": "new methods cannot be classified GAP when adding to manifest; must bring method-specific proof or public rationale"
+  },
+  "pendingScopedPageCandidates": [
+  {
+      "path": "src/app/app/client-onboarding/page.tsx",
+      "blob": "2c89dc0d053e7270b61e5325f855f356d9b02f17",
+      "kind": "authenticated-company-setup-SSR-disposable-PG16-unreviewed",
+      "status": "GAP",
+      "reason": "New source-backed onboarding page. Exact-source fictional PG16 own/foreign/revoked/role read-only HTTP proof must pass and independent tenant/privacy review is still pending; no historical page ledger credits.",
+      "proofFile": "scripts/qa/tenant-client-onboarding-page-http.mjs",
+      "proofBlob": "98e50a6c4a6d2682e1ae437cc3fb119e28a919c6",
+      "workflowFile": ".github/workflows/client-onboarding-tenant-http.yml",
+      "workflowBlob": "a5874b94eb8a63631ff82149d0a6af1a516e7349",
+      "contractTestFile": "tests/client-onboarding-page-boundary.test.mjs",
+      "contractBlob": "491721e46d2201fce8999b81c9ea8ac1ec6b703d",
+      "pageCredits": 0,
+      "methodCredits": 0,
+      "independentSecurityReview": "PENDING",
+      "independentHrPrivacyReview": "PENDING",
+      "independentlyAccepted": false,
+      "productionCertified": false
   }
+  ]
 }
