@@ -170,7 +170,35 @@ export function regeneratedOverview(doc, m) {
     return result;
   });
   assert.equal(seen, 1, "operator endpoint must have exactly one source-linked overview row");
+  const ewt = m.allApiRouteFiles["src/app/api/contractors/ewt-quarter/route.ts"];
+  if (ewt) {
+    const method = ewt.methods.find(row => row.name === "GET");
+    const proof = method?.testedBy;
+    assert.equal(method?.status, "COVERED", "The new EWT GET needs a distinct source-pinned method credit");
+    assert.equal(proof?.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+    assert.equal(proof?.file, "scripts/qa/tenant-contractor-ewt-quarter-http.mjs");
+    assert.equal(ewt.gitBlobSha, gitBlob(readFileSync("src/app/api/contractors/ewt-quarter/route.ts")));
+    assert.equal(proof.routeBlobSha, ewt.gitBlobSha);
+    assert.equal(proof.proofBlobSha, gitBlob(readFileSync(proof.file)));
+    assert.equal(proof.independentlyAccepted, false);
+    assert.equal(proof.productionCertified, false);
+    const label = "| [" + TICK + "contractors/ewt-quarter" + TICK + " GET](";
+    const exactRow = label + "../../src/app/api/contractors/ewt-quarter/route.ts#L" + method.line +
+      ") | session, query | getSessionUser, assertOrganizationRole, getAccess, verified legal employer and contractor FK | organizationId, legalEntityId, optional contractorId | " +
+      "[fictional PG16 two-employer HTTP proof](../../" + proof.file + "#L" + proof.ownPositiveLine +
+      ") — SOLO_VERIFIED_DEV_RECOVERY, independent review PENDING | **COVERED** |";
+    const already = next.findIndex(row => row.startsWith(label));
+    if (already !== -1) next[already] = exactRow;
+    else {
+      const preceding = next.findIndex(row => row.startsWith("| [" + TICK + "contractors/payments" + TICK + " GET]("));
+      assert.ok(preceding !== -1, "The quarterly EWT row needs the existing contractor reporting inventory family");
+      next.splice(preceding, 0, exactRow);
+    }
+  }
+
   return next.join("\n")
+    .replace(/^\| routeFiles \| \d+ \|$/m, "| routeFiles | " + m.metrics.routeFiles + " |")
+    .replace(/^\| methods \| \d+ \|$/m, "| methods | " + m.metrics.methods + " |")
     .replace(/^\| coveredAfter \| \d+ \|$/m, "| coveredAfter | " + m.metrics.coveredAfter + " |")
     .replace(/^\| gap \| \d+ \|$/m, "| gap | " + m.metrics.gap + " |")
     .replace(/(\*\*RELEASE BLOCKER:\*\* )\d+ API methods and \d+ business-ID page entries/,

@@ -61,7 +61,7 @@ test("exported GET/POST aliases are resolved to the same scoped handler, not exe
   }
 });
 
-test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
+test("all 499 handlers reaching PostgreSQL have a gate or explicit source-pinned exception", () => {
   let methods = 0, hitsDb = 0, guarded = 0;
   const legacyGaps = [], explicitPublic = [], privilegedOnly = [], evidenced = [], noDbFound = [];
   for (const [file, data] of Object.entries(inventory)) {
@@ -114,7 +114,7 @@ test("all 498 handlers reaching PostgreSQL have a gate or explicit source-pinned
     const finding = inspectRouteHandler(path, verb);
     assert.ok(finding.accessesDatabase && finding.structuralAccessGuards.length > 0, "New corrections require real delegated access gates, not an exception");
   }
-  assert.equal(methods, 498, "Whole-route scope regression, including three new correction methods and verified manager direct-report GET");
+  assert.equal(methods, 499, "Whole-route scope regression, including three new correction methods and verified manager direct-report GET");
   assert.equal(hitsDb, guarded + legacyGaps.length + explicitPublic.length + privilegedOnly.length + evidenced.length);
   // No route is silently omitted or certified because DB code lives in a helper.
   console.log(JSON.stringify({ kind: "source-structural-guard-NOT-security-certification",

@@ -88,13 +88,42 @@ export function readWageRenewalV2Receipt(read=readFileSync){
  return r;
 }
 
+/**
+ * Reviewed source-only structural-count extension, never a method/HTTP proof.
+ * The 499th EWT GET changes exactly TWO assertions in a guard which was
+ * itself pinned in 37 previously executed wage renewal method closures.
+ * Reconstruct and hash the exact original from current bytes, so changed
+ * guards/imports/proof fixtures or any unrecognized test edit remain drift.
+ * Existing routes, workflow, SQL, HTTP proof and receipt hashes are unchanged.
+ * The new 499-method guard must still execute in CI. No new wage credit.
+ */
+const STRUCTURAL_COUNT_EXTENSION=Object.freeze({
+ path:'tests/tenant-structural-access-guard.test.mjs',
+ original:'e42853ebcee59615bf1e3ca4cd2bc412a80532ee',
+ revised:'339a414ef48cbdf7101a236e548eaa603091be2c',
+ pairs:[
+  ['test("all 498 handlers reaching PostgreSQL','test("all 499 handlers reaching PostgreSQL'],
+  ['assert.equal(methods, 498,','assert.equal(methods, 499,'],
+ ],
+});
+export function verifiedStructuralCountExtension(file,priorHash,bytes){
+ const spec=STRUCTURAL_COUNT_EXTENSION;
+ if(file!==spec.path||priorHash!==spec.original||blob(bytes)!==spec.revised)return false;
+ let original=Buffer.isBuffer(bytes)?bytes.toString('utf8'):String(bytes);
+ for(const [before,after] of spec.pairs){
+  if(original.split(after).length!==2)return false;
+  original=original.replace(after,before);
+ }
+ return blob(Buffer.from(original,'utf8'))===spec.original;
+}
+
 /** Files of this method's global base or own closure whose current bytes differ from the sealed execution. */
 export function wageRenewalV2Drift(receipt,key,read=readFileSync){
  const pins={...receipt.globalPins,...(receipt.methodPins[key]??{})};
  assert.ok(receipt.methodPins[key],'No sealed closure for '+key);
  return Object.entries(pins).filter(([file,sha])=>{
   let current;try{current=read(file);}catch(error){if(error.code==='ENOENT')return true;throw error;}
-  return blob(current)!==sha;
+  return blob(current)!==sha && !verifiedStructuralCountExtension(file,sha,current);
  }).map(([file])=>file).sort();
 }
 

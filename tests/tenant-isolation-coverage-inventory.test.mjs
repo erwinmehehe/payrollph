@@ -6611,6 +6611,27 @@ test("all credited proof links point to the claimed route and every recertified 
           "operator-only PG16 200/403/401/503, forged selectors, immutable SQL and source pins");
         continue;
       }
+      if (path === "src/app/api/contractors/ewt-quarter/route.ts" && method.name === "GET") {
+        assert.equal(proof.file, "scripts/qa/tenant-contractor-ewt-quarter-http.mjs");
+        assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+        assert.equal(proof.postgresMajor, 16);
+        assert.equal(proof.routeBlobSha, gitBlobSha(readFileSync(path)));
+        assert.equal(proof.proofBlobSha, gitBlobSha(readFileSync(proof.file)));
+        assert.equal(proof.independentlyAccepted, false);
+        assert.equal(proof.productionTested, false);
+        const anchors = {
+          ownPositiveLine: "const ownReport = status(",
+          foreignDenialLine: "const foreign = status(",
+          forgedSelectorLine: 'status(await request(ownURL + "&contractorId=" + v.id',
+          unchangedDbLine: "assert.deepEqual(await snapshot(victim.id), beforeVictim",
+          victimExistsLine: "const v = await newContractor(victim",
+          victimIdOrderingLine: "assert.ok(v.id > 6",
+        };
+        for (const [key, token] of Object.entries(anchors)) {
+          assert.ok(evidenceLine(proof.file, proof[key], "Contractor EWT GET " + key).includes(token));
+        }
+        continue;
+      }
       assert.ok(["scripts/qa/tenant-second-pass-http.mjs", "scripts/qa/payroll-approved-exit-http.mjs",
         "scripts/qa/payroll-read-sweep-http.mjs", "scripts/qa/bank-tenant-http.mjs",
         "scripts/qa/pr-1302-tenant-proof.mjs",

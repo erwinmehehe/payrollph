@@ -1,3 +1,4 @@
+import { verifyAddedEwtQuarterGet } from "./helpers/wage-source-holds.mjs";
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {reviewedDocumentSourceWithdrawals} from '../scripts/qa/document-source-accounting.mjs';
 import {reviewedTimesheetSourceHold} from '../scripts/qa/timesheet-source-accounting.mjs';
@@ -176,10 +177,12 @@ test("provisional billing proof survives; 75 verified wage-source withdrawals re
       return wageHoldKeys.has(key)&&base.manifest.allApiRouteFiles[path]?.methods.find(row=>row.name===verb)?.status==='COVERED';
     }).length;
     const timesheetWithdrawals=reviewedTimesheetSourceHold(base.manifest,m).size-timesheetRenewalDelta(base.manifest,m);
-    const expectedNetCredits=oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+overlappingOracleWithdrawals+oracleRenewalDelta(base.manifest,m)+mkt01Delta-wageWithdrawalsFromBase-reviewedDocumentSourceWithdrawals(base.manifest,m).size-timesheetWithdrawals+separationRenewalDelta(base.manifest,m);
+    const ewtCredit = verifyAddedEwtQuarterGet(m);
+    const newEwtCredit = base.manifest.allApiRouteFiles["src/app/api/contractors/ewt-quarter/route.ts"] ? 0 : ewtCredit;
+    const expectedNetCredits=newEwtCredit+oidcStartCreditDelta(base.manifest,m)+xenditPostCreditDelta(base.manifest,m)+delta+readyDelta+approvalsDelta+studioDelta+exportsDelta-renewedExports+restoredWorkerCredit+oidcDelta-oidcWithdrawal-yearEndHold-oracleWithdrawalDelta(base.manifest,m)+overlappingOracleWithdrawals+oracleRenewalDelta(base.manifest,m)+mkt01Delta-wageWithdrawalsFromBase-reviewedDocumentSourceWithdrawals(base.manifest,m).size-timesheetWithdrawals+separationRenewalDelta(base.manifest,m);
     assert.equal(counts.coveredAfter - before.coveredAfter, expectedNetCredits, 'Only separately sealed credits and the exact Worker 360 demotion may change totals');
     const relabels=verifyArchitecturalRelabelDelta(assert,base.manifest,m);
-    assert.equal(before.gap-counts.gap,expectedNetCredits+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
+    assert.equal(before.gap-counts.gap,expectedNetCredits-newEwtCredit+relabels.gapRelabels,'Only sealed credits, the reviewed Worker 360 demotion and source-pinned zero-credit classifications may alter GAPs');
     assert.equal(counts.publicByDesign-before.publicByDesign,relabels.publicByDesign);
     assert.equal(counts.privilegedOperationsTokenOnly-before.privilegedOperationsTokenOnly,relabels.privilegedTokenOnly);
   }
