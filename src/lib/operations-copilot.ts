@@ -1,7 +1,6 @@
 import type { AssuranceFinding, AssuranceSeverity } from "./payroll-assurance";
 import { PAYROLL_FINDING_EXPLANATION_TEMPLATES } from "./payroll-finding-explanations";
 import { automationModelAllowedForOrganization } from "./automation-model-consent";
-import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 /**
  * Read-only source-linked operations triage. This module never calculates wages,
@@ -56,18 +55,38 @@ const validId = (id: number) => Number.isSafeInteger(id) && id > 0;
 const safeCode = (code: string) => /^[A-Z][A-Z0-9_]{0,79}$/.test(code);
 const safeCaseType = (type: string) => /^[a-z][a-z0-9_]{0,79}$/.test(type) ? type.replace(/_/g, " ") : "operational case";
 
-export function operationsCopilotEnabled(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): boolean {
-  return criticalReleaseFlagEnabled("operationsCopilotReadonly", env);
+/**
+ * A dedicated tenant pilot allowlist rather than a new global boolean gate.
+ * Changing the shared release-flag registry invalidates sealed security and
+ * isolation proofs for unrelated modules. Empty or malformed config fails
+ * closed; no other module is activated by this pilot.
+ */
+function tenantInPilotList(organizationId: number, value: string | undefined): boolean {
+  if (!validId(organizationId) || !value || value.length > 2048) return false;
+  const parts = value.split(",");
+  if (!parts.length || parts.length > 100 || parts.some(part => !/^[1-9]\d*$/.test(part.trim()))) {
+    return false;
+  }
+  const ids = parts.map(part => Number(part.trim()));
+  if (ids.some(id => !validId(id)) || new Set(ids).size !== ids.length) return false;
+  return ids.includes(organizationId);
 }
 
+/** Enables ONLY the named tenant's read-only preview. Disabled by default. */
+export function operationsCopilotEnabled(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return tenantInPilotList(organizationId, env.OPERATIONS_COPILOT_PILOT_ORG_IDS);
+}
+
+/** External AI requires its own tenant allowlist plus the existing DPA gate. */
 export function operationsCopilotAiAllowed(
   organizationId: number,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
-  return operationsCopilotEnabled(env)
-    && criticalReleaseFlagEnabled("operationsCopilotModel", env)
+  return operationsCopilotEnabled(organizationId, env)
+    && tenantInPilotList(organizationId, env.OPERATIONS_COPILOT_AI_PILOT_ORG_IDS)
     && automationModelAllowedForOrganization(organizationId, env);
 }
 

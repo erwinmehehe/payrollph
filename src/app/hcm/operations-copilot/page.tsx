@@ -27,13 +27,13 @@ export default async function OperationsCopilotPage({
     legalEntityId?: string | string[];
   }>;
 }) {
-  if (!operationsCopilotEnabled()) notFound();
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-
   const params = await searchParams;
   const organizationId = parseHcmWorkItemsEmployerId(params.organizationId);
   if (!organizationId || (params.area !== "hr" && params.area !== "payroll")) notFound();
+  if (!operationsCopilotEnabled(organizationId)) notFound();
+
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
 
   let runId: number | null = null;
   let legalEntityId: number | null = null;

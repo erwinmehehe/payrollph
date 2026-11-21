@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { AssuranceFinding } from "../src/lib/payroll-assurance";
-import { CRITICAL_RELEASE_FLAGS, criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import {
   buildPayrollOperationsBrief, buildHrOperationsBrief, modelSafeOperationsSnapshot,
   operationsCopilotEnabled, operationsCopilotAiAllowed, OPERATIONS_COPILOT_PREVIEW_LIMIT,
 } from "../src/lib/operations-copilot";
 
 const consent = {
-  OPERATIONS_COPILOT_READONLY_ENABLED: "true",
-  OPERATIONS_COPILOT_MODEL_ENABLED: "true",
+  OPERATIONS_COPILOT_PILOT_ORG_IDS: "17,29",
+  OPERATIONS_COPILOT_AI_PILOT_ORG_IDS: "17",
   OPENAI_AUTOMATION_DRAFT_ENABLED: "true",
   OPENAI_API_KEY: "fictional-placeholder-never-used",
   OPENAI_AUTOMATION_DPA_CONFIRMED: "true",
@@ -19,24 +18,50 @@ const consent = {
   OPENAI_AUTOMATION_APPROVED_ORG_IDS: "17",
 };
 
-test("both sensitive pilot gates are registered with accountable release owners", () => {
-  for (const name of ["operationsCopilotReadonly", "operationsCopilotModel"] as const) {
-    const gate = CRITICAL_RELEASE_FLAGS[name];
-    assert.ok(gate.owner && gate.risk && gate.approval);
-    assert.equal(criticalReleaseFlagEnabled(name, {}), false);
-    assert.equal(criticalReleaseFlagEnabled(name, { [gate.env]: "true" }), true);
+test("new tenant pilot allowlists default off and reject malformed configurations", () => {
+  assert.equal(operationsCopilotEnabled(17, {}), false);
+  assert.equal(operationsCopilotEnabled(17, consent), true);
+  assert.equal(operationsCopilotEnabled(29, consent), true);
+  assert.equal(operationsCopilotEnabled(99, consent), false);
+  for (const invalid of ["", "TRUE", "17,", ",17", "0,17", "17,17", "17,bad", "-1,17",
+    "9007199254740993", "17," + "29,".repeat(101)]) {
+    assert.equal(operationsCopilotEnabled(17,
+      { OPERATIONS_COPILOT_PILOT_ORG_IDS: invalid }), false, invalid);
   }
+  assert.equal(operationsCopilotEnabled(17,
+    { OPERATIONS_COPILOT_PILOT_ORG_IDS: " 17, 29 " }), true);
 });
 
-test("read-only and external AI are independent default-off tenant gates", () => {
-  assert.equal(operationsCopilotEnabled({}), false);
-  assert.equal(operationsCopilotEnabled({ OPERATIONS_COPILOT_READONLY_ENABLED: "TRUE" }), false);
+test("external AI has independent tenant consent, privacy and approval gates", () => {
   assert.equal(operationsCopilotAiAllowed(17, consent), true);
+  assert.equal(operationsCopilotAiAllowed(29, consent), false,
+    "tenant with read-only pilot cannot use an external model by default");
   assert.equal(operationsCopilotAiAllowed(99, consent), false);
-  assert.equal(operationsCopilotAiAllowed(17, { ...consent, OPERATIONS_COPILOT_MODEL_ENABLED: "false" }), false);
-  assert.equal(operationsCopilotAiAllowed(17, { ...consent, OPENAI_AUTOMATION_DPA_CONFIRMED: undefined }), false);
-  assert.equal(operationsCopilotAiAllowed(17, { ...consent, OPENAI_AUTOMATION_NOTICE_CONFIRMED: undefined }), false);
-  assert.equal(operationsCopilotAiAllowed(17, { ...consent, OPERATIONS_COPILOT_READONLY_ENABLED: undefined }), false);
+  assert.equal(operationsCopilotAiAllowed(17, {
+    ...consent, OPERATIONS_COPILOT_AI_PILOT_ORG_IDS: undefined,
+  }), false);
+  assert.equal(operationsCopilotAiAllowed(17, {
+    ...consent, OPERATIONS_COPILOT_PILOT_ORG_IDS: undefined,
+  }), false);
+  assert.equal(operationsCopilotAiAllowed(17, {
+    ...consent, OPENAI_AUTOMATION_DPA_CONFIRMED: undefined,
+  }), false);
+  assert.equal(operationsCopilotAiAllowed(17, {
+    ...consent, OPENAI_AUTOMATION_NOTICE_CONFIRMED: undefined,
+  }), false);
+  assert.equal(operationsCopilotAiAllowed(17, {
+    ...consent, OPENAI_AUTOMATION_ZERO_RETENTION_CONFIRMED: undefined,
+  }), false);
+});
+
+test("pilot uses isolated tenant configuration and preserves sealed shared release registry", () => {
+  const source = readFileSync("src/lib/operations-copilot.ts", "utf8");
+  const registry = readFileSync("src/lib/critical-release-flags.ts", "utf8");
+  assert.ok(source.includes("OPERATIONS_COPILOT_PILOT_ORG_IDS"));
+  assert.ok(source.includes("OPERATIONS_COPILOT_AI_PILOT_ORG_IDS"));
+  assert.equal(registry.includes("OPERATIONS_COPILOT_PILOT_ORG_IDS"), false);
+  assert.equal(registry.includes("OPERATIONS_COPILOT_AI_PILOT_ORG_IDS"), false);
+  assert.equal(registry.includes("OPERATIONS_COPILOT_READONLY_ENABLED"), false);
 });
 
 const fictionalFindings: AssuranceFinding[] = [

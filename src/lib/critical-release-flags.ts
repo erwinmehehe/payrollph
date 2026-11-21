@@ -260,18 +260,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 optional plain-language payroll finding explanations; deterministic local templates only until separately reviewed model integration",
     approval: "Per-tenant opt-in, executed DPA and retention verification",
   },
-  operationsCopilotReadonly: {
-    env: "OPERATIONS_COPILOT_READONLY_ENABLED",
-    owner: "Product Security / Philippine Payroll / HR Operations",
-    risk: "P1 new cross-workflow read surface over protected payroll findings and HR operational cases",
-    approval: "Exact-head two-tenant role, employer and org-unit denial tests, private-output and failure-state review, synthetic desktop/mobile acceptance, independent owner approval; default OFF with no financial authority",
-  },
-  operationsCopilotModel: {
-    env: "OPERATIONS_COPILOT_MODEL_ENABLED",
-    owner: "Privacy",
-    risk: "P1 optional third-party narration of aggregate HR and payroll review categories",
-    approval: "Explicit tenant opt-in, executed DPA, retention and notice verification, inspected aggregate-only provider payload, rate-limit/MFA tests and independent Privacy approval; requires the separate read-only gate",
-  },
   automationLanguageStudio: {
     env: "AUTOMATION_LANGUAGE_STUDIO_ENABLED",
     owner: "Security",

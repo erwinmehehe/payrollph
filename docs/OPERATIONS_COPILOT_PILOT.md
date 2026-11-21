@@ -42,25 +42,41 @@ An empty source is **not** a certification that payroll is ready or HR work is
 complete. A failed query is an unavailable state, never a verified zero. A bounded
 HR preview is not a complete HR work census.
 
-## Default-off switches
+## Default-off, tenant-scoped pilot activation
 
-Read-only UI/API, separately:
+The pilot deliberately does **not** edit the shared critical release-flag
+registry. That file is source-sealed by existing tenant, security and
+financial acceptance proofs; editing it would invalidate unrelated coverage
+and require independent re-execution and review. This feature instead uses
+a dedicated strict allowlist of authorized tenant IDs. No global boolean
+switch can accidentally activate the pilot for other tenants.
 
-    OPERATIONS_COPILOT_READONLY_ENABLED=true
+Read-only pilot (entirely OFF when omitted):
 
-This switch is OFF by default. Enable it **only** for approved synthetic staging
-or isolated pilot tenants after access/security reviews. A switch does not
-represent approval, acceptance or completed testing.
+    OPERATIONS_COPILOT_PILOT_ORG_IDS=17
 
-Optional third-party AI narration has an additional independent switch:
+Multiple explicitly approved tenants can be comma separated. Empty,
+duplicate, malformed or unsafe-number entries fail closed for the entire
+list. The tenant selection is never treated as sufficient authorization:
+each read additionally enforces session, role, permission overlay, org-unit
+and payroll legal-employer rules.
 
-    OPERATIONS_COPILOT_MODEL_ENABLED=true
+Optional third-party AI narration has a separate, equally restrictive
+tenant allowlist (OFF when omitted):
 
-It also requires the **existing** per-tenant model consent gate, including:
-OPENAI_AUTOMATION_DRAFT_ENABLED=true, OPENAI_API_KEY, confirmed privacy
-processor/DPA, retention, notice and OPENAI_AUTOMATION_APPROVED_ORG_IDS.
-Do **not** set any of these flags merely to pass a test. Confirm real organizational
-approvals, local privacy and security requirements, and contract terms first.
+    OPERATIONS_COPILOT_AI_PILOT_ORG_IDS=17
+
+It also requires the **existing** per-tenant external-model consent gate:
+OPENAI_AUTOMATION_DRAFT_ENABLED=true, OPENAI_API_KEY, verified processor/DPA,
+zero-retention, notice and OPENAI_AUTOMATION_APPROVED_ORG_IDS. To enable
+narration, a tenant must be on all three allowlists, with the other
+existing protections satisfied. The numeric tenant values above are
+fictional examples, not production activation instructions.
+
+These environment values do not constitute Privacy, Payroll or HR approval.
+The release owner must maintain external approvals and deployment records.
+Do **not** set any of these values merely to make a test pass. Keep all
+production allowlists unset until genuine sign-offs and staging acceptance.
 
 The model sees ONLY an aggregate snapshot:
 - payroll: source finding codes, counts, severity and template next steps

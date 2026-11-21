@@ -24,13 +24,6 @@ const validId = (raw: string | null) => {
 };
 
 async function authorizedBrief(request: Request): Promise<Authorized | Response> {
-  if (!operationsCopilotEnabled()) {
-    return Response.json({ error: "Not found." }, { status: 404, headers: privateHeaders });
-  }
-
-  const user = await getSessionUser();
-  if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: privateHeaders });
-
   const params = new URL(request.url).searchParams;
   if (["area", "organizationId", "runId", "legalEntityId"].some(key => params.getAll(key).length > 1)) {
     return Response.json({ error: "Duplicate selectors are not allowed." }, { status: 400, headers: privateHeaders });
@@ -40,6 +33,12 @@ async function authorizedBrief(request: Request): Promise<Authorized | Response>
   if (!organizationId || !["hr", "payroll"].includes(area ?? "")) {
     return Response.json({ error: "Valid area and organizationId required." }, { status: 400, headers: privateHeaders });
   }
+  if (!operationsCopilotEnabled(organizationId)) {
+    return Response.json({ error: "Not found." }, { status: 404, headers: privateHeaders });
+  }
+
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers: privateHeaders });
 
   if (area === "hr") {
     if (params.has("runId") || params.has("legalEntityId")) {
