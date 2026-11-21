@@ -89,13 +89,13 @@
         "jobKey": "security__change-scope",
         "variant": {},
         "jobName": "Wage renewal / security / change-scope",
-        "runId": 44740145138,
-        "jobId": 136301503549,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709825,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": null,
         "transport": "source-metadata-only",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503549",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709825",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": true,
         "steps": [
@@ -131,13 +131,13 @@
         "jobKey": "security__security-http-acceptance",
         "variant": {},
         "jobName": "Wage renewal / security / security-http-acceptance",
-        "runId": 44740145138,
-        "jobId": 136314010607,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136717567570,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136314010607",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136717567570",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -381,14 +381,14 @@
             "kind": "DISPOSABLE_PG16_REAL_HTTP",
             "auditSuite": "manifest-driven-statutes",
             "manifestedMethods": 498,
-            "preexistingGaps": 31,
+            "preexistingGaps": 8,
             "previouslyCoveredRegressionMethods": 7,
             "newlyAdaptedGapMethods": 0,
             "distinctMethodsPassedInThisBatch": 7,
             "independentAttackerEmployers": 2,
             "completePositiveAndVictimDenialPairs": 14,
             "sourceTraceCandidates": 34,
-            "unadaptedGapMethodsStillOpen": 31,
+            "unadaptedGapMethodsStillOpen": 8,
             "trackedPagesStillOpen": 21,
             "highExistingVictimIds": [
               14,
@@ -1033,13 +1033,13 @@
         "jobKey": "dl02__dl02",
         "variant": {},
         "jobName": "Wage renewal / dl02 / dl02",
-        "runId": 44740145138,
-        "jobId": 136301503809,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709904,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503809",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709904",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -1205,14 +1205,14 @@
             "kind": "DISPOSABLE_PG16_REAL_HTTP",
             "auditSuite": "manifest-driven-statutes",
             "manifestedMethods": 498,
-            "preexistingGaps": 31,
+            "preexistingGaps": 8,
             "previouslyCoveredRegressionMethods": 7,
             "newlyAdaptedGapMethods": 0,
             "distinctMethodsPassedInThisBatch": 7,
             "independentAttackerEmployers": 2,
             "completePositiveAndVictimDenialPairs": 14,
             "sourceTraceCandidates": 34,
-            "unadaptedGapMethodsStillOpen": 31,
+            "unadaptedGapMethodsStillOpen": 8,
             "trackedPagesStillOpen": 21,
             "highExistingVictimIds": [
               14,
@@ -1811,256 +1811,16 @@
       {
         "jobKey": "table__table",
         "variant": {
-          "profile": "flagged-reads"
-        },
-        "jobName": "Wage renewal / table / table (flagged-reads)",
-        "runId": 44740145138,
-        "jobId": 136301503779,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
-        "conclusion": "success",
-        "postgresMajor": 16,
-        "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503779",
-        "exactHeadCheckoutVerified": true,
-        "metadataOnly": false,
-        "steps": [
-          {
-            "name": "Set up job",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Verify exact proposed renewal source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run npm ci",
-            "conclusion": "success"
-          },
-          {
-            "name": "Validate offline-claim response contracts and negative controls",
-            "conclusion": "success"
-          },
-          {
-            "name": "Export the disposable profile environment (single source shared with the local runner)",
-            "conclusion": "success"
-          },
-          {
-            "name": "Ephemeral encryption keys for disposable CI only",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run npm run db:push",
-            "conclusion": "success"
-          },
-          {
-            "name": "Apply the cutover baseline objects (0109 audit chain + reviewed supplement)",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prepare existing SQL-only HCM work-item events in the empty disposable database",
-            "conclusion": "success"
-          },
-          {
-            "name": "Preseed two attackers, the higher-ID victim and an excluded employer before server startup",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Validate allowlist source contracts without database or service requests",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Run npm run build",
-            "conclusion": "success"
-          },
-          {
-            "name": "Start isolated production-mode localhost server",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prove a real signed-in non-allowlisted fourth employer receives only 404",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Every table row, two attacker employers, own data proven and victim denied",
-            "conclusion": "success"
-          },
-          {
-            "name": "Every write row, two attacker employers, own write read back and victim denied",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prove independent employee and owner offline-claim POST/PATCH tenant isolation",
-            "conclusion": "success"
-          },
-          {
-            "name": "Correction rollback, source binding and concurrent approval regressions",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Complete performance core actions with two attackers and immutable victim evidence",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Run actions/upload-artifact@v7",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Show isolated server log on failure",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Post Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Post Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Stop containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Complete job",
-            "conclusion": "success"
-          }
-        ],
-        "results": [
-          {
-            "kind": "isolated-ci-schema-proof",
-            "externalAcceptance": false,
-            "databaseEngine": "PostgreSQL 16",
-            "encoding": "UTF8",
-            "migration": "0109_tamper_evident_audit_chain.sql",
-            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
-            "auditTriggerEnabled": true,
-            "startEmployerCount": 0,
-            "startAuditEventCount": 0
-          },
-          {
-            "kind": "source-baseline-supplement-proof",
-            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
-            "migrationsScanned": 152,
-            "createdObjectsChecked": 907,
-            "excluded": [
-              "function:audit_events_protect_v2",
-              "function:audit_events_insert_guard_v2",
-              "function:audit_events_reject_truncate_v2",
-              "trigger:audit_events_insert_guard_v2",
-              "trigger:audit_events_reject_truncate_v2"
-            ],
-            "productionApproved": false
-          },
-          {
-            "kind": "hcm-work-item-fixture-ready",
-            "source": "0104",
-            "disposable": true,
-            "productionTested": false
-          },
-          {
-            "kind": "tenant-table-proof",
-            "profile": "flagged-reads",
-            "pathOnly": false,
-            "rows": 6,
-            "ownAndForeignPairs": 12,
-            "discriminatingProofs": 6,
-            "victimDatabaseUnchanged": true,
-            "productionTested": false,
-            "certified": false
-          },
-          {
-            "kind": "tenant-write-table-proof",
-            "profile": "flagged-reads",
-            "family": null,
-            "pathOnly": false,
-            "rows": 3,
-            "ownAndForeignPairs": 6,
-            "discriminatingProofs": 3,
-            "forgedReferenceProofs": 2,
-            "victimDatabaseUnchanged": true,
-            "productionTested": false,
-            "certified": false,
-            "additionalActionProofs": [
-              {
-                "key": "PATCH loans",
-                "attacker": 1,
-                "actions": [
-                  "approve",
-                  "reject",
-                  "resume",
-                  "record_payment",
-                  "close"
-                ],
-                "victimEmployerDenials": 5,
-                "refusedControls": 5
-              },
-              {
-                "key": "PATCH recruitment/privacy",
-                "attacker": 1,
-                "actions": [
-                  "approve_delete",
-                  "erase"
-                ],
-                "forgedReferences": 2,
-                "victimEmployerDenials": 2,
-                "selfReviewRefused": true
-              },
-              {
-                "key": "PATCH loans",
-                "attacker": 2,
-                "actions": [
-                  "approve",
-                  "reject",
-                  "resume",
-                  "record_payment",
-                  "close"
-                ],
-                "victimEmployerDenials": 5,
-                "refusedControls": 5
-              },
-              {
-                "key": "PATCH recruitment/privacy",
-                "attacker": 2,
-                "actions": [
-                  "approve_delete",
-                  "erase"
-                ],
-                "forgedReferences": 2,
-                "victimEmployerDenials": 2,
-                "selfReviewRefused": true
-              }
-            ]
-          }
-        ],
-        "terminalLines": [
-          "{\"kind\":\"tenant-table-proof\",\"profile\":\"flagged-reads\",\"pathOnly\":false,\"rows\":6,\"ownAndForeignPairs\":12,\"discriminatingProofs\":6,\"victimDatabaseUnchanged\":true,\"productionTested\":false,\"certified\":false}"
-        ]
-      },
-      {
-        "jobKey": "table__table",
-        "variant": {
           "profile": "multi-entity"
         },
         "jobName": "Wage renewal / table / table (multi-entity)",
-        "runId": 44740145138,
-        "jobId": 136301503862,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709770,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503862",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709770",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -2297,16 +2057,502 @@
       {
         "jobKey": "table__table",
         "variant": {
-          "profile": "default"
+          "profile": "allowlisted-reads"
         },
-        "jobName": "Wage renewal / table / table (default)",
-        "runId": 44740145138,
-        "jobId": 136301503869,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "jobName": "Wage renewal / table / table (allowlisted-reads)",
+        "runId": 44857718850,
+        "jobId": 136703709796,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503869",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709796",
+        "exactHeadCheckoutVerified": true,
+        "metadataOnly": false,
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify exact proposed renewal source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate offline-claim response contracts and negative controls",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Export the disposable profile environment (single source shared with the local runner)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Ephemeral encryption keys for disposable CI only",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm run db:push",
+            "conclusion": "success"
+          },
+          {
+            "name": "Apply the cutover baseline objects (0109 audit chain + reviewed supplement)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prepare existing SQL-only HCM work-item events in the empty disposable database",
+            "conclusion": "success"
+          },
+          {
+            "name": "Preseed two attackers, the higher-ID victim and an excluded employer before server startup",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate allowlist source contracts without database or service requests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm run build",
+            "conclusion": "success"
+          },
+          {
+            "name": "Start isolated production-mode localhost server",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prove a real signed-in non-allowlisted fourth employer receives only 404",
+            "conclusion": "success"
+          },
+          {
+            "name": "Every table row, two attacker employers, own data proven and victim denied",
+            "conclusion": "success"
+          },
+          {
+            "name": "Every write row, two attacker employers, own write read back and victim denied",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prove independent employee and owner offline-claim POST/PATCH tenant isolation",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Correction rollback, source binding and concurrent approval regressions",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Complete performance core actions with two attackers and immutable victim evidence",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Run actions/upload-artifact@v7",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Show isolated server log on failure",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Stop containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ],
+        "results": [
+          {
+            "kind": "isolated-ci-schema-proof",
+            "externalAcceptance": false,
+            "databaseEngine": "PostgreSQL 16",
+            "encoding": "UTF8",
+            "migration": "0109_tamper_evident_audit_chain.sql",
+            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
+            "auditTriggerEnabled": true,
+            "startEmployerCount": 0,
+            "startAuditEventCount": 0
+          },
+          {
+            "kind": "source-baseline-supplement-proof",
+            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
+            "migrationsScanned": 152,
+            "createdObjectsChecked": 907,
+            "excluded": [
+              "function:audit_events_protect_v2",
+              "function:audit_events_insert_guard_v2",
+              "function:audit_events_reject_truncate_v2",
+              "trigger:audit_events_insert_guard_v2",
+              "trigger:audit_events_reject_truncate_v2"
+            ],
+            "productionApproved": false
+          },
+          {
+            "kind": "hcm-work-item-fixture-ready",
+            "source": "0104",
+            "disposable": true,
+            "productionTested": false
+          },
+          {
+            "kind": "tenant-allowlist-bootstrap",
+            "profile": "allowlisted-reads",
+            "allowedEmployers": 3,
+            "excludedEmployers": 1,
+            "sessionCookiesLogged": false,
+            "database": "disposable localhost PostgreSQL",
+            "productionTested": false,
+            "credited": 0
+          },
+          {
+            "kind": "tenant-allowlist-negative",
+            "unavailableEmployer": true,
+            "gateRoutes": 10,
+            "statuses": "404",
+            "credits": 0,
+            "productionTested": false
+          },
+          {
+            "kind": "tenant-table-proof",
+            "profile": "allowlisted-reads",
+            "pathOnly": false,
+            "rows": 10,
+            "ownAndForeignPairs": 20,
+            "discriminatingProofs": 10,
+            "victimDatabaseUnchanged": true,
+            "productionTested": false,
+            "certified": false
+          },
+          {
+            "kind": "tenant-write-table-proof",
+            "profile": "allowlisted-reads",
+            "family": null,
+            "pathOnly": false,
+            "rows": 1,
+            "ownAndForeignPairs": 2,
+            "discriminatingProofs": 1,
+            "forgedReferenceProofs": 2,
+            "victimDatabaseUnchanged": true,
+            "productionTested": false,
+            "certified": false,
+            "additionalActionProofs": [
+              {
+                "key": "POST year-end",
+                "attacker": 1,
+                "ownAnnualizationAndBinding": 2,
+                "ownedJsonRead": 1,
+                "ownedPreflightRead": 2,
+                "successfulOwn2316": 1,
+                "successfulOwn2316Print": 1,
+                "successfulOwnAlphalistSource": 1,
+                "ownExportAuditRows": 3,
+                "deniedRealVictimGetAndPost": 7,
+                "rejectedForgedWorkerAndRun": 5,
+                "unchangedVictimDb": true,
+                "noOfficialFilingOrPayment": true,
+                "methodCredit": 0,
+                "independentReviewPending": true,
+                "note": "All three successful source export branches are provisional PG16 tests, not BIR filing acceptance"
+              },
+              {
+                "key": "POST year-end",
+                "attacker": 2,
+                "ownAnnualizationAndBinding": 2,
+                "ownedJsonRead": 1,
+                "ownedPreflightRead": 2,
+                "successfulOwn2316": 1,
+                "successfulOwn2316Print": 1,
+                "successfulOwnAlphalistSource": 1,
+                "ownExportAuditRows": 3,
+                "deniedRealVictimGetAndPost": 7,
+                "rejectedForgedWorkerAndRun": 5,
+                "unchangedVictimDb": true,
+                "noOfficialFilingOrPayment": true,
+                "methodCredit": 0,
+                "independentReviewPending": true,
+                "note": "All three successful source export branches are provisional PG16 tests, not BIR filing acceptance"
+              }
+            ]
+          }
+        ],
+        "terminalLines": [
+          "{\"kind\":\"tenant-table-proof\",\"profile\":\"allowlisted-reads\",\"pathOnly\":false,\"rows\":10,\"ownAndForeignPairs\":20,\"discriminatingProofs\":10,\"victimDatabaseUnchanged\":true,\"productionTested\":false,\"certified\":false}"
+        ]
+      },
+      {
+        "jobKey": "table__table",
+        "variant": {
+          "profile": "flagged-reads"
+        },
+        "jobName": "Wage renewal / table / table (flagged-reads)",
+        "runId": 44857718850,
+        "jobId": 136703709902,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
+        "conclusion": "success",
+        "postgresMajor": 16,
+        "transport": "real-http",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709902",
+        "exactHeadCheckoutVerified": true,
+        "metadataOnly": false,
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify exact proposed renewal source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate offline-claim response contracts and negative controls",
+            "conclusion": "success"
+          },
+          {
+            "name": "Export the disposable profile environment (single source shared with the local runner)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Ephemeral encryption keys for disposable CI only",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm run db:push",
+            "conclusion": "success"
+          },
+          {
+            "name": "Apply the cutover baseline objects (0109 audit chain + reviewed supplement)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prepare existing SQL-only HCM work-item events in the empty disposable database",
+            "conclusion": "success"
+          },
+          {
+            "name": "Preseed two attackers, the higher-ID victim and an excluded employer before server startup",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Validate allowlist source contracts without database or service requests",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Run npm run build",
+            "conclusion": "success"
+          },
+          {
+            "name": "Start isolated production-mode localhost server",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prove a real signed-in non-allowlisted fourth employer receives only 404",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Every table row, two attacker employers, own data proven and victim denied",
+            "conclusion": "success"
+          },
+          {
+            "name": "Every write row, two attacker employers, own write read back and victim denied",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prove independent employee and owner offline-claim POST/PATCH tenant isolation",
+            "conclusion": "success"
+          },
+          {
+            "name": "Correction rollback, source binding and concurrent approval regressions",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Complete performance core actions with two attackers and immutable victim evidence",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Run actions/upload-artifact@v7",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Show isolated server log on failure",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Stop containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ],
+        "results": [
+          {
+            "kind": "isolated-ci-schema-proof",
+            "externalAcceptance": false,
+            "databaseEngine": "PostgreSQL 16",
+            "encoding": "UTF8",
+            "migration": "0109_tamper_evident_audit_chain.sql",
+            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
+            "auditTriggerEnabled": true,
+            "startEmployerCount": 0,
+            "startAuditEventCount": 0
+          },
+          {
+            "kind": "source-baseline-supplement-proof",
+            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
+            "migrationsScanned": 152,
+            "createdObjectsChecked": 907,
+            "excluded": [
+              "function:audit_events_protect_v2",
+              "function:audit_events_insert_guard_v2",
+              "function:audit_events_reject_truncate_v2",
+              "trigger:audit_events_insert_guard_v2",
+              "trigger:audit_events_reject_truncate_v2"
+            ],
+            "productionApproved": false
+          },
+          {
+            "kind": "hcm-work-item-fixture-ready",
+            "source": "0104",
+            "disposable": true,
+            "productionTested": false
+          },
+          {
+            "kind": "tenant-table-proof",
+            "profile": "flagged-reads",
+            "pathOnly": false,
+            "rows": 6,
+            "ownAndForeignPairs": 12,
+            "discriminatingProofs": 6,
+            "victimDatabaseUnchanged": true,
+            "productionTested": false,
+            "certified": false
+          },
+          {
+            "kind": "tenant-write-table-proof",
+            "profile": "flagged-reads",
+            "family": null,
+            "pathOnly": false,
+            "rows": 3,
+            "ownAndForeignPairs": 6,
+            "discriminatingProofs": 3,
+            "forgedReferenceProofs": 2,
+            "victimDatabaseUnchanged": true,
+            "productionTested": false,
+            "certified": false,
+            "additionalActionProofs": [
+              {
+                "key": "PATCH loans",
+                "attacker": 1,
+                "actions": [
+                  "approve",
+                  "reject",
+                  "resume",
+                  "record_payment",
+                  "close"
+                ],
+                "victimEmployerDenials": 5,
+                "refusedControls": 5
+              },
+              {
+                "key": "PATCH recruitment/privacy",
+                "attacker": 1,
+                "actions": [
+                  "approve_delete",
+                  "erase"
+                ],
+                "forgedReferences": 2,
+                "victimEmployerDenials": 2,
+                "selfReviewRefused": true
+              },
+              {
+                "key": "PATCH loans",
+                "attacker": 2,
+                "actions": [
+                  "approve",
+                  "reject",
+                  "resume",
+                  "record_payment",
+                  "close"
+                ],
+                "victimEmployerDenials": 5,
+                "refusedControls": 5
+              },
+              {
+                "key": "PATCH recruitment/privacy",
+                "attacker": 2,
+                "actions": [
+                  "approve_delete",
+                  "erase"
+                ],
+                "forgedReferences": 2,
+                "victimEmployerDenials": 2,
+                "selfReviewRefused": true
+              }
+            ]
+          }
+        ],
+        "terminalLines": [
+          "{\"kind\":\"tenant-table-proof\",\"profile\":\"flagged-reads\",\"pathOnly\":false,\"rows\":6,\"ownAndForeignPairs\":12,\"discriminatingProofs\":6,\"victimDatabaseUnchanged\":true,\"productionTested\":false,\"certified\":false}"
+        ]
+      },
+      {
+        "jobKey": "table__table",
+        "variant": {
+          "profile": "default"
+        },
+        "jobName": "Wage renewal / table / table (default)",
+        "runId": 44857718850,
+        "jobId": 136703709949,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
+        "conclusion": "success",
+        "postgresMajor": 16,
+        "transport": "real-http",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709949",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -3786,252 +4032,6 @@
         "terminalLines": [
           "{\"kind\":\"tenant-table-proof\",\"profile\":\"default\",\"pathOnly\":false,\"rows\":82,\"ownAndForeignPairs\":164,\"discriminatingProofs\":82,\"victimDatabaseUnchanged\":true,\"productionTested\":false,\"certified\":false}"
         ]
-      },
-      {
-        "jobKey": "table__table",
-        "variant": {
-          "profile": "allowlisted-reads"
-        },
-        "jobName": "Wage renewal / table / table (allowlisted-reads)",
-        "runId": 44740145138,
-        "jobId": 136301503900,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
-        "conclusion": "success",
-        "postgresMajor": 16,
-        "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503900",
-        "exactHeadCheckoutVerified": true,
-        "metadataOnly": false,
-        "steps": [
-          {
-            "name": "Set up job",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Verify exact proposed renewal source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run npm ci",
-            "conclusion": "success"
-          },
-          {
-            "name": "Validate offline-claim response contracts and negative controls",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Export the disposable profile environment (single source shared with the local runner)",
-            "conclusion": "success"
-          },
-          {
-            "name": "Ephemeral encryption keys for disposable CI only",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run npm run db:push",
-            "conclusion": "success"
-          },
-          {
-            "name": "Apply the cutover baseline objects (0109 audit chain + reviewed supplement)",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prepare existing SQL-only HCM work-item events in the empty disposable database",
-            "conclusion": "success"
-          },
-          {
-            "name": "Preseed two attackers, the higher-ID victim and an excluded employer before server startup",
-            "conclusion": "success"
-          },
-          {
-            "name": "Validate allowlist source contracts without database or service requests",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run npm run build",
-            "conclusion": "success"
-          },
-          {
-            "name": "Start isolated production-mode localhost server",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prove a real signed-in non-allowlisted fourth employer receives only 404",
-            "conclusion": "success"
-          },
-          {
-            "name": "Every table row, two attacker employers, own data proven and victim denied",
-            "conclusion": "success"
-          },
-          {
-            "name": "Every write row, two attacker employers, own write read back and victim denied",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prove independent employee and owner offline-claim POST/PATCH tenant isolation",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Correction rollback, source binding and concurrent approval regressions",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Complete performance core actions with two attackers and immutable victim evidence",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Run actions/upload-artifact@v7",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Show isolated server log on failure",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Post Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Post Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Stop containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Complete job",
-            "conclusion": "success"
-          }
-        ],
-        "results": [
-          {
-            "kind": "isolated-ci-schema-proof",
-            "externalAcceptance": false,
-            "databaseEngine": "PostgreSQL 16",
-            "encoding": "UTF8",
-            "migration": "0109_tamper_evident_audit_chain.sql",
-            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
-            "auditTriggerEnabled": true,
-            "startEmployerCount": 0,
-            "startAuditEventCount": 0
-          },
-          {
-            "kind": "source-baseline-supplement-proof",
-            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
-            "migrationsScanned": 152,
-            "createdObjectsChecked": 907,
-            "excluded": [
-              "function:audit_events_protect_v2",
-              "function:audit_events_insert_guard_v2",
-              "function:audit_events_reject_truncate_v2",
-              "trigger:audit_events_insert_guard_v2",
-              "trigger:audit_events_reject_truncate_v2"
-            ],
-            "productionApproved": false
-          },
-          {
-            "kind": "hcm-work-item-fixture-ready",
-            "source": "0104",
-            "disposable": true,
-            "productionTested": false
-          },
-          {
-            "kind": "tenant-allowlist-bootstrap",
-            "profile": "allowlisted-reads",
-            "allowedEmployers": 3,
-            "excludedEmployers": 1,
-            "sessionCookiesLogged": false,
-            "database": "disposable localhost PostgreSQL",
-            "productionTested": false,
-            "credited": 0
-          },
-          {
-            "kind": "tenant-allowlist-negative",
-            "unavailableEmployer": true,
-            "gateRoutes": 10,
-            "statuses": "404",
-            "credits": 0,
-            "productionTested": false
-          },
-          {
-            "kind": "tenant-table-proof",
-            "profile": "allowlisted-reads",
-            "pathOnly": false,
-            "rows": 10,
-            "ownAndForeignPairs": 20,
-            "discriminatingProofs": 10,
-            "victimDatabaseUnchanged": true,
-            "productionTested": false,
-            "certified": false
-          },
-          {
-            "kind": "tenant-write-table-proof",
-            "profile": "allowlisted-reads",
-            "family": null,
-            "pathOnly": false,
-            "rows": 1,
-            "ownAndForeignPairs": 2,
-            "discriminatingProofs": 1,
-            "forgedReferenceProofs": 2,
-            "victimDatabaseUnchanged": true,
-            "productionTested": false,
-            "certified": false,
-            "additionalActionProofs": [
-              {
-                "key": "POST year-end",
-                "attacker": 1,
-                "ownAnnualizationAndBinding": 2,
-                "ownedJsonRead": 1,
-                "ownedPreflightRead": 2,
-                "successfulOwn2316": 1,
-                "successfulOwn2316Print": 1,
-                "successfulOwnAlphalistSource": 1,
-                "ownExportAuditRows": 3,
-                "deniedRealVictimGetAndPost": 7,
-                "rejectedForgedWorkerAndRun": 5,
-                "unchangedVictimDb": true,
-                "noOfficialFilingOrPayment": true,
-                "methodCredit": 0,
-                "independentReviewPending": true,
-                "note": "All three successful source export branches are provisional PG16 tests, not BIR filing acceptance"
-              },
-              {
-                "key": "POST year-end",
-                "attacker": 2,
-                "ownAnnualizationAndBinding": 2,
-                "ownedJsonRead": 1,
-                "ownedPreflightRead": 2,
-                "successfulOwn2316": 1,
-                "successfulOwn2316Print": 1,
-                "successfulOwnAlphalistSource": 1,
-                "ownExportAuditRows": 3,
-                "deniedRealVictimGetAndPost": 7,
-                "rejectedForgedWorkerAndRun": 5,
-                "unchangedVictimDb": true,
-                "noOfficialFilingOrPayment": true,
-                "methodCredit": 0,
-                "independentReviewPending": true,
-                "note": "All three successful source export branches are provisional PG16 tests, not BIR filing acceptance"
-              }
-            ]
-          }
-        ],
-        "terminalLines": [
-          "{\"kind\":\"tenant-table-proof\",\"profile\":\"allowlisted-reads\",\"pathOnly\":false,\"rows\":10,\"ownAndForeignPairs\":20,\"discriminatingProofs\":10,\"victimDatabaseUnchanged\":true,\"productionTested\":false,\"certified\":false}"
-        ]
       }
     ],
     "statutory": [
@@ -4039,13 +4039,13 @@
         "jobKey": "statutory__synthetic-contribution-case-post",
         "variant": {},
         "jobName": "Wage renewal / statutory / synthetic-contribution-case-post",
-        "runId": 44740145138,
-        "jobId": 136301503229,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709454,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503229",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709454",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -4268,13 +4268,13 @@
         "jobKey": "yearend__annualize-and-bind-isolated",
         "variant": {},
         "jobName": "Wage renewal / yearend / annualize-and-bind-isolated",
-        "runId": 44740145138,
-        "jobId": 136301503567,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709719,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503567",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709719",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -4467,13 +4467,13 @@
           "exact-links": "true"
         },
         "jobName": "Wage renewal / approvals / money-lifecycle-pg16 (true)",
-        "runId": 44740145138,
-        "jobId": 136301503565,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709688,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503565",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709688",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -4577,7 +4577,7 @@
             "productionApproved": false
           },
           {
-            "head": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+            "head": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
             "assertions": 301,
             "exactLinks": true,
             "attackerOrganizations": [
@@ -5201,23 +5201,186 @@
         ],
         "artifacts": [
           {
-            "artifactId": 14632163346,
-            "artifactDigest": "sha256:ea26de5a7b734510894eb1b1f5ac880724e22a3c85d51243a61cc685b54f59dc",
+            "artifactId": 14689094179,
+            "artifactDigest": "sha256:772fd43c686c243b8c0fd11eb314962ef34b702d784fb5b5491883f090ff0a94",
             "file": "tenant-money-lifecycle.json"
           }
+        ]
+      },
+      {
+        "jobKey": "approvals__fictional-approval-http",
+        "variant": {},
+        "jobName": "Wage renewal / approvals / fictional-approval-http",
+        "runId": 44857718850,
+        "jobId": 136703709734,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
+        "conclusion": "success",
+        "postgresMajor": 16,
+        "transport": "real-http",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709734",
+        "exactHeadCheckoutVerified": true,
+        "metadataOnly": false,
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify exact proposed renewal source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install locked dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Export disposable localhost targets and disable all providers and workers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Fail closed on incorrect proof contracts and synthetic targets",
+            "conclusion": "success"
+          },
+          {
+            "name": "Generate throwaway encryption keys and webhook secret",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize disposable PostgreSQL 16",
+            "conclusion": "success"
+          },
+          {
+            "name": "Apply only reviewed fictional baseline objects",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prepare SQL-only HCM baseline fixture",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build production-mode app against the disposable database",
+            "conclusion": "success"
+          },
+          {
+            "name": "Start production-mode Next on localhost only",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify own PATCH, foreign higher-ID denial, cross-role, CSRF, replay and immutable victim SQL",
+            "conclusion": "success"
+          },
+          {
+            "name": "Show localhost-only diagnostic log on failure",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Stop containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ],
+        "results": [
+          {
+            "kind": "isolated-ci-schema-proof",
+            "externalAcceptance": false,
+            "databaseEngine": "PostgreSQL 16",
+            "encoding": "UTF8",
+            "migration": "0109_tamper_evident_audit_chain.sql",
+            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
+            "auditTriggerEnabled": true,
+            "startEmployerCount": 0,
+            "startAuditEventCount": 0
+          },
+          {
+            "kind": "source-baseline-supplement-proof",
+            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
+            "migrationsScanned": 152,
+            "createdObjectsChecked": 907,
+            "excluded": [
+              "function:audit_events_protect_v2",
+              "function:audit_events_insert_guard_v2",
+              "function:audit_events_reject_truncate_v2",
+              "trigger:audit_events_insert_guard_v2",
+              "trigger:audit_events_reject_truncate_v2"
+            ],
+            "productionApproved": false
+          },
+          {
+            "kind": "hcm-work-item-fixture-ready",
+            "source": "0104",
+            "disposable": true,
+            "productionTested": false
+          },
+          {
+            "kind": "tenant-approval-task-isolation",
+            "method": "PATCH approvals/[id]",
+            "independentAttackers": 2,
+            "employers": 3,
+            "higherIdVictim": true,
+            "realOwnedDecisions": [
+              "Declined",
+              "Approved"
+            ],
+            "victimOwnPositive": true,
+            "foreignAndPeerPath404": true,
+            "revokedAndNonownerDenied": true,
+            "csrfDenied": true,
+            "replay409": true,
+            "fullVictimSnapshotUnchanged": true,
+            "payrollAndPeopleUnchanged": true,
+            "productionTested": false,
+            "coverageCredits": 0,
+            "independentlyAccepted": false
+          }
+        ],
+        "terminalLines": [
+          "##[group]Run node --check scripts/qa/tenant-approval-task-contract.mjs",
+          "\u001b[36;1mnode --check scripts/qa/tenant-approval-task-contract.mjs\u001b[0m",
+          "\u001b[36;1mnode --check scripts/qa/tenant-approval-task-http.mjs\u001b[0m",
+          "\u001b[36;1mnode --check tests/tenant-approval-task-contract.test.mjs\u001b[0m",
+          "\u001b[36;1mnode --test tests/tenant-approval-task-contract.test.mjs tests/tenant-approval-task-tx-org-scope.test.mjs\u001b[0m",
+          "\u001b[36;1mnohup npm start -- -H 127.0.0.1 > /tmp/tenant-approval-task-next.log 2>&1 &\u001b[0m",
+          "\u001b[36;1m    cat /tmp/tenant-approval-task-next.log\u001b[0m",
+          "\u001b[36;1mcat /tmp/tenant-approval-task-next.log\u001b[0m",
+          "##[group]Run node --import tsx scripts/qa/tenant-approval-task-http.mjs",
+          "\u001b[36;1mnode --import tsx scripts/qa/tenant-approval-task-http.mjs\u001b[0m",
+          "{\"kind\":\"tenant-approval-task-isolation\",\"method\":\"PATCH approvals/[id]\",\"independentAttackers\":2,\"employers\":3,\"higherIdVictim\":true,\"realOwnedDecisions\":[\"Declined\",\"Approved\"],\"victimOwnPositive\":true,\"foreignAndPeerPath404\":true,\"revokedAndNonownerDenied\":true,\"csrfDenied\":true,\"replay409\":true,\"fullVictimSnapshotUnchanged\":true,\"payrollAndPeopleUnchanged\":true,\"productionTested\":false,\"coverageCredits\":0,\"independentlyAccepted\":false}"
         ]
       },
       {
         "jobKey": "approvals__fictional-approval-sources-http",
         "variant": {},
         "jobName": "Wage renewal / approvals / fictional-approval-sources-http",
-        "runId": 44740145138,
-        "jobId": 136301503583,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709741,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503583",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709741",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -5370,13 +5533,13 @@
           "exact-links": "false"
         },
         "jobName": "Wage renewal / approvals / money-lifecycle-pg16 (false)",
-        "runId": 44740145138,
-        "jobId": 136301503683,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709763,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503683",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709763",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -5480,7 +5643,7 @@
             "productionApproved": false
           },
           {
-            "head": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+            "head": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
             "assertions": 301,
             "exactLinks": false,
             "attackerOrganizations": [
@@ -6104,186 +6267,23 @@
         ],
         "artifacts": [
           {
-            "artifactId": 14634275335,
-            "artifactDigest": "sha256:54082d37fd2429a9a401e8ec40857dddbbf0c7f162daffa3701796c19cca3a79",
+            "artifactId": 14690265737,
+            "artifactDigest": "sha256:0510e2644820d1f961870e181b88c59a4f45c156a48ccb4191aa6d0a7773c8cc",
             "file": "tenant-money-lifecycle.json"
           }
-        ]
-      },
-      {
-        "jobKey": "approvals__fictional-approval-http",
-        "variant": {},
-        "jobName": "Wage renewal / approvals / fictional-approval-http",
-        "runId": 44740145138,
-        "jobId": 136301503729,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
-        "conclusion": "success",
-        "postgresMajor": 16,
-        "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503729",
-        "exactHeadCheckoutVerified": true,
-        "metadataOnly": false,
-        "steps": [
-          {
-            "name": "Set up job",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Verify exact proposed renewal source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Install locked dependencies",
-            "conclusion": "success"
-          },
-          {
-            "name": "Export disposable localhost targets and disable all providers and workers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Fail closed on incorrect proof contracts and synthetic targets",
-            "conclusion": "success"
-          },
-          {
-            "name": "Generate throwaway encryption keys and webhook secret",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize disposable PostgreSQL 16",
-            "conclusion": "success"
-          },
-          {
-            "name": "Apply only reviewed fictional baseline objects",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prepare SQL-only HCM baseline fixture",
-            "conclusion": "success"
-          },
-          {
-            "name": "Build production-mode app against the disposable database",
-            "conclusion": "success"
-          },
-          {
-            "name": "Start production-mode Next on localhost only",
-            "conclusion": "success"
-          },
-          {
-            "name": "Verify own PATCH, foreign higher-ID denial, cross-role, CSRF, replay and immutable victim SQL",
-            "conclusion": "success"
-          },
-          {
-            "name": "Show localhost-only diagnostic log on failure",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Post Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Post Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Stop containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Complete job",
-            "conclusion": "success"
-          }
-        ],
-        "results": [
-          {
-            "kind": "isolated-ci-schema-proof",
-            "externalAcceptance": false,
-            "databaseEngine": "PostgreSQL 16",
-            "encoding": "UTF8",
-            "migration": "0109_tamper_evident_audit_chain.sql",
-            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
-            "auditTriggerEnabled": true,
-            "startEmployerCount": 0,
-            "startAuditEventCount": 0
-          },
-          {
-            "kind": "source-baseline-supplement-proof",
-            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
-            "migrationsScanned": 152,
-            "createdObjectsChecked": 907,
-            "excluded": [
-              "function:audit_events_protect_v2",
-              "function:audit_events_insert_guard_v2",
-              "function:audit_events_reject_truncate_v2",
-              "trigger:audit_events_insert_guard_v2",
-              "trigger:audit_events_reject_truncate_v2"
-            ],
-            "productionApproved": false
-          },
-          {
-            "kind": "hcm-work-item-fixture-ready",
-            "source": "0104",
-            "disposable": true,
-            "productionTested": false
-          },
-          {
-            "kind": "tenant-approval-task-isolation",
-            "method": "PATCH approvals/[id]",
-            "independentAttackers": 2,
-            "employers": 3,
-            "higherIdVictim": true,
-            "realOwnedDecisions": [
-              "Declined",
-              "Approved"
-            ],
-            "victimOwnPositive": true,
-            "foreignAndPeerPath404": true,
-            "revokedAndNonownerDenied": true,
-            "csrfDenied": true,
-            "replay409": true,
-            "fullVictimSnapshotUnchanged": true,
-            "payrollAndPeopleUnchanged": true,
-            "productionTested": false,
-            "coverageCredits": 0,
-            "independentlyAccepted": false
-          }
-        ],
-        "terminalLines": [
-          "##[group]Run node --check scripts/qa/tenant-approval-task-contract.mjs",
-          "\u001b[36;1mnode --check scripts/qa/tenant-approval-task-contract.mjs\u001b[0m",
-          "\u001b[36;1mnode --check scripts/qa/tenant-approval-task-http.mjs\u001b[0m",
-          "\u001b[36;1mnode --check tests/tenant-approval-task-contract.test.mjs\u001b[0m",
-          "\u001b[36;1mnode --test tests/tenant-approval-task-contract.test.mjs tests/tenant-approval-task-tx-org-scope.test.mjs\u001b[0m",
-          "\u001b[36;1mnohup npm start -- -H 127.0.0.1 > /tmp/tenant-approval-task-next.log 2>&1 &\u001b[0m",
-          "\u001b[36;1m    cat /tmp/tenant-approval-task-next.log\u001b[0m",
-          "\u001b[36;1mcat /tmp/tenant-approval-task-next.log\u001b[0m",
-          "##[group]Run node --import tsx scripts/qa/tenant-approval-task-http.mjs",
-          "\u001b[36;1mnode --import tsx scripts/qa/tenant-approval-task-http.mjs\u001b[0m",
-          "{\"kind\":\"tenant-approval-task-isolation\",\"method\":\"PATCH approvals/[id]\",\"independentAttackers\":2,\"employers\":3,\"higherIdVictim\":true,\"realOwnedDecisions\":[\"Declined\",\"Approved\"],\"victimOwnPositive\":true,\"foreignAndPeerPath404\":true,\"revokedAndNonownerDenied\":true,\"csrfDenied\":true,\"replay409\":true,\"fullVictimSnapshotUnchanged\":true,\"payrollAndPeopleUnchanged\":true,\"productionTested\":false,\"coverageCredits\":0,\"independentlyAccepted\":false}"
         ]
       },
       {
         "jobKey": "approvals__fictional-approval-flows-http",
         "variant": {},
         "jobName": "Wage renewal / approvals / fictional-approval-flows-http",
-        "runId": 44740145138,
-        "jobId": 136301503877,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709794,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503877",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709794",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -6433,13 +6433,13 @@
         "jobKey": "approvals__approval-types-http",
         "variant": {},
         "jobName": "Wage renewal / approvals / approval-types-http",
-        "runId": 44740145138,
-        "jobId": 136301504016,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709840,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504016",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709840",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -6604,13 +6604,13 @@
         "jobKey": "enterprise__enterprise-admin-http",
         "variant": {},
         "jobName": "Wage renewal / enterprise / enterprise-admin-http",
-        "runId": 44740145138,
-        "jobId": 136301503933,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709828,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503933",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709828",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -7016,7 +7016,7 @@
             "kind": "ENTERPRISE_ADMIN_HTTP",
             "label": "SOLO_VERIFIED_DEV_RECOVERY",
             "result": "PASS",
-            "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+            "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
             "routeBlobSha": "be3e320df828d681ad34c034b6469cf4940846cc",
             "proofBlobSha": "415c2005393dadfeccb106260495b2ce7d408c91",
             "stateBlobSha": "c44079a8811320e11bf512f0b8751d6370d94145",
@@ -7034,7 +7034,7 @@
           }
         ],
         "terminalLines": [
-          "{\"kind\":\"ENTERPRISE_ADMIN_HTTP\",\"label\":\"SOLO_VERIFIED_DEV_RECOVERY\",\"result\":\"PASS\",\"sourceHead\":\"c5f9b8439a6a9f22742330b60da59fa50879787a\",\"routeBlobSha\":\"be3e320df828d681ad34c034b6469cf4940846cc\",\"proofBlobSha\":\"415c2005393dadfeccb106260495b2ce7d408c91\",\"stateBlobSha\":\"c44079a8811320e11bf512f0b8751d6370d94145\",\"attackers\":2,\"ownTransitions\":42,\"auditVetoRollbacks\":42,\"foreignDenials\":42,\"forgedDenials\":22,\"readPairs\":2,\"readDiscriminating\":2,\"writeDiscriminating\":42,\"coverageCredits\":0,\"actualProviderTraffic\":false,\"productionCertified\":false}"
+          "{\"kind\":\"ENTERPRISE_ADMIN_HTTP\",\"label\":\"SOLO_VERIFIED_DEV_RECOVERY\",\"result\":\"PASS\",\"sourceHead\":\"ff5809aa7de6317adbecdd50bbbf9b88ffc1c869\",\"routeBlobSha\":\"be3e320df828d681ad34c034b6469cf4940846cc\",\"proofBlobSha\":\"415c2005393dadfeccb106260495b2ce7d408c91\",\"stateBlobSha\":\"c44079a8811320e11bf512f0b8751d6370d94145\",\"attackers\":2,\"ownTransitions\":42,\"auditVetoRollbacks\":42,\"foreignDenials\":42,\"forgedDenials\":22,\"readPairs\":2,\"readDiscriminating\":2,\"writeDiscriminating\":42,\"coverageCredits\":0,\"actualProviderTraffic\":false,\"productionCertified\":false}"
         ]
       }
     ],
@@ -7043,13 +7043,13 @@
         "jobKey": "identity__identity-account",
         "variant": {},
         "jobName": "Wage renewal / identity / identity-account",
-        "runId": 44740145138,
-        "jobId": 136301503652,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709678,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503652",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709678",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -7177,13 +7177,13 @@
         "jobKey": "bir__synthetic",
         "variant": {},
         "jobName": "Wage renewal / bir / synthetic",
-        "runId": 44740145138,
-        "jobId": 136301503699,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709735,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503699",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709735",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -7354,13 +7354,13 @@
           "case": "guards"
         },
         "jobName": "Wage renewal / filing / filing-method-leg (guards)",
-        "runId": 44740145138,
-        "jobId": 136301504170,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709744,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504170",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709744",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -7501,179 +7501,16 @@
       {
         "jobKey": "filing__filing-method-leg",
         "variant": {
-          "case": "rejected"
-        },
-        "jobName": "Wage renewal / filing / filing-method-leg (rejected)",
-        "runId": 44740145138,
-        "jobId": 136301504208,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
-        "conclusion": "success",
-        "postgresMajor": 16,
-        "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504208",
-        "exactHeadCheckoutVerified": true,
-        "metadataOnly": false,
-        "steps": [
-          {
-            "name": "Set up job",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
-            "conclusion": "success"
-          },
-          {
-            "name": "Verify exact proposed renewal source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Assert exact candidate head and never consume merge-ref source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-            "conclusion": "success"
-          },
-          {
-            "name": "Install exactly locked dependencies",
-            "conclusion": "success"
-          },
-          {
-            "name": "Set fictional compliance profile; leave workers, money and real providers off",
-            "conclusion": "success"
-          },
-          {
-            "name": "Reject fake receipts, unsafe targets, missing source pins and premature credits",
-            "conclusion": "success"
-          },
-          {
-            "name": "Generate disposable encryption keys (never secrets from real employers)",
-            "conclusion": "success"
-          },
-          {
-            "name": "Create one fresh isolated PG16 schema for this proof leg",
-            "conclusion": "success"
-          },
-          {
-            "name": "Apply reviewed fictional-only database baseline",
-            "conclusion": "success"
-          },
-          {
-            "name": "Build exact-head Next production-mode app against localhost DB",
-            "conclusion": "success"
-          },
-          {
-            "name": "Start private loopback HTTP app; never contact provider or agency",
-            "conclusion": "success"
-          },
-          {
-            "name": "Execute actual authenticated PATCH, real victim, SQL and audit proof",
-            "conclusion": "success"
-          },
-          {
-            "name": "Print bounded localhost-only logs on failure",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-            "conclusion": "success"
-          },
-          {
-            "name": "Post Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
-            "conclusion": "success"
-          },
-          {
-            "name": "Stop containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Complete job",
-            "conclusion": "success"
-          }
-        ],
-        "results": [
-          {
-            "kind": "isolated-ci-schema-proof",
-            "externalAcceptance": false,
-            "databaseEngine": "PostgreSQL 16",
-            "encoding": "UTF8",
-            "migration": "0109_tamper_evident_audit_chain.sql",
-            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
-            "auditTriggerEnabled": true,
-            "startEmployerCount": 0,
-            "startAuditEventCount": 0
-          },
-          {
-            "kind": "source-baseline-supplement-proof",
-            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
-            "migrationsScanned": 152,
-            "createdObjectsChecked": 907,
-            "excluded": [
-              "function:audit_events_protect_v2",
-              "function:audit_events_insert_guard_v2",
-              "function:audit_events_reject_truncate_v2",
-              "trigger:audit_events_insert_guard_v2",
-              "trigger:audit_events_reject_truncate_v2"
-            ],
-            "productionApproved": false
-          },
-          {
-            "kind": "fictional-compliance-filing-outcome-tenant-proof",
-            "method": "PATCH /api/compliance/filing-validations/[id]",
-            "attackerEmployers": 2,
-            "higherIdVictimEmployers": 1,
-            "ownPersistedRejections": 2,
-            "tenantAndInputDenials": 16,
-            "foreignEqualsNonexistent": 2,
-            "actualAuditVetoRollbacks": 2,
-            "officialFilingAcceptanceProven": false,
-            "submittedToAgency": false,
-            "moneyMoved": false,
-            "coverageCredits": 0,
-            "independentSecurityReview": "PENDING",
-            "productionTested": false
-          },
-          {
-            "method": "PATCH /api/compliance/filing-validations/[id]",
-            "leg": "rejected",
-            "reviewedSourceUnchanged": true,
-            "realHttpPostgres16": true,
-            "actualOwnWrites": 2,
-            "actualVictimDenied": true,
-            "auditVetoRollback": true,
-            "protectedOtherEmployersUnchanged": true,
-            "credits": 0,
-            "independentlyAccepted": false,
-            "productionCertified": false
-          }
-        ],
-        "terminalLines": [
-          "##[group]Run node --check scripts/qa/tenant-filing-patch-method-contract.mjs",
-          "\u001b[36;1mnode --check scripts/qa/tenant-filing-patch-method-contract.mjs\u001b[0m",
-          "\u001b[36;1mnode --check scripts/qa/tenant-filing-patch-method-http.mjs\u001b[0m",
-          "\u001b[36;1mnode --test tests/tenant-filing-patch-method-contract.test.mjs tests/tenant-filing-outcome-contract.test.mjs tests/tenant-compliance-accepted-contract.test.mjs\u001b[0m",
-          "##[group]Run node --import tsx scripts/qa/tenant-filing-patch-method-http.mjs \"rejected\"",
-          "\u001b[36;1mnode --import tsx scripts/qa/tenant-filing-patch-method-http.mjs \"rejected\"\u001b[0m",
-          "FILING_PATCH_METHOD_LEG_PASS {\"method\":\"PATCH /api/compliance/filing-validations/[id]\",\"leg\":\"rejected\",\"reviewedSourceUnchanged\":true,\"realHttpPostgres16\":true,\"actualOwnWrites\":2,\"actualVictimDenied\":true,\"auditVetoRollback\":true,\"protectedOtherEmployersUnchanged\":true,\"credits\":0,\"independentlyAccepted\":false,\"productionCertified\":false}"
-        ]
-      },
-      {
-        "jobKey": "filing__filing-method-leg",
-        "variant": {
           "case": "accepted"
         },
         "jobName": "Wage renewal / filing / filing-method-leg (accepted)",
-        "runId": 44740145138,
-        "jobId": 136301504259,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709880,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504259",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709880",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -7830,16 +7667,179 @@
         ]
       },
       {
+        "jobKey": "filing__filing-method-leg",
+        "variant": {
+          "case": "rejected"
+        },
+        "jobName": "Wage renewal / filing / filing-method-leg (rejected)",
+        "runId": 44857718850,
+        "jobId": 136703709919,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
+        "conclusion": "success",
+        "postgresMajor": 16,
+        "transport": "real-http",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709919",
+        "exactHeadCheckoutVerified": true,
+        "metadataOnly": false,
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify exact proposed renewal source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Assert exact candidate head and never consume merge-ref source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install exactly locked dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Set fictional compliance profile; leave workers, money and real providers off",
+            "conclusion": "success"
+          },
+          {
+            "name": "Reject fake receipts, unsafe targets, missing source pins and premature credits",
+            "conclusion": "success"
+          },
+          {
+            "name": "Generate disposable encryption keys (never secrets from real employers)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Create one fresh isolated PG16 schema for this proof leg",
+            "conclusion": "success"
+          },
+          {
+            "name": "Apply reviewed fictional-only database baseline",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build exact-head Next production-mode app against localhost DB",
+            "conclusion": "success"
+          },
+          {
+            "name": "Start private loopback HTTP app; never contact provider or agency",
+            "conclusion": "success"
+          },
+          {
+            "name": "Execute actual authenticated PATCH, real victim, SQL and audit proof",
+            "conclusion": "success"
+          },
+          {
+            "name": "Print bounded localhost-only logs on failure",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+            "conclusion": "success"
+          },
+          {
+            "name": "Stop containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ],
+        "results": [
+          {
+            "kind": "isolated-ci-schema-proof",
+            "externalAcceptance": false,
+            "databaseEngine": "PostgreSQL 16",
+            "encoding": "UTF8",
+            "migration": "0109_tamper_evident_audit_chain.sql",
+            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
+            "auditTriggerEnabled": true,
+            "startEmployerCount": 0,
+            "startAuditEventCount": 0
+          },
+          {
+            "kind": "source-baseline-supplement-proof",
+            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
+            "migrationsScanned": 152,
+            "createdObjectsChecked": 907,
+            "excluded": [
+              "function:audit_events_protect_v2",
+              "function:audit_events_insert_guard_v2",
+              "function:audit_events_reject_truncate_v2",
+              "trigger:audit_events_insert_guard_v2",
+              "trigger:audit_events_reject_truncate_v2"
+            ],
+            "productionApproved": false
+          },
+          {
+            "kind": "fictional-compliance-filing-outcome-tenant-proof",
+            "method": "PATCH /api/compliance/filing-validations/[id]",
+            "attackerEmployers": 2,
+            "higherIdVictimEmployers": 1,
+            "ownPersistedRejections": 2,
+            "tenantAndInputDenials": 16,
+            "foreignEqualsNonexistent": 2,
+            "actualAuditVetoRollbacks": 2,
+            "officialFilingAcceptanceProven": false,
+            "submittedToAgency": false,
+            "moneyMoved": false,
+            "coverageCredits": 0,
+            "independentSecurityReview": "PENDING",
+            "productionTested": false
+          },
+          {
+            "method": "PATCH /api/compliance/filing-validations/[id]",
+            "leg": "rejected",
+            "reviewedSourceUnchanged": true,
+            "realHttpPostgres16": true,
+            "actualOwnWrites": 2,
+            "actualVictimDenied": true,
+            "auditVetoRollback": true,
+            "protectedOtherEmployersUnchanged": true,
+            "credits": 0,
+            "independentlyAccepted": false,
+            "productionCertified": false
+          }
+        ],
+        "terminalLines": [
+          "##[group]Run node --check scripts/qa/tenant-filing-patch-method-contract.mjs",
+          "\u001b[36;1mnode --check scripts/qa/tenant-filing-patch-method-contract.mjs\u001b[0m",
+          "\u001b[36;1mnode --check scripts/qa/tenant-filing-patch-method-http.mjs\u001b[0m",
+          "\u001b[36;1mnode --test tests/tenant-filing-patch-method-contract.test.mjs tests/tenant-filing-outcome-contract.test.mjs tests/tenant-compliance-accepted-contract.test.mjs\u001b[0m",
+          "##[group]Run node --import tsx scripts/qa/tenant-filing-patch-method-http.mjs \"rejected\"",
+          "\u001b[36;1mnode --import tsx scripts/qa/tenant-filing-patch-method-http.mjs \"rejected\"\u001b[0m",
+          "FILING_PATCH_METHOD_LEG_PASS {\"method\":\"PATCH /api/compliance/filing-validations/[id]\",\"leg\":\"rejected\",\"reviewedSourceUnchanged\":true,\"realHttpPostgres16\":true,\"actualOwnWrites\":2,\"actualVictimDenied\":true,\"auditVetoRollback\":true,\"protectedOtherEmployersUnchanged\":true,\"credits\":0,\"independentlyAccepted\":false,\"productionCertified\":false}"
+        ]
+      },
+      {
         "jobKey": "filing__filing-method-all-legs",
         "variant": {},
         "jobName": "Wage renewal / filing / filing-method-all-legs",
-        "runId": 44740145138,
-        "jobId": 136309918473,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136712702936,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": null,
         "transport": "source-metadata-only",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136309918473",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136712702936",
         "exactHeadCheckoutVerified": false,
         "metadataOnly": true,
         "steps": [
@@ -7865,13 +7865,13 @@
         "jobKey": "labor__labor-inspection-post-isolation",
         "variant": {},
         "jobName": "Wage renewal / labor / labor-inspection-post-isolation",
-        "runId": 44740145138,
-        "jobId": 136301503658,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709806,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503658",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709806",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -8031,166 +8031,16 @@
       {
         "jobKey": "remittance__remittance-action-pg16",
         "variant": {
-          "multi_entity": "false"
-        },
-        "jobName": "Wage renewal / remittance / statutory-action-pg16-false",
-        "runId": 44740145138,
-        "jobId": 136301503761,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
-        "conclusion": "success",
-        "postgresMajor": 16,
-        "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503761",
-        "exactHeadCheckoutVerified": true,
-        "metadataOnly": false,
-        "steps": [
-          {
-            "name": "Set up job",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Verify exact proposed renewal source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run npm ci",
-            "conclusion": "success"
-          },
-          {
-            "name": "Check exact method guards, source-key policy and proof script",
-            "conclusion": "success"
-          },
-          {
-            "name": "Create disposable PostgreSQL schema",
-            "conclusion": "success"
-          },
-          {
-            "name": "Apply reviewed isolated audit chain and supplement",
-            "conclusion": "success"
-          },
-          {
-            "name": "Build actual Next.js production-mode app",
-            "conclusion": "success"
-          },
-          {
-            "name": "Execute signed-in GET/POST, cross-tenant, grants and no-email evidence",
-            "conclusion": "success"
-          },
-          {
-            "name": "Synthetic server diagnostics on failure",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Post Run actions/setup-node@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Post Run actions/checkout@v7",
-            "conclusion": "success"
-          },
-          {
-            "name": "Stop containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Complete job",
-            "conclusion": "success"
-          }
-        ],
-        "results": [
-          {
-            "kind": "isolated-ci-schema-proof",
-            "externalAcceptance": false,
-            "databaseEngine": "PostgreSQL 16",
-            "encoding": "UTF8",
-            "migration": "0109_tamper_evident_audit_chain.sql",
-            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
-            "auditTriggerEnabled": true,
-            "startEmployerCount": 0,
-            "startAuditEventCount": 0
-          },
-          {
-            "kind": "source-baseline-supplement-proof",
-            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
-            "migrationsScanned": 152,
-            "createdObjectsChecked": 907,
-            "excluded": [
-              "function:audit_events_protect_v2",
-              "function:audit_events_insert_guard_v2",
-              "function:audit_events_reject_truncate_v2",
-              "trigger:audit_events_insert_guard_v2",
-              "trigger:audit_events_reject_truncate_v2"
-            ],
-            "productionApproved": false
-          },
-          {
-            "result": "PASS",
-            "kind": "REMITTANCE_ACTION_TENANT_ENTITY_HTTP_PG16",
-            "multiEntityEnabled": false,
-            "exactMethods": [
-              "GET",
-              "POST"
-            ],
-            "independentOutsideTenants": 2,
-            "insideLegalEmployers": 2,
-            "victimHighId": true,
-            "immutableDeniedVictim": true,
-            "notificationGrantsChecked": true,
-            "paymentProviderCalls": 0,
-            "assertions": 57,
-            "productionApproval": false
-          }
-        ],
-        "terminalLines": [
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "##[group]Run node --check scripts/qa/remittance-action-entity-http.mjs",
-          "\u001b[36;1mnode --check scripts/qa/remittance-action-entity-http.mjs\u001b[0m",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "\u001b[36;1mnpx tsx scripts/qa/remittance-action-entity-http.mjs\u001b[0m",
-          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
-          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
-          "{\"result\":\"PASS\",\"kind\":\"REMITTANCE_ACTION_TENANT_ENTITY_HTTP_PG16\",\"multiEntityEnabled\":false,\"exactMethods\":[\"GET\",\"POST\"],\"independentOutsideTenants\":2,\"insideLegalEmployers\":2,\"victimHighId\":true,\"immutableDeniedVictim\":true,\"notificationGrantsChecked\":true,\"paymentProviderCalls\":0,\"assertions\":57,\"productionApproval\":false}"
-        ]
-      },
-      {
-        "jobKey": "remittance__remittance-action-pg16",
-        "variant": {
           "multi_entity": "true"
         },
         "jobName": "Wage renewal / remittance / statutory-action-pg16-true",
-        "runId": 44740145138,
-        "jobId": 136301503813,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709808,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503813",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709808",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -8327,6 +8177,156 @@
           "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
           "{\"result\":\"PASS\",\"kind\":\"REMITTANCE_ACTION_TENANT_ENTITY_HTTP_PG16\",\"multiEntityEnabled\":true,\"exactMethods\":[\"GET\",\"POST\"],\"independentOutsideTenants\":2,\"insideLegalEmployers\":2,\"victimHighId\":true,\"immutableDeniedVictim\":true,\"notificationGrantsChecked\":true,\"paymentProviderCalls\":0,\"assertions\":68,\"productionApproval\":false}"
         ]
+      },
+      {
+        "jobKey": "remittance__remittance-action-pg16",
+        "variant": {
+          "multi_entity": "false"
+        },
+        "jobName": "Wage renewal / remittance / statutory-action-pg16-false",
+        "runId": 44857718850,
+        "jobId": 136703709817,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
+        "conclusion": "success",
+        "postgresMajor": 16,
+        "transport": "real-http",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709817",
+        "exactHeadCheckoutVerified": true,
+        "metadataOnly": false,
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify exact proposed renewal source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check exact method guards, source-key policy and proof script",
+            "conclusion": "success"
+          },
+          {
+            "name": "Create disposable PostgreSQL schema",
+            "conclusion": "success"
+          },
+          {
+            "name": "Apply reviewed isolated audit chain and supplement",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build actual Next.js production-mode app",
+            "conclusion": "success"
+          },
+          {
+            "name": "Execute signed-in GET/POST, cross-tenant, grants and no-email evidence",
+            "conclusion": "success"
+          },
+          {
+            "name": "Synthetic server diagnostics on failure",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Run actions/setup-node@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Stop containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ],
+        "results": [
+          {
+            "kind": "isolated-ci-schema-proof",
+            "externalAcceptance": false,
+            "databaseEngine": "PostgreSQL 16",
+            "encoding": "UTF8",
+            "migration": "0109_tamper_evident_audit_chain.sql",
+            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
+            "auditTriggerEnabled": true,
+            "startEmployerCount": 0,
+            "startAuditEventCount": 0
+          },
+          {
+            "kind": "source-baseline-supplement-proof",
+            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
+            "migrationsScanned": 152,
+            "createdObjectsChecked": 907,
+            "excluded": [
+              "function:audit_events_protect_v2",
+              "function:audit_events_insert_guard_v2",
+              "function:audit_events_reject_truncate_v2",
+              "trigger:audit_events_insert_guard_v2",
+              "trigger:audit_events_reject_truncate_v2"
+            ],
+            "productionApproved": false
+          },
+          {
+            "result": "PASS",
+            "kind": "REMITTANCE_ACTION_TENANT_ENTITY_HTTP_PG16",
+            "multiEntityEnabled": false,
+            "exactMethods": [
+              "GET",
+              "POST"
+            ],
+            "independentOutsideTenants": 2,
+            "insideLegalEmployers": 2,
+            "victimHighId": true,
+            "immutableDeniedVictim": true,
+            "notificationGrantsChecked": true,
+            "paymentProviderCalls": 0,
+            "assertions": 57,
+            "productionApproval": false
+          }
+        ],
+        "terminalLines": [
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "##[group]Run node --check scripts/qa/remittance-action-entity-http.mjs",
+          "\u001b[36;1mnode --check scripts/qa/remittance-action-entity-http.mjs\u001b[0m",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "\u001b[36;1mnpx tsx scripts/qa/remittance-action-entity-http.mjs\u001b[0m",
+          "  REMITTANCE_ACTION_PROOF_URL: http://127.0.0.1:3019",
+          "  REMITTANCE_ACTION_PROOF_MODE: isolated-pg16-only",
+          "{\"result\":\"PASS\",\"kind\":\"REMITTANCE_ACTION_TENANT_ENTITY_HTTP_PG16\",\"multiEntityEnabled\":false,\"exactMethods\":[\"GET\",\"POST\"],\"independentOutsideTenants\":2,\"insideLegalEmployers\":2,\"victimHighId\":true,\"immutableDeniedVictim\":true,\"notificationGrantsChecked\":true,\"paymentProviderCalls\":0,\"assertions\":57,\"productionApproval\":false}"
+        ]
       }
     ],
     "onboarding": [
@@ -8336,13 +8336,13 @@
           "profile": "legacy"
         },
         "jobName": "Wage renewal / onboarding / journey (legacy)",
-        "runId": 44740145138,
-        "jobId": 136301503982,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709730,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503982",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709730",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -8617,13 +8617,13 @@
           "profile": "preview"
         },
         "jobName": "Wage renewal / onboarding / journey (preview)",
-        "runId": 44740145138,
-        "jobId": 136301503997,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709822,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503997",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709822",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -8886,13 +8886,13 @@
         "jobKey": "migrations__migration-post",
         "variant": {},
         "jobName": "Wage renewal / migrations / migration-post",
-        "runId": 44740145138,
-        "jobId": 136301503710,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709680,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503710",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709680",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -9023,13 +9023,13 @@
         "jobKey": "spend__spend-full-write-method",
         "variant": {},
         "jobName": "Wage renewal / spend / spend-full-write-method",
-        "runId": 44740145138,
-        "jobId": 136301503657,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709708,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503657",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709708",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -9200,13 +9200,13 @@
         "jobKey": "triage__tenant-studio-triage",
         "variant": {},
         "jobName": "Wage renewal / triage / tenant-studio-triage",
-        "runId": 44740145138,
-        "jobId": 136301504083,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709762,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504083",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709762",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -9349,13 +9349,13 @@
         "jobKey": "draft__draft-writes",
         "variant": {},
         "jobName": "Wage renewal / draft / draft-writes",
-        "runId": 44740145138,
-        "jobId": 136301504296,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709753,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504296",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709753",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -9496,13 +9496,13 @@
         "jobKey": "execution__studio-execution",
         "variant": {},
         "jobName": "Wage renewal / execution / studio-execution",
-        "runId": 44740145138,
-        "jobId": 136301504167,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709813,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504167",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709813",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -9648,13 +9648,13 @@
         "jobKey": "language__signed-language-drafts",
         "variant": {},
         "jobName": "Wage renewal / language / signed-language-drafts",
-        "runId": 44740145138,
-        "jobId": 136301503747,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709769,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503747",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709769",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -9769,7 +9769,7 @@
             "label": "SOLO_VERIFIED_DEV_RECOVERY",
             "family": "studio-keyless-language-signed-drafts",
             "postgresMajor": 16,
-            "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+            "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
             "sourceBlobs": {
               "src/lib/automation-draft-conflict.ts": "077126c704fe62e83907c1e6c8f2c39828efb585",
               "src/app/api/automation-studio/route.ts": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
@@ -9812,8 +9812,8 @@
           "\u001b[36;1mnode --import tsx scripts/qa/tenant-studio-language-http.mjs\u001b[0m",
           "  name: tenant-studio-language-receipt",
           "  path: qa-artifacts/tenant-studio-language.json",
-          "Artifact tenant-studio-language-receipt.zip successfully finalized. Artifact ID 14632388405",
-          "Artifact tenant-studio-language-receipt has been successfully uploaded! Final size is 1156 bytes. Artifact ID is 14632388405"
+          "Artifact tenant-studio-language-receipt.zip successfully finalized. Artifact ID 14690445229",
+          "Artifact tenant-studio-language-receipt has been successfully uploaded! Final size is 1155 bytes. Artifact ID is 14690445229"
         ]
       }
     ],
@@ -9822,13 +9822,13 @@
         "jobKey": "lifecycle__studio-lifecycle",
         "variant": {},
         "jobName": "Wage renewal / lifecycle / studio-lifecycle",
-        "runId": 44740145138,
-        "jobId": 136301504342,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709843,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504342",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709843",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -9965,13 +9965,13 @@
         "jobKey": "scope__stored-recovery-scope",
         "variant": {},
         "jobName": "Wage renewal / scope / stored-recovery-scope",
-        "runId": 44740145138,
-        "jobId": 136301504294,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709644,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504294",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709644",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -10085,7 +10085,7 @@
           {
             "label": "SOLO_VERIFIED_DEV_RECOVERY",
             "family": "studio-stored-recovery-scope",
-            "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+            "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
             "postgresMajor": 16,
             "sourceBlobs": {
               "src/lib/automation-draft-conflict.ts": "077126c704fe62e83907c1e6c8f2c39828efb585",
@@ -10147,8 +10147,8 @@
           "\u001b[36;1mnode --import tsx scripts/qa/tenant-studio-recovery-scope-http.mjs\u001b[0m",
           "  name: tenant-studio-recovery-scope-receipt",
           "  path: qa-artifacts/tenant-studio-recovery-scope.json",
-          "Artifact tenant-studio-recovery-scope-receipt.zip successfully finalized. Artifact ID 14633563386",
-          "Artifact tenant-studio-recovery-scope-receipt has been successfully uploaded! Final size is 1474 bytes. Artifact ID is 14633563386"
+          "Artifact tenant-studio-recovery-scope-receipt.zip successfully finalized. Artifact ID 14689590346",
+          "Artifact tenant-studio-recovery-scope-receipt has been successfully uploaded! Final size is 1471 bytes. Artifact ID is 14689590346"
         ]
       }
     ],
@@ -10157,13 +10157,13 @@
         "jobKey": "resolution__resolve-reopen",
         "variant": {},
         "jobName": "Wage renewal / resolution / resolve-reopen",
-        "runId": 44740145138,
-        "jobId": 136301503798,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709837,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503798",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709837",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -10281,7 +10281,7 @@
           {
             "family": "studio-operational-case-resolve-reopen",
             "status": "passed",
-            "sourceCommit": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+            "sourceCommit": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
             "sourceBlobs": {
               "src/app/api/automation-studio/route.ts": "3bfc6666644ca11b480cf2735e9563d46139ebf4",
               "src/lib/automation-operational-cases.ts": "5355d830524f54e6d47dd551c9d7bc5e73649f52",
@@ -10336,8 +10336,8 @@
           "  name: tenant-studio-resolution-receipt",
           "  path: qa-artifacts/tenant-studio-resolution-receipt.json",
           "Uploading artifact: tenant-studio-resolution-receipt.zip",
-          "Artifact tenant-studio-resolution-receipt successfully finalized. Artifact ID 14633098758",
-          "Artifact tenant-studio-resolution-receipt has been successfully uploaded! Final size is 898 bytes. Artifact ID is 14633098758"
+          "Artifact tenant-studio-resolution-receipt successfully finalized. Artifact ID 14690676066",
+          "Artifact tenant-studio-resolution-receipt has been successfully uploaded! Final size is 898 bytes. Artifact ID is 14690676066"
         ]
       }
     ],
@@ -10346,13 +10346,13 @@
         "jobKey": "sessions__tenant-automation-session-ownership",
         "variant": {},
         "jobName": "Wage renewal / sessions / tenant-automation-session-ownership",
-        "runId": 44740145138,
-        "jobId": 136301503964,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709802,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503964",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709802",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -10483,13 +10483,13 @@
         "jobKey": "oracle__run-membership-oracle",
         "variant": {},
         "jobName": "Wage renewal / oracle / run-membership-oracle",
-        "runId": 44740145138,
-        "jobId": 136301504109,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709780,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504109",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709780",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -10615,182 +10615,16 @@
     ],
     "payroll": [
       {
-        "jobKey": "payroll__root-creation-renewal",
-        "variant": {},
-        "jobName": "Wage renewal / payroll / root-creation-renewal",
-        "runId": 44740145138,
-        "jobId": 136301504272,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
-        "conclusion": "success",
-        "postgresMajor": 16,
-        "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504272",
-        "exactHeadCheckoutVerified": true,
-        "metadataOnly": false,
-        "steps": [
-          {
-            "name": "Set up job",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
-            "conclusion": "success"
-          },
-          {
-            "name": "Verify exact proposed renewal source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Require exact source",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run npm ci",
-            "conclusion": "success"
-          },
-          {
-            "name": "Export disposable targets; keep providers, workers and protected flags OFF",
-            "conclusion": "success"
-          },
-          {
-            "name": "Reject partial or foreign success-shaped results",
-            "conclusion": "success"
-          },
-          {
-            "name": "Initialize only the fresh disposable schema",
-            "conclusion": "success"
-          },
-          {
-            "name": "Apply existing reviewed disposable baseline",
-            "conclusion": "success"
-          },
-          {
-            "name": "Build actual production-mode application",
-            "conclusion": "success"
-          },
-          {
-            "name": "Start localhost server",
-            "conclusion": "success"
-          },
-          {
-            "name": "Prove both creation modes with two attackers, a higher-ID victim and persisted SQL",
-            "conclusion": "success"
-          },
-          {
-            "name": "Run actions/upload-artifact@v6",
-            "conclusion": "success"
-          },
-          {
-            "name": "Bounded disposable diagnostics",
-            "conclusion": "skipped"
-          },
-          {
-            "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-            "conclusion": "success"
-          },
-          {
-            "name": "Post Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
-            "conclusion": "success"
-          },
-          {
-            "name": "Stop containers",
-            "conclusion": "success"
-          },
-          {
-            "name": "Complete job",
-            "conclusion": "success"
-          }
-        ],
-        "results": [
-          {
-            "kind": "isolated-ci-schema-proof",
-            "externalAcceptance": false,
-            "databaseEngine": "PostgreSQL 16",
-            "encoding": "UTF8",
-            "migration": "0109_tamper_evident_audit_chain.sql",
-            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
-            "auditTriggerEnabled": true,
-            "startEmployerCount": 0,
-            "startAuditEventCount": 0
-          },
-          {
-            "kind": "source-baseline-supplement-proof",
-            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
-            "migrationsScanned": 152,
-            "createdObjectsChecked": 907,
-            "excluded": [
-              "function:audit_events_protect_v2",
-              "function:audit_events_insert_guard_v2",
-              "function:audit_events_reject_truncate_v2",
-              "trigger:audit_events_insert_guard_v2",
-              "trigger:audit_events_reject_truncate_v2"
-            ],
-            "productionApproved": false
-          },
-          {
-            "kind": "payroll-run-creation-renewal-real-http",
-            "method": "POST payroll-runs",
-            "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
-            "modes": [
-              "draft",
-              "calculate"
-            ],
-            "own201": [
-              2,
-              2
-            ],
-            "foreign403": [
-              2,
-              2
-            ],
-            "forgedEntity422": [
-              2,
-              2
-            ],
-            "forgedUnit400": [
-              2,
-              2
-            ],
-            "processOwn200": 2,
-            "processForeign404": 2,
-            "processSelectorConfined": true,
-            "distinctAttackerEmployers": 2,
-            "higherIdVictim": true,
-            "victimOwnPositive": true,
-            "victimOrderingScope": "organization/legal-employer/unit/worker; creation has no addressed run id",
-            "persistedOwnRowsAndAudit": true,
-            "victimSqlUnchanged": true,
-            "discriminationPassed": true,
-            "providerCalls": 0,
-            "coverageCredits": 0,
-            "productionCertified": false,
-            "label": "SOLO_VERIFIED_DEV_RECOVERY"
-          }
-        ],
-        "terminalLines": [
-          "##[group]Run node --import tsx scripts/qa/payroll-run-creation-renewal-http.mjs",
-          "\u001b[36;1mnode --import tsx scripts/qa/payroll-run-creation-renewal-http.mjs\u001b[0m"
-        ]
-      },
-      {
         "jobKey": "payroll__actions-renewal",
         "variant": {},
         "jobName": "Wage renewal / payroll / actions-renewal",
-        "runId": 44740145138,
-        "jobId": 136301504531,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709757,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504531",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709757",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -10935,6 +10769,172 @@
           }
         ],
         "terminalLines": []
+      },
+      {
+        "jobKey": "payroll__root-creation-renewal",
+        "variant": {},
+        "jobName": "Wage renewal / payroll / root-creation-renewal",
+        "runId": 44857718850,
+        "jobId": 136703709897,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
+        "conclusion": "success",
+        "postgresMajor": 16,
+        "transport": "real-http",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709897",
+        "exactHeadCheckoutVerified": true,
+        "metadataOnly": false,
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify exact proposed renewal source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Require exact source",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Export disposable targets; keep providers, workers and protected flags OFF",
+            "conclusion": "success"
+          },
+          {
+            "name": "Reject partial or foreign success-shaped results",
+            "conclusion": "success"
+          },
+          {
+            "name": "Initialize only the fresh disposable schema",
+            "conclusion": "success"
+          },
+          {
+            "name": "Apply existing reviewed disposable baseline",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build actual production-mode application",
+            "conclusion": "success"
+          },
+          {
+            "name": "Start localhost server",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prove both creation modes with two attackers, a higher-ID victim and persisted SQL",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/upload-artifact@v6",
+            "conclusion": "success"
+          },
+          {
+            "name": "Bounded disposable diagnostics",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+            "conclusion": "success"
+          },
+          {
+            "name": "Stop containers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ],
+        "results": [
+          {
+            "kind": "isolated-ci-schema-proof",
+            "externalAcceptance": false,
+            "databaseEngine": "PostgreSQL 16",
+            "encoding": "UTF8",
+            "migration": "0109_tamper_evident_audit_chain.sql",
+            "migrationSha256": "3a1f1c58d04adbc9431922d4c0a64a4788c444b9caaf25884ed025a87687ef2a",
+            "auditTriggerEnabled": true,
+            "startEmployerCount": 0,
+            "startAuditEventCount": 0
+          },
+          {
+            "kind": "source-baseline-supplement-proof",
+            "supplementSha256": "faa1dd6a184b57612bc2f8655ddd11855e771ad90d34ffea3fa4264a2be9df04",
+            "migrationsScanned": 152,
+            "createdObjectsChecked": 907,
+            "excluded": [
+              "function:audit_events_protect_v2",
+              "function:audit_events_insert_guard_v2",
+              "function:audit_events_reject_truncate_v2",
+              "trigger:audit_events_insert_guard_v2",
+              "trigger:audit_events_reject_truncate_v2"
+            ],
+            "productionApproved": false
+          },
+          {
+            "kind": "payroll-run-creation-renewal-real-http",
+            "method": "POST payroll-runs",
+            "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
+            "modes": [
+              "draft",
+              "calculate"
+            ],
+            "own201": [
+              2,
+              2
+            ],
+            "foreign403": [
+              2,
+              2
+            ],
+            "forgedEntity422": [
+              2,
+              2
+            ],
+            "forgedUnit400": [
+              2,
+              2
+            ],
+            "processOwn200": 2,
+            "processForeign404": 2,
+            "processSelectorConfined": true,
+            "distinctAttackerEmployers": 2,
+            "higherIdVictim": true,
+            "victimOwnPositive": true,
+            "victimOrderingScope": "organization/legal-employer/unit/worker; creation has no addressed run id",
+            "persistedOwnRowsAndAudit": true,
+            "victimSqlUnchanged": true,
+            "discriminationPassed": true,
+            "providerCalls": 0,
+            "coverageCredits": 0,
+            "productionCertified": false,
+            "label": "SOLO_VERIFIED_DEV_RECOVERY"
+          }
+        ],
+        "terminalLines": [
+          "##[group]Run node --import tsx scripts/qa/payroll-run-creation-renewal-http.mjs",
+          "\u001b[36;1mnode --import tsx scripts/qa/payroll-run-creation-renewal-http.mjs\u001b[0m"
+        ]
       }
     ],
     "exports": [
@@ -10942,13 +10942,13 @@
         "jobKey": "exports__fictional-payroll-exports-post-http",
         "variant": {},
         "jobName": "Wage renewal / exports / fictional-payroll-exports-post-http",
-        "runId": 44740145138,
-        "jobId": 136301503759,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709835,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301503759",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709835",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -11086,13 +11086,13 @@
         "jobKey": "paymongo__money-lifecycle-pg16",
         "variant": {},
         "jobName": "Wage renewal / paymongo / money-lifecycle-pg16",
-        "runId": 44740145138,
-        "jobId": 136301504374,
-        "sourceHead": "c5f9b8439a6a9f22742330b60da59fa50879787a",
+        "runId": 44857718850,
+        "jobId": 136703709798,
+        "sourceHead": "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
         "conclusion": "success",
         "postgresMajor": 16,
         "transport": "real-http",
-        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44740145138/job/136301504374",
+        "evidence": "https://github.com/erwinmehehe/payrollph/actions/runs/44857718850/job/136703709798",
         "exactHeadCheckoutVerified": true,
         "metadataOnly": false,
         "steps": [
@@ -12040,15 +12040,15 @@
           "\u001b[36;1mnpx tsx scripts/qa/paymongo-export-isolation-local.mjs\u001b[0m",
           "  PAYMONGO_HTTP_PROOF: loopback-only",
           "PayMongo/export local diagnosis PASS: 558 assertions; 38 denials; 82 synthetic GETs; 8 synthetic POSTs.",
-          "  name: paymongo-export-http-c5f9b8439a6a9f22742330b60da59fa50879787a",
+          "  name: paymongo-export-http-ff5809aa7de6317adbecdd50bbbf9b88ffc1c869",
           "  PAYMONGO_HTTP_PROOF: loopback-only",
-          "Artifact paymongo-export-http-c5f9b8439a6a9f22742330b60da59fa50879787a.zip successfully finalized. Artifact ID 14634272205",
-          "Artifact paymongo-export-http-c5f9b8439a6a9f22742330b60da59fa50879787a has been successfully uploaded! Final size is 1648 bytes. Artifact ID is 14634272205"
+          "Artifact paymongo-export-http-ff5809aa7de6317adbecdd50bbbf9b88ffc1c869.zip successfully finalized. Artifact ID 14690226614",
+          "Artifact paymongo-export-http-ff5809aa7de6317adbecdd50bbbf9b88ffc1c869 has been successfully uploaded! Final size is 1648 bytes. Artifact ID is 14690226614"
         ],
         "artifacts": [
           {
-            "artifactId": 14634272205,
-            "artifactDigest": "sha256:dfda7eeaf2b05d1c44aafd432403e24279678e33e79ed792da62e38cd1c462ee",
+            "artifactId": 14690226614,
+            "artifactDigest": "sha256:a30961c2ba23d9c0a104ef54dc7a96badc95096262840123fb800bdbaec6f3b2",
             "file": "paymongo-export-local.json"
           }
         ]
@@ -24014,7 +24014,7 @@
       "src/app/api/benefits/hmo/route.ts": "99e3fa0e48f6a8dde88b9505f49524898cdf957a",
       "src/app/api/biometrics/sync/route.ts": "27e24af5d8a396e611d307bf7972ad4e86568436",
       "src/app/api/developer/route.ts": "f8ecdf3fc0063e296ded7184010237e37373cbd0",
-      "src/app/api/documents/route.ts": "fb0d1748dd25c6dd985894b9042f7eab427ce898",
+      "src/app/api/documents/route.ts": "ad7d168d50cf2dbba1e20c3e4b05d298b66afc02",
       "src/app/api/enterprise/route.ts": "be3e320df828d681ad34c034b6469cf4940846cc",
       "src/app/api/hcm/business-processes/inbox/route.ts": "6b63b60bdc16607d538e77a188a88b8dde4fd96e",
       "src/app/api/hcm/lifecycle-notifications/route.ts": "2ad17eb7fe188c72b9c11e0a094d01870adcc921",
@@ -31717,14 +31717,14 @@
       "scripts/qa/wage-registry-renewal-packets.mjs"
     ],
     "executedAccountingInputs": {
-      "c5f9b8439a6a9f22742330b60da59fa50879787a": {
+      "ff5809aa7de6317adbecdd50bbbf9b88ffc1c869": {
         "scripts/qa/wage-registry-renewal-plan.mjs": "e63ea0a1c2c40baed7fb27174176b169c93b4d08",
         "scripts/qa/wage-registry-renewal-workflow.mjs": "ce857375f5315addf0ea74373c084d746004a1ba",
         "scripts/qa/wage-registry-renewal-methods.mjs": "452962ae6aa43cb1db91a06a1874fc549e131e33",
         "scripts/qa/wage-registry-renewal-results.mjs": "f82601879fdefccc149dab8ac128c8649813f306",
         "scripts/qa/wage-registry-renewal-complete.mjs": "acf78b4e723f0abe37983c52f4a8a548411a8517",
         "scripts/qa/wage-registry-renewal-capture.mjs": "80f5714f0c7c8702c0b026031277410247c012de",
-        "scripts/qa/wage-registry-renewal-verify.mjs": "401b1448c987d57ed5541cac946c70c5e954c931",
+        "scripts/qa/wage-registry-renewal-verify.mjs": "6eae06013f85ce5ef0ffd799550ace8d3ad44985",
         "scripts/qa/wage-registry-renewal-credit.mjs": "94c7683d245a3befb7733751cda888525881dd5e",
         "scripts/qa/wage-registry-credit-holds.mjs": "48b5d9b6fcf945b7b4c6b41ea039089d476fdde4",
         "scripts/qa/wage-registry-source-hold.mjs": "782abaf0ee783deddb08435e708e1ef1c1568da1",
@@ -31735,11 +31735,11 @@
         "scripts/qa/tenant-worker360-legal-employer-credit.mjs": "5385caafe2c6daf02219ca7605127c9ed4947fcb",
         "scripts/qa/tenant-year-end-credit.mjs": "c0eeaed0695f17b91723c94b0bb8306ee7bccaa6",
         "tests/helpers/tenant-counts.mjs": "b1789661cd78a6a01a97ba455a534104c660894a",
-        "tests/helpers/wage-source-holds.mjs": "91e3d9332ed8a30fc54e8418dfdaa68b8cbb6295",
+        "tests/helpers/wage-source-holds.mjs": "4625cb38ceaaca62290ee697ce5076cec7237a22",
         "scripts/qa/payroll-run-credit-renewal.mjs": "38c96632cd4f9d7a2a48af3420f2291a2bf8b0e2",
         "scripts/qa/payroll-run-sso-proof-fixture.mjs": "2beb52d2ee24cc42b1d98f54cb7e4af00fffbb57",
         "scripts/qa/wage-registry-renewal-supersession.mjs": "c51dfebad45cb3f729c55f6480e332c4a46f4b17",
-        "scripts/qa/wage-registry-renewal-v2.mjs": "4e25ac0d71a5b02931a5db911bda3b9a78629385",
+        "scripts/qa/wage-registry-renewal-v2.mjs": "738e263738c75c9d6cad07b0fd510b39af1de329",
         "scripts/qa/wage-registry-renewal-v2-capture.mjs": "e0c29c92fa754699e713c71b788797a85aeb478e",
         "scripts/qa/wage-registry-renewal-packets.mjs": "a73d148fe8c61dd143681bd1603854f6424dec0e"
       }
