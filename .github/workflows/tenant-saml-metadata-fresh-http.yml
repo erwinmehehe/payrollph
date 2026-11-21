@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened]
     branches: [main]
     paths:
+      - 'package-lock.json'
       - 'src/app/api/auth/saml/metadata/**'
       - 'src/lib/saml.ts'
       - 'src/lib/security-request.ts'
@@ -86,7 +87,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SAML_PROOF_HEAD_SHA"
           node --check scripts/qa/tenant-saml-metadata-public-contract.mjs
           node --check scripts/qa/tenant-saml-metadata-public-http.mjs
-          node --test tests/tenant-saml-metadata-artifact.test.mjs tests/tenant-saml-metadata-public-policy.test.mjs tests/tenant-saml-metadata-fresh.test.mjs tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
           git cat-file -e "${SAML_PROOF_BASE_SHA}^{commit}"
           npm run tenant:repin:check -- --base "$SAML_PROOF_BASE_SHA"
       - name: Ephemeral encryption keys only
@@ -129,6 +129,8 @@ jobs:
           name: tenant-saml-metadata-fresh-receipt
           path: ${{ steps.public_metadata_proof.outputs.receipt_path }}
           if-no-files-found: error
+      - name: Verify SAML policy, handler regressions and coverage accounting
+        run: node --test tests/tenant-saml-metadata-artifact.test.mjs tests/tenant-saml-metadata-public-policy.test.mjs tests/tenant-saml-metadata-fresh.test.mjs tests/tenant-saml-metadata-disabled-route.test.mjs tests/tenant-saml-metadata-public.test.mjs tests/tenant-saml-metadata-privacy-verify.test.mjs tests/tenant-isolation-coverage-inventory.test.mjs
       - name: Print bounded localhost failures only
         if: failure()
         run: |

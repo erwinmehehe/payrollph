@@ -1,6 +1,7 @@
 /** Historical test inputs only. Never call this from a current-credit writer. */
 import {readFileSync,cpSync,mkdirSync} from 'node:fs';
 import {dirname,join} from 'node:path';
+import {historicalNext16DependencyInput} from './historical-next16-dependencies.mjs';
 import {historicalDocumentSecurityFixture as archivedDocumentFixture,protectedDocumentCreditKeys,sourceHoldArchive} from '../../scripts/qa/document-source-accounting.mjs';
 import {readSecurityEvidence,verifySecurityCredits} from '../../scripts/qa/tenant-security-write-credit.mjs';
 export {SECURITY_TARGETS} from '../../scripts/qa/tenant-security-write-credit.mjs';
@@ -12,7 +13,9 @@ export function historicalDocumentSecurityFixture(manifest) {
    manifest: historical.manifest,
    read: (file, ...args) => file === 'src/lib/payroll-rules.ts'
      ? readFileSync('tests/fixtures/tenant-historical-payroll-rules.txt', ...args)
-     : historical.read(file, ...args),
+     : file === 'package.json' || file === 'package-lock.json'
+       ? historicalNext16DependencyInput(file, path => historical.read(path))
+       : historical.read(file, ...args),
  };
 }
 const live=()=>JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'));
@@ -25,7 +28,10 @@ export function copyDocumentHoldInputs(root){
  protectedDocumentCreditKeys(live());
  const archive=sourceHoldArchive();
  const receipt=JSON.parse(readFileSync('scripts/qa/separation-pg16-http-receipt.json','utf8'));
- const paths=new Set([...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),...Object.keys(receipt.sourcePins)]);
+ const reproofPath='scripts/qa/separation-pg16-next-reproof.json';
+ const reproof=JSON.parse(readFileSync(reproofPath,'utf8'));
+ const paths=new Set([reproofPath,...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),
+  ...Object.keys(receipt.sourcePins),...Object.keys(reproof.sourcePins)]);
  for(const file of paths) {
   mkdirSync(dirname(join(root,file)),{recursive:true});cpSync(file,join(root,file));
  }

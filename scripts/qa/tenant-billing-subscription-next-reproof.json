@@ -1,0 +1,48 @@
+{
+  "head": "5463c3e7fb42a35c46acbe8954207880a9be23c7",
+  "run": 44762699480,
+  "job": 136379088990,
+  "conclusion": "success",
+  "inputs": {
+    "src/app/api/billing/subscription/start/route.ts": "b1330831c4e0ee1b58a713427f572ebbac3c14b1",
+    "src/app/api/billing/subscription/cancel/route.ts": "29905df9901734a77c4bdb0597b693fb7b65efe7",
+    "src/lib/xendit-subscriptions.ts": "f932bf209e09a743a6e64a3e233796e99c952d2d",
+    "src/lib/saas-billing-schema.ts": "f7217338b534c3dd303c96484b27daa2e231d68f",
+    "src/lib/pricing-catalog.ts": "edc69c934dc18710f7cf3bc12c898c1f95f8b91c",
+    "src/lib/saas-pricing.ts": "142f8c9355d51b8ac98be0279dc8eb962e06339d",
+    "src/lib/saas-launch-config.ts": "7bb9b9ca56a65c70330bf947e9eaa38c23916efe",
+    "src/lib/security-request.ts": "de996ebb7eb663aaebf65f8a963d955b8bc90c9d",
+    "src/lib/demo-security.ts": "10f8fa0a7894a66d902ebde5ac4a4e7dee5c1590",
+    "src/lib/audit.ts": "3aa8f2c627884072c0c294dbf7861980b302927c",
+    "src/lib/crypto.ts": "2316f58f15961e25ffee0353e107e993b630206c",
+    "src/lib/access.ts": "08d3481dbd20279a4a8aef64f0932f79bec48444",
+    "src/lib/auth.ts": "b13275e0e09b629ddb679c55e7898da44c72ad20",
+    "src/db/schema.ts": "3f504163c9847a99434a5e01a72c120dfd680a02",
+    "src/db/index.ts": "7a5718d0a99ce5b3a7f0f25e385f79a61be807f6",
+    "scripts/qa/tenant-billing-subscription-http.mjs": "af648a0cc4b92c58660b55cc7a7b3b9be3085f00",
+    "scripts/qa/tenant-billing-subscription-provider-preload.mjs": "b4a55e6163e30d32dde1afd93ba7669df85685e4",
+    "tests/tenant-billing-subscription-methods.test.mjs": "2fc556ab8d725b992c9e90553da40e6b85ba6177",
+    ".github/workflows/tenant-billing-subscription-methods.yml": "6e0218ea0a1e17f1617c5325928690efa924ac3e",
+    "package.json": "d327bc82bcedc19d76a91860a59c2270c4b12434",
+    "package-lock.json": "e6a6ef7e48346838ed16052288acef4d87dcc375",
+    "next.config.ts": "3e79ee0460883938173d31349a6b62146e97fdcf"
+  },
+  "result": {
+    "methodKeys": [
+      "POST billing/subscription/start",
+      "POST billing/subscription/cancel"
+    ],
+    "fictionalEmployers": 3,
+    "independentlyAuthenticatedAttackers": 2,
+    "higherIdVictim": true,
+    "realOwnedCheckout201": 2,
+    "realForeignCheckout403": 2,
+    "realOwnedCancellation200": 2,
+    "realForeignCancellation403": 2,
+    "retryWithoutDuplicateProviderCalls": true,
+    "noRealProviderOrPayoutOrPayroll": true,
+    "victimSqlAndAuditUnchanged": true,
+    "methodCredits": 0,
+    "productionCertified": false
+  }
+}

@@ -1,6 +1,6 @@
 {
   "label": "SOLO_VERIFIED_DEV_RECOVERY",
-  "head": "b677663d97fccba085d1b92cfee159018a1bcae7",
+  "head": "b99fca688df2b2529d0feb86ddcb117cd7fe7812",
   "postgres": 160014,
   "managers": 2,
   "legalEmployers": 2,
@@ -224,7 +224,7 @@
   "unchangedAfterReads": true,
   "unchangedAfterDenials": true,
   "unchangedAfterTransferChecks": true,
-  "buildId": "Vg2Bsj4eI2Nco17rFb98U",
+  "buildId": "h0juuc98A2sJtHiXbrr5g",
   "profile": "local-production-multi-entity",
   "route": "src/app/api/workforce/timesheets/route.ts",
   "proofs": {
@@ -238,7 +238,7 @@
       "unchangedDbLine": 118,
       "routeBlobSha": "88b225c992073e7f075062da18e6e2894073d719",
       "proofBlobSha": "8d76ce9bf0c0ceb2c527ce5357600e5d8ebd35b7",
-      "testedCommit": "b677663d97fccba085d1b92cfee159018a1bcae7",
+      "testedCommit": "b99fca688df2b2529d0feb86ddcb117cd7fe7812",
       "postgresMajor": 16,
       "label": "SOLO_VERIFIED_DEV_RECOVERY"
     },
@@ -252,7 +252,7 @@
       "unchangedDbLine": 172,
       "routeBlobSha": "88b225c992073e7f075062da18e6e2894073d719",
       "proofBlobSha": "8d76ce9bf0c0ceb2c527ce5357600e5d8ebd35b7",
-      "testedCommit": "b677663d97fccba085d1b92cfee159018a1bcae7",
+      "testedCommit": "b99fca688df2b2529d0feb86ddcb117cd7fe7812",
       "postgresMajor": 16,
       "label": "SOLO_VERIFIED_DEV_RECOVERY"
     }
@@ -263,8 +263,8 @@
     "drizzle/0104_hcm_work_item_sla.sql": "e0aac47fc786255876edfac7aaf1795030170757",
     "drizzle/0109_tamper_evident_audit_chain.sql": "b8cf23d83e80822210309e31f6d6c25ff7e0ba07",
     "next.config.ts": "3e79ee0460883938173d31349a6b62146e97fdcf",
-    "package-lock.json": "49a688969f37bd3fd690d313970221ff2d5f7fc2",
-    "package.json": "7078c01f09c85f79dd79ba5517a80e80cdb72ae3",
+    "package-lock.json": "e6a6ef7e48346838ed16052288acef4d87dcc375",
+    "package.json": "d327bc82bcedc19d76a91860a59c2270c4b12434",
     "scripts/lib/isolated-db-push-target.mjs": "ea85bf71d722e43431bd7a5e22799ad0bb5131bb",
     "scripts/qa/golden-phase15-safety.ts": "d09b5310d2b96bdbedbc0a10e1d8c988e76e33bd",
     "scripts/qa/local-tenant-proof-db.mjs": "d668d5554a274464da5ace61fd8e339a0a03235e",
