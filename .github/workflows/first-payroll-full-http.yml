@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/qa/first-payroll-full-*.mjs'
       - 'scripts/qa/first-payroll-browser-journey.mjs'
+      - 'scripts/qa/first-payroll-restore.mjs'
       - 'tests/first-payroll-*.test.*'
       - 'src/components/workspace/production-pilot-signoff.tsx'
       - 'src/components/workspace/clean-role-dashboard.tsx'
@@ -86,6 +87,10 @@ jobs:
       - run: env -u NODE_ENV node --import tsx scripts/qa/first-payroll-full-http.mjs
       - name: Full browser payroll lifecycle with three distinct fictional roles
         run: env -u NODE_ENV node --import tsx scripts/qa/first-payroll-browser-journey.mjs
+      - name: Restore fictional payroll into a fresh PG16 database
+        env:
+          FIRST_PAYROLL_RESTORE_CONTAINER: ${{ job.services.postgres.id }}
+        run: env -u NODE_ENV node --import tsx scripts/qa/first-payroll-restore.mjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -93,6 +98,7 @@ jobs:
           path: |
             outputs/first-payroll-full.json
             outputs/first-payroll-browser-journey.json
+            outputs/first-payroll-restore.json
             outputs/first-payroll-*.png
           retention-days: 7
       - if: failure()
