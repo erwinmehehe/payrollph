@@ -1,0 +1,23 @@
+{
+  "pendingScopedPageCandidates": [
+    {
+      "path": "src/app/app/people-analytics/page.tsx",
+      "blob": "0a155026cb5d74656ae5e44a90c4c6eede653169",
+      "kind": "authenticated-people-analytics-SSR-and-GET-disposable-PG16-unreviewed",
+      "status": "GAP",
+      "reason": "New source-backed People Analytics SSR and the existing read-only People report. Exact-source fictional PG16 own/foreign/role/revoked HTTP evidence and independent tenant/privacy review remain pending; no historical page ledger credits.",
+      "proofFile": "scripts/qa/tenant-people-analytics-page-http.mjs",
+      "proofBlob": "ee9e4c1af38a0d0a36547c6d7d52374d1819ac11",
+      "workflowFile": ".github/workflows/people-analytics-tenant-http.yml",
+      "workflowBlob": "13a504eda9a08dd56512066322554080de90c840",
+      "contractTestFile": "tests/people-analytics-page-boundary.test.mjs",
+      "contractBlob": "efe14a7d3d9c53db3e3ff30c97984ba0fd000f6b",
+      "pageCredits": 0,
+      "methodCredits": 0,
+      "independentSecurityReview": "PENDING",
+      "independentHrPrivacyReview": "PENDING",
+      "independentlyAccepted": false,
+      "productionCertified": false
+    }
+  ]
+}

@@ -7107,6 +7107,17 @@ test("page and server-action inventory cannot silently omit new or changed busin
   // source-pinned, UNACCEPTED exception for one actual inspected route, not a
   // blanket exemption for newly edited pages.
   const aliases = manifest.scopedRedirectAliases ?? [];
+  // Keep the generated, source-sealed 21-page ledger byte-for-byte intact.
+  // Exactly this additional People Analytics SSR has its own zero-credit,
+  // exact-source security record; a new page cannot claim historic receipts.
+  const pendingLedger = JSON.parse(readFileSync(
+    "scripts/qa/tenant-people-analytics-page-candidate.json", "utf8"));
+  assert.deepEqual(Object.keys(pendingLedger), ["pendingScopedPageCandidates"],
+    "People Analytics security proof must not rewrite generated manifest fields");
+  const pendingPages = pendingLedger.pendingScopedPageCandidates ?? [];
+  assert.deepEqual(pendingPages.map((entry) => entry.path),
+    ["src/app/app/people-analytics/page.tsx"],
+    "Only one exact-reviewed extra scoped SSR may be pending");
   assert.deepEqual(aliases.map((entry) => entry.path),
     ["src/app/billing/manage/page.tsx"], "No undeclared page alias is permitted");
   for (const alias of aliases) {
@@ -7195,6 +7206,85 @@ test("page and server-action inventory cannot silently omit new or changed busin
     }
     if (scopedCandidate && changed) {
       if (aliases.some((alias) => alias.path === path)) continue;
+      if (path === "src/app/app/people-analytics/page.tsx") {
+        // A zero-credit candidate is NOT a blanket page omission, nor evidence
+        // of production acceptance. Review exact source and real PG16 proof.
+        const hold = pendingPages[0];
+        assert.deepEqual(hold, {
+          "path": "src/app/app/people-analytics/page.tsx",
+          "blob": "0a155026cb5d74656ae5e44a90c4c6eede653169",
+          "kind": "authenticated-people-analytics-SSR-and-GET-disposable-PG16-unreviewed",
+          "status": "GAP",
+          "reason": "New source-backed People Analytics SSR and the existing read-only People report. Exact-source fictional PG16 own/foreign/role/revoked HTTP evidence and independent tenant/privacy review remain pending; no historical page ledger credits.",
+          "proofFile": "scripts/qa/tenant-people-analytics-page-http.mjs",
+          "proofBlob": "ee9e4c1af38a0d0a36547c6d7d52374d1819ac11",
+          "workflowFile": ".github/workflows/people-analytics-tenant-http.yml",
+          "workflowBlob": "13a504eda9a08dd56512066322554080de90c840",
+          "contractTestFile": "tests/people-analytics-page-boundary.test.mjs",
+          "contractBlob": "efe14a7d3d9c53db3e3ff30c97984ba0fd000f6b",
+          "pageCredits": 0,
+          "methodCredits": 0,
+          "independentSecurityReview": "PENDING",
+          "independentHrPrivacyReview": "PENDING",
+          "independentlyAccepted": false,
+          "productionCertified": false
+},
+          "New People Analytics SSR cannot inherit historic security credits");
+        assert.equal(current, hold.blob,
+          "People Analytics SSR changed without source-current security review");
+        for (const [file, sha] of [
+          [hold.proofFile, hold.proofBlob],
+          [hold.workflowFile, hold.workflowBlob],
+          [hold.contractTestFile, hold.contractBlob],
+        ]) {
+          assert.equal(gitBlobSha(readFileSync(file)), sha,
+            "People Analytics proof or workflow changed without source review: " + file);
+        }
+        const session = actual.indexOf("await getSessionUser()");
+        const selector = actual.indexOf("canonicalPeoplePageOrganizationId(raw)");
+        const role = actual.indexOf("await assertOrganizationRole(");
+        const companyWide = actual.indexOf("if (denied || !access?.companyWide) notFound()");
+        const billing = actual.indexOf("if (await isSelfServeOrganization(organizationId))");
+        const scope = actual.indexOf("await resolveMultiEntityContext(");
+        const legalEmployerBoundary = actual.indexOf(
+          "if (!scope.ok || (scope.context.enabled && scope.context.legalEntityId !== null)) notFound();");
+        const privateRead = actual.indexOf("const [organization] = await db.select(");
+        assert.ok(0 < session && session < selector && selector < role &&
+          role < companyWide && companyWide < billing && billing < scope &&
+          scope < legalEmployerBoundary && legalEmployerBoundary < privateRead,
+          "SSR must authorize the real company, People role and legal employer before private data reads");
+        assert.match(actual, /PEOPLE_PAYROLL_ROLES/);
+        assert.match(actual, /where\(eq\(organizations\.id, organizationId\)\)\.limit\(1\)/);
+        assert.doesNotMatch(actual, /db\.(?:insert|update|delete)\(/,
+          "People Analytics SSR must remain read-only");
+        const proof = readFileSync(hold.proofFile, "utf8");
+        const workflow = readFileSync(hold.workflowFile, "utf8");
+        assert.ok(proof.indexOf("requireDisposablePeopleAnalyticsEnv();") > 0 &&
+          proof.indexOf("requireDisposablePeopleAnalyticsEnv();") <
+          proof.indexOf('import("../../src/db/index.ts")'),
+          "Fictional PG16 proof must refuse unsafe targets before DB import");
+        for (const token of [
+          'for (const padding of ["PAD1", "PAD2", "PAD3", "PAD4"])',
+          'seedEmployer("ATTA"', 'seedEmployer("ATTB"', 'seedEmployer("VICTIM"',
+          'victim[prop].id > Math.max(a[prop].id, b[prop].id, 6)',
+          'assertOwnPeopleAnalyticsPage(myPage, actor,',
+          'assert.equal(ownReport.status, 200,',
+          'assert.equal(report.organizationId, actor.org.id)',
+          'assert.equal(foreignReport.status, 403,',
+          'assertDeniedPeopleAnalyticsPage(denied, employers, "authenticated cross-employer")',
+          'assert.equal(ownPages, 2)', 'assert.equal(deniedForeign, 4)',
+          'assert.deepEqual(await snapshot(subject.org.id), before.get(subject.org.id)',
+          '"unit-scoped admin must not see company-wide reporting"',
+          '"revoked membership"',
+          'pageCredits: 0, methodCredits: 0, productionCertified: false',
+        ]) assert.ok(proof.includes(token),
+          "People Analytics real-tenant proof missing required negative control: " + token);
+        assert.match(workflow, /image: postgres:16/);
+        assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+        assert.match(workflow, /node --import tsx scripts\/qa\/tenant-people-analytics-page-http\.mjs/);
+        assert.ok(workflow.includes('"src/app/app/people-analytics/**"'));
+        continue; // Exact source, no page credit, independent review pending.
+      }
       const entry = scoped.get(path);
       assert.ok(entry, path + ": new or changed scoped page/server action not in manifest");
       // Public Careers is deliberately anonymous; being public does NOT make
