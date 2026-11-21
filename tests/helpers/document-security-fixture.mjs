@@ -28,7 +28,10 @@ export function copyDocumentHoldInputs(root){
  protectedDocumentCreditKeys(live());
  const archive=sourceHoldArchive();
  const receipt=JSON.parse(readFileSync('scripts/qa/separation-pg16-http-receipt.json','utf8'));
- const paths=new Set([...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),...Object.keys(receipt.sourcePins)]);
+ const reproofPath='scripts/qa/separation-pg16-next-reproof.json';
+ const reproof=JSON.parse(readFileSync(reproofPath,'utf8'));
+ const paths=new Set([reproofPath,...archive.variants.flatMap(variant=>Object.keys(variant.sourcePins)),
+  ...Object.keys(receipt.sourcePins),...Object.keys(reproof.sourcePins)]);
  for(const file of paths) {
   mkdirSync(dirname(join(root,file)),{recursive:true});cpSync(file,join(root,file));
  }
