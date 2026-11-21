@@ -10,6 +10,8 @@ export type ClientOnboardingEvidence = {
   employerRegistrationFields: number;
   hasMultipleLegalEmployers: boolean;
   legalEmployerScopeEnabled?: boolean;
+  legalEmployerCount?: number;
+  legalEmployerRegistrationsComplete?: number;
 };
 
 export type ClientOnboardingStep = {
@@ -31,6 +33,16 @@ export function buildClientOnboardingChecklist(
     throw new Error("A valid selected employer is required.");
   }
   const home = `/app?organizationId=${organizationId}`;
+  // Organization-level IDs are not proof for a separately registered legal
+  // employer. In multi-entity mode, count ONLY the active employers whose own
+  // four identifiers are recorded; never claim verification of the values.
+  const legalEmployerCount = evidence.legalEmployerCount ?? 0;
+  const legalEmployerComplete = evidence.legalEmployerRegistrationsComplete ?? 0;
+  const registrationRecorded = evidence.legalEmployerScopeEnabled
+    ? Number.isSafeInteger(legalEmployerCount) && legalEmployerCount > 0 &&
+      Number.isSafeInteger(legalEmployerComplete) &&
+      legalEmployerComplete === legalEmployerCount
+    : !evidence.hasMultipleLegalEmployers && evidence.employerRegistrationFields === 4;
   const steps: ClientOnboardingStep[] = [
     {
       id: "profile",
@@ -66,16 +78,14 @@ export function buildClientOnboardingChecklist(
       id: "registrations",
       title: "Review employer registrations",
       detail: evidence.legalEmployerScopeEnabled
-        ? evidence.hasMultipleLegalEmployers
-          ? "Multiple legal employers are active. Organization-level identifiers do not establish coverage for each employer. Review each legal employer separately."
-          : "Legal-employer configuration is enabled. Organization-level identifiers cannot confirm that the active legal employer has its own registrations. Review its identifiers separately."
+        ? `${legalEmployerComplete} of ${legalEmployerCount} active legal employer${legalEmployerCount === 1 ? "" : "s"} have all four BIR, SSS, PhilHealth and Pag-IBIG identifiers recorded. Values still need independent review.`
         : `${evidence.employerRegistrationFields} of 4 organization-level BIR, SSS, PhilHealth and Pag-IBIG fields have values. This does not verify accuracy.`,
       action: "Open workspace",
       destination: home,
       instruction: evidence.legalEmployerScopeEnabled || evidence.hasMultipleLegalEmployers
         ? "Open Entities in the workspace and review legal-employer registrations."
         : "In Settings, open Organization and verify the employer identifiers.",
-      recorded: !evidence.legalEmployerScopeEnabled && !evidence.hasMultipleLegalEmployers && evidence.employerRegistrationFields === 4,
+      recorded: registrationRecorded,
       optional: false,
     },
   ];
