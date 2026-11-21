@@ -88,6 +88,12 @@ export async function verifyClientOnboardingPageTenantIsolation() {
   ]);
   try {
     const nonce = randomUUID().replaceAll("-", "").slice(0, 10);
+    // Real victim-only IDs must exceed 6, including on a brand-new PG16
+    // sequence. Seed four distinct disposable employer fixtures first rather
+    // than weakening the high-ID negative control or relying on old rows.
+    for (const padding of ["PAD1", "PAD2", "PAD3", "PAD4"]) {
+      await fixture.seedEmployer(padding, nonce, fixture.standaloneMakeSession);
+    }
     const a = await fixture.seedEmployer("ATTA", nonce, fixture.standaloneMakeSession);
     const b = await fixture.seedEmployer("ATTB", nonce, fixture.standaloneMakeSession);
     const victim = await fixture.seedEmployer("VICTIM", nonce, fixture.standaloneMakeSession);
