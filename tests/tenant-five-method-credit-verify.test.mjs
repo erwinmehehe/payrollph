@@ -29,8 +29,8 @@ test("only three final-head PG16 source-identical methods get SOLO_VERIFIED_DEV_
   ].sort());
   const manifest = readManifest();
   const live = tallyTenantManifest(manifest);
-  assert.equal(live.coveredAfter + live.publicByDesign + live.privilegedOperationsTokenOnly + live.gap, 498,
-    "All 498 API methods must still have exactly one status");
+  assert.equal(live.coveredAfter + live.publicByDesign + live.privilegedOperationsTokenOnly + live.gap, 499,
+    "All 499 API methods must still have exactly one status");
   const yearEnd = manifest.allApiRouteFiles["src/app/api/year-end/route.ts"];
   assert.equal(yearEnd.gitBlobSha, "f040f5bbbc3df275d32d23f1728b1b0345f77814",
     "Atomic year-end changed source must not borrow the old PG16 receipts");

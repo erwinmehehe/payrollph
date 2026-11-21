@@ -89,7 +89,7 @@ test("a payee without a valid TIN keeps its figures but has no TIN", () => {
   assert.equal(schedule.payees[0].totalTaxWithheld, "100.00");
 });
 
-test("the module is pure and wired into no route", () => {
+test("the quarterly module is pure and never generates a filing", () => {
   const source = readFileSync("src/lib/contractor-ewt-quarter.ts", "utf8");
   assert.ok(!/from "@\/db|from "\.\.\/db|writeFile|fetch\(|process\.env/.test(source));
   assert.match(source, /does NOT validate ATCs or rates/);

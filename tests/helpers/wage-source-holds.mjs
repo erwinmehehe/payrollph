@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {verifyJournalRenewal} from '../../scripts/qa/tenant-journal-renewal.mjs';
 import {isPhase34SeparationHoldRefresh,isReviewedHistoricalDocumentListRefresh,reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-source-accounting.mjs";
@@ -24,6 +25,43 @@ export function historicalWageCatalog(manifest){
 }
 
 /** Strict current-ledger alternative to replaying invalidated receipt verifiers. */
+// Only the new, separately source-pinned contractor EWT quarterly GET may be
+// added to the live ledger; historic wage/source snapshots remain immutable.
+export function verifyAddedEwtQuarterGet(manifest) {
+  const path = "src/app/api/contractors/ewt-quarter/route.ts";
+  const row = manifest.allApiRouteFiles[path];
+  if (!row) return 0;
+  const proofFile = "scripts/qa/tenant-contractor-ewt-quarter-http.mjs";
+  const sha = p => execFileSync("git", ["hash-object", p], { encoding: "utf8" }).trim();
+  assert.equal(row.route, "contractors/ewt-quarter");
+  assert.deepEqual(row.methods.map(method => method.name), ["GET"]);
+  assert.equal(row.gitBlobSha, sha(path), "EWT route must retain its exact source pin");
+  const method = row.methods[0], proof = method.testedBy;
+  assert.equal(method.status, "COVERED");
+  assert.match(method.reason, /SOLO_VERIFIED_DEV_RECOVERY/);
+  assert.equal(proof?.file, proofFile);
+  assert.equal(proof.routeBlobSha, row.gitBlobSha);
+  assert.equal(proof.proofBlobSha, sha(proofFile), "EWT four-part proof must be source current");
+  assert.equal(proof.evidenceLabel, "SOLO_VERIFIED_DEV_RECOVERY");
+  assert.equal(proof.postgresMajor, 16);
+  assert.equal(proof.independentlyAccepted, false);
+  assert.equal(proof.independentSecurityReview, "PENDING");
+  assert.equal(proof.productionCertified, false);
+  assert.equal(proof.productionTested, false);
+  const routeLines = readFileSync(path, "utf8").split("\n");
+  const proofLines = readFileSync(proofFile, "utf8").split("\n");
+  assert.ok(routeLines[method.line - 1]?.includes("export async function GET("));
+  for (const [key, line] of Object.entries({
+    ownPositiveLine: "const ownReport = status(",
+    foreignDenialLine: "const foreign = status(",
+    forgedSelectorLine: 'status(await request(ownURL + "&contractorId=" + v.id',
+    unchangedDbLine: "assert.deepEqual(await snapshot(victim.id), beforeVictim",
+  })) {
+    assert.ok(proofLines[proof[key] - 1]?.includes(line), "EWT evidence pin invalid: " + key);
+  }
+  return 1;
+}
+
 export function assertWageLedgerDelta(assert,manifest){
   if(!Object.values(manifest.allApiRouteFiles).some(f=>f.methods.some(m=>
     m.reviewedUncertified?.kind?.startsWith('wage-registry-')||isWageRenewalKind(m.testedBy?.kind))))return false;
@@ -41,10 +79,21 @@ export function assertWageLedgerDelta(assert,manifest){
   ]);
   const revoked=reviewedWageRenewalEngineWithdrawal(priorLive,liveManifest);
   const prior=revoked.size?priorLive:wageRenewalHoldView(priorLive);
+  const addedEwt = verifyAddedEwtQuarterGet(liveManifest);
+  if (prior.allApiRouteFiles["src/app/api/contractors/ewt-quarter/route.ts"]) {
+    assert.equal(addedEwt, 0, "An existing EWT method is not a new method credit");
+  }
   const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>isWageRenewalKind(m.testedBy?.kind)).length;
-  assert.deepEqual(Object.keys(manifest.allApiRouteFiles).sort(),Object.keys(prior.allApiRouteFiles).sort());
+  assert.deepEqual(Object.keys(manifest.allApiRouteFiles)
+    .filter(path => path !== "src/app/api/contractors/ewt-quarter/route.ts").sort(),
+    Object.keys(prior.allApiRouteFiles).sort(),
+    "Only the exact-source quarterly EWT GET may be added; existing route names remain frozen");
   let withdrawn=0;
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){
+    if(path==="src/app/api/contractors/ewt-quarter/route.ts") {
+      assert.equal(addedEwt, 1, "New EWT route requires its independent source-pinned proof");
+      continue;
+    }
     const previous=prior.allApiRouteFiles[path];
     if(isPhase34SeparationHoldRefresh(path,previous,file))continue; // Both records retain zero credit.
     if(isReviewedHistoricalDocumentListRefresh(path,previous,file))continue; // Exact source-only document privacy fix: both methods remain GAP.
@@ -105,7 +154,7 @@ export function assertWageLedgerDelta(assert,manifest){
   }
   assert.deepEqual(manifest.scopedPages,prior.scopedPages,'Wage withdrawal cannot alter page credits');
   const {live}=assertLiveTenantCounts(assert,liveManifest);
-  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-otherWithdrawals.size+timesheetRenewals+separationRenewals);
+  assert.equal(live.coveredAfter,priorLive.metrics.coveredAfter-withdrawn+renewed-(revoked.size?0:priorRenewed)-otherWithdrawals.size+timesheetRenewals+separationRenewals+addedEwt);
   assert.equal(live.gap,priorLive.metrics.gap+withdrawn-renewed+(revoked.size?0:priorRenewed)+otherWithdrawals.size-timesheetRenewals-separationRenewals);
   assert.equal(live.publicByDesign,prior.metrics.publicByDesign);
   assert.equal(live.privilegedOperationsTokenOnly,prior.metrics.privilegedOperationsTokenOnly);

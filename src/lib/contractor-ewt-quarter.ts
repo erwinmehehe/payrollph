@@ -14,7 +14,7 @@
  *
  * It does NOT validate ATCs or rates against the BIR schedule, produce a certificate, or produce a DAT file: the official
  * QAP / 1604-E file layouts are not in this repository, and an ATC/rate table is a legal reading. It is pure (no database,
- * file, network or environment access) and wired into no route.
+ * file, network or environment access) and consumed only by the separately authorized, read-only EWT quarter API.
  */
 
 export type EwtPayment = {
