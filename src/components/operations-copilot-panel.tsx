@@ -6,7 +6,7 @@ import type { CopilotBrief, CopilotSignal } from "@/lib/operations-copilot";
 import type { OperationsCopilotNarration } from "@/lib/operations-copilot-ai";
 
 type Payload = { brief: CopilotBrief; aiAvailable: boolean };
-type Loaded = { payload: Payload | null; error: string | null };
+type Loaded = { key: string; payload: Payload | null; error: string | null };
 
 export default function OperationsCopilotPanel(props: {
   organizationId: number;
@@ -16,8 +16,8 @@ export default function OperationsCopilotPanel(props: {
 }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [highOnly, setHighOnly] = useState(false);
-  const [narration, setNarration] = useState<OperationsCopilotNarration | null>(null);
-  const [narrationError, setNarrationError] = useState("");
+  const [narration, setNarration] = useState<{ key: string; value: OperationsCopilotNarration } | null>(null);
+  const [narrationError, setNarrationError] = useState<{ key: string; value: string } | null>(null);
   const [narrationBusy, setNarrationBusy] = useState(false);
   const [revision, setRevision] = useState(0);
 
@@ -28,12 +28,10 @@ export default function OperationsCopilotPanel(props: {
   if (props.runId !== null) urlParams.set("runId", String(props.runId));
   if (props.legalEntityId !== null) urlParams.set("legalEntityId", String(props.legalEntityId));
   const url = "/api/operations-copilot?" + urlParams.toString();
+  const scopeKey = url + "|revision=" + revision;
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoaded(null);
-    setNarration(null);
-    setNarrationError("");
     void (async () => {
       try {
         const response = await fetch(url, { cache: "no-store", signal: controller.signal });
@@ -54,18 +52,21 @@ export default function OperationsCopilotPanel(props: {
           || typeof result.aiAvailable !== "boolean") {
           throw new Error("Scope mismatch or incomplete operations source.");
         }
-        if (!controller.signal.aborted) setLoaded({ payload: result, error: null });
+        if (!controller.signal.aborted) setLoaded({ key: scopeKey, payload: result, error: null });
       } catch (error) {
         if (!controller.signal.aborted) setLoaded({
-          payload: null,
+          key: scopeKey, payload: null,
           error: error instanceof Error ? error.message : "Operations source unavailable.",
         });
       }
     })();
     return () => controller.abort();
-  }, [url, revision, props.area, props.organizationId, props.runId]);
+  }, [url, scopeKey, props.area, props.organizationId, props.runId]);
 
-  const payload = loaded?.payload;
+  const activeLoaded = loaded?.key === scopeKey ? loaded : null;
+  const payload = activeLoaded?.payload;
+  const currentNarration = narration?.key === scopeKey ? narration.value : null;
+  const currentNarrationError = narrationError?.key === scopeKey ? narrationError.value : "";
   const brief = payload?.brief;
   const signals = (brief?.signals ?? []).filter(signal => !highOnly || signal.priority === "high");
 
@@ -73,7 +74,7 @@ export default function OperationsCopilotPanel(props: {
     if (!payload?.aiAvailable || narrationBusy) return;
     setNarrationBusy(true);
     setNarration(null);
-    setNarrationError("");
+    setNarrationError(null);
     try {
       const response = await fetch(url, {
         method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
@@ -89,9 +90,9 @@ export default function OperationsCopilotPanel(props: {
       if (!proposed || typeof proposed.overview !== "string" || !Array.isArray(proposed.focusKeys)) {
         throw new Error("Narration unavailable.");
       }
-      setNarration(proposed);
+      setNarration({ key: scopeKey, value: proposed });
     } catch (error) {
-      setNarrationError(error instanceof Error ? error.message : "Narration unavailable.");
+      setNarrationError({ key: scopeKey, value: error instanceof Error ? error.message : "Narration unavailable." });
     } finally {
       setNarrationBusy(false);
     }
@@ -106,7 +107,7 @@ export default function OperationsCopilotPanel(props: {
         Payroll run #{props.runId}
       </span>}
       <button type="button" className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-slate-50"
-        onClick={() => { setHighOnly(false); setRevision(old => old + 1); }} disabled={loaded === null}>
+        onClick={() => { setHighOnly(false); setRevision(old => old + 1); }} disabled={activeLoaded === null}>
         Refresh source
       </button>
       <Link href={props.area === "hr"
@@ -117,12 +118,12 @@ export default function OperationsCopilotPanel(props: {
       </Link>
     </div>
 
-    {loaded === null && <p role="status" className="rounded-xl border bg-white p-5 text-slate-700">
+    {activeLoaded === null && <p role="status" className="rounded-xl border bg-white p-5 text-slate-700">
       Loading authorized source evidence. Counts are not yet available.
     </p>}
-    {loaded?.error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-900">
+    {activeLoaded?.error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-900">
       <p className="font-semibold">The source could not be verified.</p>
-      <p className="mt-1 text-sm">{loaded.error}</p>
+      <p className="mt-1 text-sm">{activeLoaded.error}</p>
       <p className="mt-2 text-sm">No zero counts or approval decisions have been assumed.</p>
     </div>}
 
@@ -156,14 +157,14 @@ export default function OperationsCopilotPanel(props: {
               {narrationBusy ? "Preparing summary…" : "Generate AI summary"}
             </button>
           : <p className="mt-3 text-sm font-medium text-slate-700">AI narration is disabled until tenant privacy and model approvals are configured.</p>}
-        {narration && <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4" role="status">
+        {currentNarration && <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4" role="status">
           <p className="font-semibold text-emerald-900">AI draft · verify against the evidence below</p>
-          <p className="mt-2 text-sm text-slate-800">{narration.overview}</p>
-          {narration.focusKeys.length > 0 && <p className="mt-2 text-sm text-slate-700">
-            Suggested source categories: {narration.focusKeys.join(", ")}
+          <p className="mt-2 text-sm text-slate-800">{currentNarration.overview}</p>
+          {currentNarration.focusKeys.length > 0 && <p className="mt-2 text-sm text-slate-700">
+            Suggested source categories: {currentNarration.focusKeys.join(", ")}
           </p>}
         </div>}
-        {narrationError && <p role="alert" className="mt-3 text-sm text-red-800">{narrationError}</p>}
+        {currentNarrationError && <p role="alert" className="mt-3 text-sm text-red-800">{currentNarrationError}</p>}
       </section>
 
       <section aria-label="Operations triage" className="space-y-3">
