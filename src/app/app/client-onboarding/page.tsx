@@ -3,12 +3,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, legalEntities, organizations, subscriptions, userOrganizations } from "@/db/schema";
+import { employees, organizations, subscriptions, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId } from "@/lib/access";
 import { canonicalPeoplePageOrganizationId } from "@/lib/tenant-people-page-employer";
 import { buildClientOnboardingChecklist } from "@/lib/client-onboarding-checklist";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { ClientSetupTour } from "@/components/client-setup-tour";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,13 @@ export default async function ClientOnboardingPage({
     }
   }
 
-  const [orgs, workforce, team, entityCounts] = await Promise.all([
+  // Feature-OFF must never read legal-employer tables. With the feature ON,
+  // refuse a selected employer: these counts are organization-wide and cannot
+  // be presented as if they belonged to one legal employer.
+  const entityScope = await resolveMultiEntityContext({ userId: user.id, organizationId });
+  if (!entityScope.ok || (entityScope.context.enabled && entityScope.context.legalEntityId !== null)) notFound();
+
+  const [orgs, workforce, team] = await Promise.all([
     db.select({
       name: organizations.name,
       legalName: organizations.legalName,
@@ -67,8 +74,6 @@ export default async function ClientOnboardingPage({
         eq(userOrganizations.active, true),
         ne(userOrganizations.role, "employee"),
       )),
-    db.select({ total: sql<number>`count(*)::int` }).from(legalEntities)
-      .where(eq(legalEntities.organizationId, organizationId)),
   ]);
   const org = orgs[0];
   if (!org) notFound();
@@ -81,7 +86,8 @@ export default async function ClientOnboardingPage({
     employeeRecords: workforce[0]?.total ?? 0,
     activeTeamMembers: team[0]?.total ?? 0,
     employerRegistrationFields: configured,
-    hasMultipleLegalEmployers: (entityCounts[0]?.total ?? 0) > 1,
+    hasMultipleLegalEmployers: entityScope.context.enabled && entityScope.context.entities.length > 1,
+    legalEmployerScopeEnabled: entityScope.context.enabled,
   });
   const percent = Math.round((checklist.recordedRequired / checklist.requiredTotal) * 100);
   const home = `/app?organizationId=${organizationId}`;
