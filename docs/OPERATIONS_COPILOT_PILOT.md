@@ -107,8 +107,8 @@ scripts/qa/operations-copilot-isolation-supplement.json.
 Two separately source-sealed versions of the preexisting manifest are
 accepted: the exact PR-base blob `df3e1301b67ec1b2c271f4393f91511b7e8035c5`
 and the preexisting newer `main` blob
-`c024f9699f3770693625fcaf9982e7ed39eed57f` used by GitHub's
-synthetic PR merge jobs. An arbitrary repin or changed manifest is refused.
+`c8722f5420ec6584b3c1ebdff76fc5d508a762a5` used by GitHub's
+synthetic PR merge jobs. The intermediate upstream blob `c024f9699f3770693625fcaf9982e7ed39eed57f` is no longer an accepted current-main version. An arbitrary repin or changed manifest is refused.
 Neither version adds a Copilot credit, and the PR does not alter the
 historical ledger itself.
 

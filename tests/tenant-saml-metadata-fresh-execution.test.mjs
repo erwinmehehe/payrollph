@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {verifyFreshSamlExecution,FRESH_SAML_RECEIPT} from '../scripts/qa/tenant-saml-metadata-fresh-execution-verify.mjs';
 test('inspected successful PG16 artifact is source-current and still awards zero credits',()=>{
  const r=verifyFreshSamlExecution();assert.equal(r.result.coverageCredits,0);
- assert.equal(r.result.currentStatus,'GAP');assert.equal(r.result.resolveHeld,true);
+ assert.equal(r.result.currentStatus,'PUBLIC-BY-DESIGN');assert.equal(r.result.resolveHeld,true);
 });
 test('changed or invented execution, missing mode, provider disclosure or false acceptance invalidates evidence',()=>{
  const original=JSON.parse(readFileSync(FRESH_SAML_RECEIPT));

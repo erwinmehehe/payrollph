@@ -4,13 +4,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
-import {assertHistoricalNextConfigPreservedWithInvitationHeaders} from './tenant-invitation-header-source-compat.mjs';
 
-export const EMAIL_RECEIPT = Object.freeze({head:'480e6d621c91564f9645563b3417a10fb2ebd5a0',merge:'9ac4795efe8c013cd7a66ba73005dc481bde6626',run:42316473226,job:128230185900});
+export const EMAIL_RECEIPT = Object.freeze({head:'7d21d41e3b68da9c7be6ff3c7a84273c3deff902',merge:'376c8e462ffc129803c12ea8c6253f5b2bd75826',run:44758372709,job:136364054172});
 const route='src/app/api/account/email/verify/route.ts';
 const harness='scripts/qa/tenant-account-email-verify-http.mjs';
 const workflow='.github/workflows/tenant-account-email-verify-http.yml';
-const RECEIPT_DIGEST='cd95cc8dc4ddee4f5ac5e5271e752b70be51913f30905be9145aa6587ee75cb3';
+const RECEIPT_DIGEST='f769c659342d32554355896820ee1933b3ad55d129d89abf24fac37a48dcf0fe';
 // Source references come from a reviewed fixture, but still never permit that
 // fixture or an import specifier to read outside this checked-out repository.
 const repositoryRoot=path.resolve(process.cwd());
@@ -93,6 +92,9 @@ const CREDIT_SOURCE_FILES = Object.freeze([
 export function verifyEmailCredit(manifest, receipt, reader=read) {
   assert.equal(createHash('sha256').update(JSON.stringify(receipt,null,2)+'\n').digest('hex'),RECEIPT_DIGEST,'reviewed receipt bytes');
   assert.deepEqual(receipt.execution,EMAIL_RECEIPT,'execution receipt identity');
+  assert.equal(receipt.result.noExternalEmailDelivery,true);
+  assert.equal(receipt.result.providerOrMoneyWrites,false);
+  assert.equal(receipt.result.deniedDatabaseSnapshotsUnchanged,true);
   const method=manifest.allApiRouteFiles[route].methods.find(m=>m.name==='POST');
   assert.equal(method.status,'COVERED');
   assert.deepEqual(method.testedBy,receipt.proof,'exact reviewed method evidence');
@@ -100,8 +102,7 @@ export function verifyEmailCredit(manifest, receipt, reader=read) {
     'the signed proof may not choose additional file inputs');
   for(const relativeFile of CREDIT_SOURCE_FILES){
     const raw=Buffer.from(reader(relativeFile).replaceAll('\r\n','\n'));
-    if (relativeFile === 'next.config.ts') assertHistoricalNextConfigPreservedWithInvitationHeaders(raw, receipt.pins[relativeFile]);
-    else assert.equal(createHash('sha1').update(Buffer.from('blob '+raw.length+'\0')).update(raw).digest('hex'),receipt.pins[relativeFile],relativeFile+': executed input drift');
+    assert.equal(createHash('sha1').update(Buffer.from('blob '+raw.length+'\0')).update(raw).digest('hex'),receipt.pins[relativeFile],relativeFile+': executed input drift');
   }
   const lines=reader(harness).split('\n');
   for(const [key,fragment] of Object.entries(receipt.citations))assert.ok(lines[receipt.proof[key]-1]?.includes(fragment),'invalid '+key+' evidence citation');

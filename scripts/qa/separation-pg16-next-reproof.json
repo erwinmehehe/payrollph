@@ -1,0 +1,48 @@
+{
+  "label": "SOLO_VERIFIED_DEV_RECOVERY",
+  "head": "acc5670fd8862e98cfc32d9fed6d2e6e07304596",
+  "sourceTree": "d35c3e7221c5d13bbe18315635fbf3ac54c40da3",
+  "postgresMajor": 16,
+  "transport": "localhost-http",
+  "newCredits": 0,
+  "productionCertified": false,
+  "sourcePins": {
+    "src/app/api/separation/route.ts": "8d7f6772cd2cb9298043cd646aa8883242dd5b84",
+    "scripts/qa/payroll-approved-exit-http.mjs": "85832346e2a260efe2d9af008209af11a3331836",
+    "scripts/qa/final-pay-prior-employer-http.mjs": "f72e1f7e5a555328d1a0ae4a0f6a34c82dc1c3d8",
+    "scripts/qa/tenant-2316-ssr-transfer-http.mjs": "281d1a94bcfa1bee7eace8b8b6437c80972082b6",
+    ".github/workflows/payroll-e2e-fictional.yml": "487447430db0678645d1b3ee995a6c397219eacd",
+    ".github/workflows/final-pay-prior-employer-http.yml": "07402e85918dd0ee900e74329729049c8d694d9d",
+    ".github/workflows/tenant-2316-ssr-transfer-qa.yml": "875d698563e690d95ecae7a97af25f21a88e5304",
+    "package-lock.json": "e6a6ef7e48346838ed16052288acef4d87dcc375",
+    "src/lib/final-pay.ts": "271a2c70171a6d40190b4dc495a57d5534982b5b",
+    "src/lib/payroll-rules.ts": "17866ecd6ce02b8a966ec3baf59d7462e7af35c4",
+    "src/lib/multi-entity-server.ts": "f38a8bb77a5026d581d4a92b22533fc879ea7e00",
+    "src/lib/final-pay-prior-employer-server.ts": "fe30da71932ec42d6302232891f0f1abd89c1abc",
+    "src/lib/final-pay-imported-de-minimis.ts": "c6b46171120b3277ca2556489b8287c8f23b5894",
+    "src/lib/final-pay-source-fingerprint.ts": "8f24ca3e96f9f63182dd9d26c6d07516d6bd6b3d",
+    "src/lib/year-end.ts": "45a78b13cd0f040e021da7b734cceb2c76d2d3c6",
+    "package.json": "d327bc82bcedc19d76a91860a59c2270c4b12434"
+  },
+  "fullPg16Suite": {
+    "runId": 44841460595,
+    "jobId": 136650604559,
+    "conclusion": "success",
+    "httpConcluded": "success"
+  },
+  "separationFlagOnOff": {
+    "runId": 44841460479,
+    "jobId": 136650604159,
+    "conclusion": "success"
+  },
+  "form2316Transfer": {
+    "runId": 44841462586,
+    "jobId": 136650609896,
+    "conclusion": "success"
+  },
+  "methods": [
+    "GET",
+    "POST",
+    "PATCH"
+  ]
+}

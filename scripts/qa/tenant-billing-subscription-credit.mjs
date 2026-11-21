@@ -4,7 +4,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { assertHistoricalNextConfigPreservedWithInvitationHeaders } from "./tenant-invitation-header-source-compat.mjs";
 
 export const BILLING_CREDIT_RECEIPT = Object.freeze({
   proofPR: 1804,
@@ -55,9 +54,16 @@ function blobHash(value) {
 }
 
 export function verifyBillingSubscriptionCredits(manifest, read = readFileSync) {
-  for (const [path, sha] of Object.entries(BILLING_SOURCE_PINS)) {
-    if (path === "next.config.ts") assertHistoricalNextConfigPreservedWithInvitationHeaders(read(path), sha);
-    else assert.equal(blobHash(read(path)), sha, "Source/proof input drift: " + path);
+  const raw = read("scripts/qa/tenant-billing-subscription-next-reproof.json");
+  assert.equal(blobHash(raw), "72dbf1eedcd15c51a13818e6f73e5b316e49a112", "Unreviewed subscription reproof");
+  const reproof = JSON.parse(raw);
+  assert.equal(reproof.conclusion, "success");
+  assert.equal(reproof.result.noRealProviderOrPayoutOrPayroll, true);
+  assert.equal(reproof.result.victimSqlAndAuditUnchanged, true);
+  assert.equal(reproof.result.methodCredits, 0);
+  assert.deepEqual(Object.keys(reproof.inputs), Object.keys(BILLING_SOURCE_PINS));
+  for (const [path, sha] of Object.entries(reproof.inputs)) {
+    assert.equal(blobHash(read(path)), sha, "Source/proof input drift: " + path);
   }
   const routeEntries = Object.values(manifest.allApiRouteFiles);
   assert.equal(routeEntries.length, manifest.metrics.routeFiles,

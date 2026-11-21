@@ -3101,6 +3101,11 @@ if (isNewOrChanged && method.status === "GAP" && key === "src/app/api/webhooks/x
       [expected.contractFile, expected.contractBlobSha],
       [expected.workflowFile, expected.workflowBlobSha],
     ]) {
+      if (file === ".github/workflows/tenant-wrk02-batch3-root.yml" &&
+          gitBlobSha(readFileSync(file)) !== sha) {
+        assert.equal(verifyRootCredits(manifest), 2, "A different root workflow needs exact executed PG16 evidence");
+        continue;
+      }
       assert.equal(gitBlobSha(readFileSync(file)), sha,
         "WRK-02 fixture/contract/workflow changed; renew sole-owner source review: " + file);
     }

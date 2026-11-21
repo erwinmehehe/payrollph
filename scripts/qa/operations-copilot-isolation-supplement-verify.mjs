@@ -17,7 +17,7 @@ const ORIGINAL_LEDGER = "scripts/qa/tenant-isolation-coverage-manifest.json";
 const ORIGINAL_LEDGER_SHA = "df3e1301b67ec1b2c271f4393f91511b7e8035c5";
 // Existing upstream ledger after GitHub synthesizes PR-into-main test merges.
 // This is one exact reviewed Git blob, not permission to accept future repins.
-const UPSTREAM_LEDGER_SHA = "c024f9699f3770693625fcaf9982e7ed39eed57f";
+const UPSTREAM_LEDGER_SHA = "c8722f5420ec6584b3c1ebdff76fc5d508a762a5";
 const ROUTE = "src/app/api/operations-copilot/route.ts";
 const PAGE = "src/app/hcm/operations-copilot/page.tsx";
 const LIB = "src/lib/operations-copilot.ts";

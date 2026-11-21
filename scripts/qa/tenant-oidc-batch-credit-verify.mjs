@@ -12,11 +12,11 @@ const TARGETS=[OIDC_START,OIDC_BATCH_CALLBACK],HARNESS='scripts/qa/tenant-oidc-b
 const blob=b=>createHash('sha1').update('blob '+Buffer.byteLength(b)+'\0').update(b).digest('hex');
 export function readOidcBatchExecution(read=readFileSync,list=readdirSync){
  const raw=read(OIDC_BATCH_RECEIPT);
- assert.equal(createHash('sha256').update(raw).digest('hex'),'6e0a86bff2cd77c080b7aef4f303eddfe3221b618f0ea870ebff40b96bed01fe','Executed OIDC batch receipt changed');
+ assert.equal(createHash('sha256').update(raw).digest('hex'),'8fedea3fd646bfd6eb99c025ea87355101917b1f1143557a304d3312d0f216f3','Executed OIDC batch receipt changed');
  const r=JSON.parse(raw);assert.equal(r.schema,'oidc-start-callback-executed-pg16-v1');
- assert.equal(r.sourceCommit,'92309ae90163d8e2fdd8a0578cb20933ae8730d3');
- assert.equal(r.workflowRunId,43553920124);assert.equal(r.workflowJobId,132322353286);assert.equal(r.jobConclusion,'success');
- assert.equal(r.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/43553920124/job/132322353286');
+ assert.equal(r.sourceCommit,'98de0d4c7910ad4b49953d50e0e7f964f27fa9f8');
+ assert.equal(r.workflowRunId,44745512485);assert.equal(r.workflowJobId,136319661547);assert.equal(r.jobConclusion,'success');
+ assert.equal(r.evidence,'https://github.com/erwinmehehe/payrollph/actions/runs/44745512485/job/136319661547');
  assert.equal(r.evidenceLabel,'SOLO_VERIFIED_DEV_RECOVERY');
  assert.equal(Object.keys(r.inputs).length,214);
  for(const[file,sha]of Object.entries(r.inputs))assert.equal(blob(read(file)),sha,'OIDC batch executed input drift: '+file);

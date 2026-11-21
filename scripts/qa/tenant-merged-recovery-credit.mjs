@@ -17,10 +17,10 @@ const normalized=x=>x.toString().replaceAll('\r\n','\n');
 const digest=x=>createHash('sha256').update(normalized(x)).digest('hex');
 const blob=x=>{const b=Buffer.from(normalized(x));return createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');};
 // The original receipt and manifest citations remain immutable. Both HTTP jobs
-// ran again on the same checkout after the shared payroll rules changed.
+// ran again on the same checkout after the shared payroll rules and Next.js lock changed.
 function verifyRoundingReproof(prior, read) {
   const raw = read('scripts/qa/tenant-merged-recovery-rounding-receipt.json');
-  assert.equal(blob(raw), 'f7a7b05ae6faf9bf68ebcd0a11ea7490af2619b1', 'Rounding receipt changed');
+  assert.equal(blob(raw), 'cc098d0f7038c1f2d3af64a428563466749c8785', 'Shared recovery reproof receipt changed');
   const receipt = JSON.parse(raw);
   assert.equal(receipt.execution, 'github-actions-pg16-http');
   assert.equal(receipt.label, prior.label);
@@ -65,6 +65,9 @@ export function readRecoveryEvidence(read=readFileSync){
     else if(file==='src/lib/security-network.ts') assertHistoricalPinnedNetworkPreserved(read(file),sha,read);
     else if (file === 'src/lib/payroll-rules.ts' && blob(read(file)) !== sha) {
       assert.equal(sha, '4bf8c0482a0f4439cd8b175a97b589f7d9945baa');
+      verifyRoundingReproof(r, read);
+    }
+    else if ((file === 'package.json' || file === 'package-lock.json') && blob(read(file)) !== sha) {
       verifyRoundingReproof(r, read);
     }
     else assert.equal(blob(read(file)),sha,'Recovery source/proof drift: '+file);
