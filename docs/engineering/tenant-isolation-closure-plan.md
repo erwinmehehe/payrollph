@@ -1,6 +1,6 @@
-> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 453 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 8 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
+> **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 454 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
-> **CURRENT / WAGE-SOURCE API RENEWAL v2 (PER-METHOD SOURCE CLOSURES) — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = **453 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 8 GAP**. 74 of 75 wage-withdrawn methods renewed from [fresh PG16/real-HTTP run 44740145138](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138) at `c5f9b8439a6a9f22742330b60da59fa50879787a`; each is bound to its own sealed source closure plus a global base, so a later edit withdraws only the methods that execute it. Independent/security/payroll and production acceptance PENDING. No live release, provider or money activation.
+> **CURRENT / WAGE-SOURCE API RENEWAL v2 (PER-METHOD SOURCE CLOSURES) — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = **454 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 7 GAP**. 75 of 75 wage-withdrawn methods renewed from [fresh PG16/real-HTTP run 44857718850](https://github.com/erwinmehehe/payrollph/actions/runs/44857718850) at `ff5809aa7de6317adbecdd50bbbf9b88ffc1c869`; each is bound to its own sealed source closure plus a global base, so a later edit withdraws only the methods that execute it. Independent/security/payroll and production acceptance PENDING. No live release, provider or money activation.
 
 > Separation GET, POST and PATCH have provisional [PG16 HTTP evidence](../../scripts/qa/separation-pg16-http-receipt.json) under solo-maintainer source review.
 
@@ -267,9 +267,9 @@ The frozen twelve-batch queue is a **406-method subset**, not the entire 498-met
 | 5 | **WRK-02** | 39 | 39 | 0 | 0 | 0 | PROVISIONAL — NOT ACCEPTED |
 | 5 | **WRK-03** | 40 | 39 | 0 | 0 | 1 | INCOMPLETE |
 | 6 | **EDG-01** | 33 | 16 | 11 | 6 | 0 | PROVISIONAL — NOT ACCEPTED |
-| 6 | **EDG-02** | 33 | 25 | 1 | 5 | 2 | INCOMPLETE |
+| 6 | **EDG-02** | 33 | 26 | 1 | 5 | 1 | INCOMPLETE |
 
-Frozen subtotal (2026-11-11 classification proposal): **371 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 6 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **82 COVERED + 8 PUBLIC-BY-DESIGN + 2 GAP**. 4 batches remain INCOMPLETE; MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, EDG-01 remain PROVISIONAL — NOT ACCEPTED.
+Frozen subtotal (2026-11-11 classification proposal): **372 COVERED + 17 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 5 GAP = 406**. Relative to the live 498-method ledger, the other **92 methods** are **82 COVERED + 8 PUBLIC-BY-DESIGN + 2 GAP**. 4 batches remain INCOMPLETE; MNY-01, MNY-02, STA-01, PII-01, PII-02, WRK-01, WRK-02, EDG-01 remain PROVISIONAL — NOT ACCEPTED.
 
 ### Three narrowly promoted API methods — already merged via #1591 (original evidence)
 
