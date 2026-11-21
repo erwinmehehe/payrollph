@@ -1212,6 +1212,7 @@ export function SettingsPage({ data, setNotice, initialTab = "organization" }: {
       <PageHeading eyebrow="SETTINGS" title="Settings" copy="Manage company details, payroll policies and access for your role." />
       {data.access?.companyWide === true &&
         ["owner", "admin"].includes(data.access.role) &&
+        (!data.multiEntity?.enabled || data.multiEntity.legalEntityId === null) &&
         data.selectedOrganization.accountType !== "freelancer" && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
           <div>
