@@ -1,3 +1,91 @@
+<!-- wage-renewal-v2:start -->
+# Wage-source API renewal v2 (per-method source closures)
+
+SOLO_VERIFIED_DEV_RECOVERY. 498 methods = **379 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 82 GAP**. 0 of 75 methods CREDITED from one fresh run; 75 remain zero-credit holds.
+
+Execution: [run 44740145138](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138), 42 successful jobs at exact source head `c5f9b8439a6a9f22742330b60da59fa50879787a`. Receipt: [`wage-registry-renewal-receipt-v2.json`](../../scripts/qa/wage-registry-renewal-receipt-v2.json) (27 global pins; one closure per method).
+
+A later change withdraws only the methods whose own closure or the global base contains the changed file: run `node scripts/qa/wage-registry-renewal-v2.mjs --withdraw-drifted` (zero credit) and commit the result.
+
+| Method | Result | Closure files | Fresh executed evidence |
+| --- | --- | --- | --- |
+| `PATCH /api/approvals/[id]` | HELD | 216 | zero credit |
+| `GET /api/auth/me` | HELD | 177 | zero credit |
+| `POST /api/automation-studio` | HELD | 317 | zero credit |
+| `POST /api/bir/annual-employer/candidate` | HELD | 217 | zero credit |
+| `GET /api/bir/annual-employer/module-evidence` | HELD | 261 | zero credit |
+| `POST /api/bir/annual-employer/module-evidence` | HELD | 261 | zero credit |
+| `GET /api/bir/annual-employer` | HELD | 187 | zero credit |
+| `GET /api/compliance/bank-validations/[id]/file` | HELD | 254 | zero credit |
+| `PATCH /api/compliance/bank-validations/[id]` | HELD | 255 | zero credit |
+| `GET /api/compliance/bank-validations` | HELD | 255 | zero credit |
+| `POST /api/compliance/bank-validations` | HELD | 255 | zero credit |
+| `GET /api/compliance/bir-1601c-remittances` | HELD | 254 | zero credit |
+| `POST /api/compliance/bir-1601c-remittances` | HELD | 254 | zero credit |
+| `GET /api/compliance/calendar` | HELD | 255 | zero credit |
+| `GET /api/compliance/contribution-issues/evidence` | HELD | 257 | zero credit |
+| `GET /api/compliance/filing-validations/[id]/file` | HELD | 255 | zero credit |
+| `PATCH /api/compliance/filing-validations/[id]` | HELD | 218 | zero credit |
+| `GET /api/compliance/filing-validations` | HELD | 258 | zero credit |
+| `POST /api/compliance/filing-validations` | HELD | 188 | zero credit |
+| `GET /api/compliance/government-loan-remittances` | HELD | 257 | zero credit |
+| `POST /api/compliance/government-loan-remittances` | HELD | 257 | zero credit |
+| `GET /api/compliance/labor-inspection/drills` | HELD | 203 | zero credit |
+| `POST /api/compliance/labor-inspection/drills` | HELD | 203 | zero credit |
+| `GET /api/compliance/labor-inspection/evidence-pack` | HELD | 272 | zero credit |
+| `GET /api/compliance/labor-inspection` | HELD | 196 | zero credit |
+| `POST /api/compliance/labor-inspection` | HELD | 186 | zero credit |
+| `GET /api/compliance/payroll-month-close` | HELD | 201 | zero credit |
+| `POST /api/compliance/payroll-month-close` | HELD | 194 | zero credit |
+| `GET /api/compliance/remittance-actions` | HELD | 82 | zero credit |
+| `POST /api/compliance/remittance-actions` | HELD | 82 | zero credit |
+| `GET /api/compliance/remittance-month-close` | HELD | 256 | zero credit |
+| `POST /api/compliance/remittance-month-close` | HELD | 256 | zero credit |
+| `GET /api/compliance/statutory-remittance-corrections` | HELD | 262 | zero credit |
+| `POST /api/compliance/statutory-remittance-corrections` | HELD | 262 | zero credit |
+| `POST /api/compliance/statutory-remittances/posting-import` | HELD | 257 | zero credit |
+| `GET /api/compliance/statutory-remittances` | HELD | 254 | zero credit |
+| `POST /api/compliance/statutory-remittances` | HELD | 176 | zero credit |
+| `POST /api/compliance/validate` | HELD | 186 | zero credit |
+| `GET /api/dashboard` | HELD | 307 | zero credit |
+| `POST /api/employees/import` | HELD | 187 | zero credit |
+| `GET /api/employees/import` | HELD | 267 | zero credit |
+| `GET /api/employees` | HELD | 272 | zero credit |
+| `POST /api/employees` | HELD | 192 | zero credit |
+| `PATCH /api/employees` | HELD | 192 | zero credit |
+| `POST /api/enterprise` | HELD | 182 | zero credit |
+| `GET /api/first-payroll/preview` | HELD | 287 | zero credit |
+| `GET /api/hcm/governance-readiness` | HELD | 255 | zero credit |
+| `POST /api/managed-payroll/runs/[id]/approve` | HELD | 178 | zero credit |
+| `GET /api/migrations` | HELD | 198 | zero credit |
+| `POST /api/migrations` | HELD | 193 | zero credit |
+| `GET /api/payroll-runs/[id]/assurance` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/close` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/close` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/connected-impact` | HELD | 352 | zero credit |
+| `GET /api/payroll-runs/[id]/explain/[employeeId]` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/exports` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/exports` | HELD | 340 | zero credit |
+| `GET /api/payroll-runs/[id]/payout-reconciliation` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/payout-reconciliation` | HELD | 340 | zero credit |
+| `POST /api/payroll-runs/[id]/pilot-signoff` | HELD | 340 | zero credit |
+| `POST /api/payroll-runs/[id]/process` | HELD | 365 | zero credit |
+| `GET /api/payroll-runs/[id]/release-checklist` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs/[id]/release` | HELD | 365 | zero credit |
+| `POST /api/payroll-runs/[id]/submit-review` | HELD | 365 | zero credit |
+| `GET /api/payroll-runs/[id]/variance` | HELD | 375 | zero credit |
+| `GET /api/payroll-runs/[id]/xendit-payout` | HELD | 340 | zero credit |
+| `GET /api/payroll-runs` | HELD | 375 | zero credit |
+| `POST /api/payroll-runs` | HELD | 340 | zero credit |
+| `GET /api/reports` | HELD | 265 | zero credit |
+| `GET /api/self/contribution-evidence` | HELD | 90 | zero credit |
+| `POST /api/spend` | HELD | 179 | zero credit |
+| `PATCH /api/spend` | HELD | 179 | zero credit |
+| `GET /api/year-end` | HELD | 219 | zero credit |
+| `POST /api/year-end` | HELD | 219 | zero credit |
+| `GET /api/payroll-runs/[id]/pre-run-readiness` | HELD | 375 | zero credit |
+<!-- wage-renewal-v2:end -->
+
 > **HISTORICAL #2005 PG16 RENEWAL — SUPERSEDED BY #2006:** The original 75 method receipts below remain authentic evidence for the previous payroll engine only. The modified #2006 engine invalidates their current-source status; all 75 affected methods are GAP / zero-credit until fresh verification. This document does not authorize production or restore credits.
 
 # Fresh wage-source API credit renewals

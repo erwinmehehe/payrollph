@@ -20,6 +20,7 @@ import { reviewedWageRegistrySourceWithdrawals } from "../../scripts/qa/wage-reg
 import { reviewedTransitiveWageWithdrawals } from "../../scripts/qa/wage-registry-transitive-source-hold.mjs";
 import { reviewedSealedWageWithdrawals } from "../../scripts/qa/wage-registry-sealed-receipt-source-hold.mjs";
 import { reviewedWageRenewalEngineWithdrawal, historicalWageHoldProjection } from "../../scripts/qa/wage-registry-renewal-supersession.mjs";
+import { withdrawDriftedWageRenewalV2 } from "../../scripts/qa/wage-registry-renewal-v2.mjs";
 import { OIDC_CALLBACK, verifyOidcCallbackHold } from "../../scripts/qa/tenant-oidc-source-supersession.mjs";
 
 /** Newly restored methods only, backed by the sealed executed renewal. */
@@ -268,7 +269,8 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
   }
   const before = tallyTenantManifest(base.manifest);
   const invalidatedRenewals = reviewedWageRenewalEngineWithdrawal(base.manifest, manifest);
-  const oldProofView = invalidatedRenewals.size ? historicalWageHoldProjection(base.manifest) : base.manifest;
+  const driftedBase = withdrawDriftedWageRenewalV2(base.manifest);
+  const oldProofView = invalidatedRenewals.size ? historicalWageHoldProjection(driftedBase.manifest) : driftedBase.manifest;
   const explicitlySuperseded = new Set([
     ...reviewedYearEndSourceSupersession(oldProofView, manifest),
     ...yearEndAnnualizationSourceHold(oldProofView, manifest),
@@ -279,6 +281,7 @@ export function assertLiveTenantCounts(assert, manifest, env = process.env, inje
     ...reviewedTransitiveWageWithdrawals(oldProofView, manifest),
     ...reviewedSealedWageWithdrawals(oldProofView, manifest),
     ...invalidatedRenewals,
+    ...driftedBase.withdrawn,
     ...reviewedDocumentSourceWithdrawals(base.manifest, manifest),
     ...reviewedTimesheetSourceHold(base.manifest, manifest),
   ]);

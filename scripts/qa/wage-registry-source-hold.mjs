@@ -5,7 +5,7 @@
  * Reproof requires fresh, independently reviewed real-HTTP source closures.
  */
 import assert from "node:assert/strict";
-import {wageRenewalHoldView,WAGE_RENEWAL_KIND} from './wage-registry-renewal-verify.mjs';
+import {wageRenewalHoldView,WAGE_RENEWAL_KIND,isWageRenewalKind} from './wage-registry-renewal-verify.mjs';
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {historicTransitiveWageProofView} from "./wage-registry-transitive-source-hold.mjs";
@@ -140,14 +140,16 @@ export function reviewedWageRegistrySourceWithdrawals(before, after, read = read
   before=wageRenewalHoldView(before,read);
   after=wageRenewalHoldView(after,read);
   // Exact historical-fixture replay after the sealed renewal merged. A full
-  // source-verified projection may explain these 75 archived withdrawals;
+  // source-verified projection may explain the currently renewed methods;
   // no arbitrary downgrade, partial projection or edited receipt is exempt.
   const renewed=Object.entries(liveBefore.allApiRouteFiles).flatMap(([path,file])=>file.methods
-    .filter(row=>row.testedBy?.kind===WAGE_RENEWAL_KIND).map(row=>({path,verb:row.name})));
+    .filter(row=>isWageRenewalKind(row.testedBy?.kind)).map(row=>({path,verb:row.name})));
   const replayed=renewed.filter(({path,verb})=>liveAfter.allApiRouteFiles[path]?.methods.find(row=>row.name===verb)?.status==='GAP');
   if(replayed.length){
-    assert.equal(renewed.length,75,'Only the complete sealed renewal can be replayed');
-    assert.equal(replayed.length,75,'Partial historical renewal projection is forbidden');
+    const hasLegacyRenewal=renewed.some(({path,verb})=>
+      liveBefore.allApiRouteFiles[path].methods.find(row=>row.name===verb).testedBy?.kind===WAGE_RENEWAL_KIND);
+    if(hasLegacyRenewal)assert.equal(renewed.length,75,'Only the complete legacy sealed renewal can be replayed');
+    assert.equal(replayed.length,renewed.length,'Partial historical renewal projection is forbidden');
     for(const {path,verb}of replayed){
       assert.equal(liveAfter.allApiRouteFiles[path].gitBlobSha,before.allApiRouteFiles[path].gitBlobSha,'Historical projection cannot change route source');
       assert.deepEqual(liveAfter.allApiRouteFiles[path].methods.find(row=>row.name===verb),

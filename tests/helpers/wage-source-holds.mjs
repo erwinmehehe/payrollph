@@ -10,8 +10,9 @@ import {historicWageRegistryProofView} from '../../scripts/qa/wage-registry-sour
 import {baseTenantManifest,assertLiveTenantCounts} from './tenant-counts.mjs';
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
-import {wageRenewalHoldView,verifyWageRenewalMethod,WAGE_RENEWAL_KIND} from '../../scripts/qa/wage-registry-renewal-verify.mjs';
+import {wageRenewalHoldView,verifyWageRenewalMethod,WAGE_RENEWAL_KIND,isWageRenewalKind} from '../../scripts/qa/wage-registry-renewal-verify.mjs';
 import { reviewedWageRenewalEngineWithdrawal } from '../../scripts/qa/wage-registry-renewal-supersession.mjs';
+import {withdrawDriftedWageRenewalV2} from '../../scripts/qa/wage-registry-renewal-v2.mjs';
 import {verifyEmailCredit} from '../../scripts/qa/tenant-email-verification-credit.mjs';
 import {verifyOidcBatchMethod} from '../../scripts/qa/tenant-oidc-batch-credit-verify.mjs';
 import {verifyXenditPostCredit} from '../../scripts/qa/tenant-xendit-post-credit.mjs';
@@ -37,7 +38,7 @@ export function historicalWageCatalog(manifest){
   // Only immutable catalogue citations may use this view. Current credit
   // verifiers must keep rejecting the live GAP rows.
   if(!Object.values(manifest.allApiRouteFiles).some(f=>f.methods.some(m=>
-    m.reviewedUncertified?.kind?.startsWith('wage-registry-')||m.testedBy?.kind===WAGE_RENEWAL_KIND)))return manifest;
+    m.reviewedUncertified?.kind?.startsWith('wage-registry-')||isWageRenewalKind(m.testedBy?.kind))))return manifest;
   verifiedWageCreditHolds(manifest);
   return historicWageRegistryProofView(manifest);
 }
@@ -45,9 +46,9 @@ export function historicalWageCatalog(manifest){
 /** Strict current-ledger alternative to replaying invalidated receipt verifiers. */
 export function assertWageLedgerDelta(assert,manifest){
   if(!Object.values(manifest.allApiRouteFiles).some(f=>f.methods.some(m=>
-    m.reviewedUncertified?.kind?.startsWith('wage-registry-')||m.testedBy?.kind===WAGE_RENEWAL_KIND)))return false;
+    m.reviewedUncertified?.kind?.startsWith('wage-registry-')||isWageRenewalKind(m.testedBy?.kind))))return false;
   const liveManifest=manifest;
-  const renewed=Object.values(manifest.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>m.testedBy?.kind===WAGE_RENEWAL_KIND).length;
+  const renewed=Object.values(manifest.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>isWageRenewalKind(m.testedBy?.kind)).length;
   manifest=wageRenewalHoldView(manifest);
   const holds=verifiedWageCreditHolds(manifest),base=baseTenantManifest();
   assert.ok(base,'The wage withdrawal requires an inspectable main manifest');
@@ -59,8 +60,8 @@ export function assertWageLedgerDelta(assert,manifest){
     ...reviewedTimesheetSourceHold(priorLive,liveManifest),
   ]);
   const revoked=reviewedWageRenewalEngineWithdrawal(priorLive,liveManifest);
-  const prior=revoked.size?priorLive:wageRenewalHoldView(priorLive);
-  const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>m.testedBy?.kind===WAGE_RENEWAL_KIND).length;
+  const prior=revoked.size?priorLive:wageRenewalHoldView(withdrawDriftedWageRenewalV2(priorLive).manifest);
+  const priorRenewed=Object.values(priorLive.allApiRouteFiles).flatMap(f=>f.methods).filter(m=>isWageRenewalKind(m.testedBy?.kind)).length;
   assert.deepEqual(Object.keys(manifest.allApiRouteFiles).sort(),Object.keys(prior.allApiRouteFiles).sort());
   let withdrawn=0;
   for(const [path,file]of Object.entries(manifest.allApiRouteFiles)){

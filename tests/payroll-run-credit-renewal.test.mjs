@@ -1,5 +1,6 @@
 import {readWageWithdrawalFixture} from './helpers/wage-renewal-fixture.mjs';
 import {verifiedWageCreditHolds} from '../scripts/qa/wage-registry-credit-holds.mjs';
+import {verifyOracleSourceHolds} from '../scripts/qa/payroll-run-oracle-hold.mjs';
 import {verifyWageRenewalEngineWithdrawal} from '../scripts/qa/wage-registry-renewal-supersession.mjs';
 import {baseTenantManifest} from './helpers/tenant-counts.mjs';
 import assert from 'node:assert/strict';
@@ -79,7 +80,8 @@ test('all nine changed wage cohorts remain archived and refuse current-source re
   }
   assert.throws(()=>readVerifiedPayrollRenewal(),/Executed input closure drift:/);
   const result=reconcilePayrollRenewal({write:false});
-  assert.equal(result.credited,0);assert.equal(result.held,result.status==='SUPERSEDED_BY_WAGE_SOURCE_RENEWAL'?0:19);
+  assert.equal(result.credited,0);
+  assert.equal(result.held,verifyOracleSourceHolds(JSON.parse(before)).size);
   assert.deepEqual(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json'),before);
 });
 
@@ -156,7 +158,7 @@ test('payroll documents reconcile without duplicating or moving the separate SSO
   const result=reconcilePayrollRenewal({write:false});
   assert.equal(result.credited,0);
   const renewed=result.status==='SUPERSEDED_BY_WAGE_SOURCE_RENEWAL';
-  assert.equal(result.held,renewed?0:19);
+  assert.equal(result.held,verifyOracleSourceHolds(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'))).size);
   assert.equal(result.status,renewed?'SUPERSEDED_BY_WAGE_SOURCE_RENEWAL':'WAGE_REGISTRY_DEPENDENCY_SOURCE_HOLD');
   assert.equal(verifyWageRenewalEngineWithdrawal(JSON.parse(readFileSync('scripts/qa/tenant-isolation-coverage-manifest.json','utf8'))).size,75);
   for(const file of ['docs/engineering/tenant-isolation-coverage-inventory.md','docs/engineering/tenant-isolation-closure-plan.md']){

@@ -1,5 +1,7 @@
 > **CURRENT MKT-01 OPERATOR-ONLY GET - SOLO_VERIFIED_DEV_RECOVERY / NOT ACCEPTED:** 498 methods = 379 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 82 GAP; 0 scoped page/action GAPs remain. Single operator-scoped provisional credit, NOT PUBLIC-BY-DESIGN. [Exact-source fictional PG16 HTTP proof](https://github.com/erwinmehehe/payrollph/actions/runs/43530460939/job/132246563132). No independent privacy/security approval, deployment allowlist attestation, production release, providers or money.
 
+> **CURRENT / WAGE-SOURCE API RENEWAL v2 (PER-METHOD SOURCE CLOSURES) — SOLO_VERIFIED_DEV_RECOVERY:** 498 methods = **379 COVERED + 25 PUBLIC-BY-DESIGN + 12 PRIVILEGED-OPERATIONS-TOKEN-ONLY + 82 GAP**. 0 of 75 wage-withdrawn methods renewed from [fresh PG16/real-HTTP run 44740145138](https://github.com/erwinmehehe/payrollph/actions/runs/44740145138) at `c5f9b8439a6a9f22742330b60da59fa50879787a`; each is bound to its own sealed source closure plus a global base, so a later edit withdraws only the methods that execute it. Independent/security/payroll and production acceptance PENDING. No live release, provider or money activation.
+
 > **Separation dependency reproof:** `GET separation`, `POST separation` and `PATCH separation` retain their provisional credits after the [fresh fictional PG16 suite and HTTP proofs](../../scripts/qa/separation-pg16-next-reproof.json). No additional credits or live acceptance.
 
 > **Timesheet GET and POST** were renewed with [fictional PG16 HTTP evidence](../../scripts/qa/timesheet-employer-receipt.json).
@@ -864,28 +866,28 @@ On the same PR #1506 head, [CodeQL Security 40611079090](https://github.com/erwi
 
 These 22 additional methods were previously source-credited but are now individually **GAP / HELD / zero credits** after the changed NWPC wage dependency. Their prior receipts remain historical, not current-source coverage. Fresh exact-source fictional PG16 own/foreign/unchanged-victim execution and independent security review are required before any credit is restored.
 
-- HELD `GET /api/compliance/bank-validations/[id]/file` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `PATCH /api/compliance/bank-validations/[id]` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/compliance/bank-validations` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `POST /api/compliance/bank-validations` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/compliance/bir-1601c-remittances` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `POST /api/compliance/bir-1601c-remittances` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/compliance/calendar` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/compliance/remittance-month-close` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `POST /api/compliance/remittance-month-close` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/compliance/statutory-remittance-corrections` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `POST /api/compliance/statutory-remittance-corrections` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/dashboard` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/employees` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/first-payroll/preview` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/hcm/governance-readiness` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/assurance` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/release-checklist` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `POST /api/payroll-runs` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
-- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — [historical #2005 receipt; #2006 zero-credit hold](../../scripts/qa/wage-registry-renewal-receipt.json); independent acceptance PENDING
+- HELD `GET /api/compliance/bank-validations/[id]/file` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `PATCH /api/compliance/bank-validations/[id]` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/compliance/bank-validations` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `POST /api/compliance/bank-validations` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/compliance/bir-1601c-remittances` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `POST /api/compliance/bir-1601c-remittances` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/compliance/calendar` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/compliance/remittance-month-close` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `POST /api/compliance/remittance-month-close` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/compliance/statutory-remittance-corrections` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `POST /api/compliance/statutory-remittance-corrections` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/dashboard` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/employees` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/first-payroll/preview` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/hcm/governance-readiness` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/assurance` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/explain/[employeeId]` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/payout-reconciliation` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/release-checklist` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `POST /api/payroll-runs` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
+- HELD `GET /api/payroll-runs/[id]/pre-run-readiness` — [v2 renewal source drift; zero credit until a fresh renewal](../../scripts/qa/wage-registry-renewal-receipt-v2.json); independent acceptance PENDING
 
 ## Page and server-action closure (20 independently requested wrong-employer surfaces)
 

@@ -1,0 +1,99 @@
+name: Philippine 2026 official-source two-month payroll parity (fictional)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tests/payroll-e2e-fictional-2026-two-month.test.ts"
+      - "docs/payroll-certification/2026-ph-statutory-source-matrix.md"
+      - "docs/payroll-certification/2026-m5-m10-specialist-signoff.md"
+      - ".github/workflows/payroll-2026-source-parity.yml"
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  ph-2026-parity:
+    name: Independent fixed-centavo PG${{ matrix.postgres }} fictional payroll
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [16, 18]
+    env:
+      TZ: Asia/Manila
+      CI: "true"
+      FAIL_CLOSED_GUARD_BASE_REF: ${{ github.event.pull_request.base.sha }}
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      OFFLINE_CLAIM_PG_ACCEPTANCE_REQUIRED: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Record the source tested by the fictional payroll suite
+        env:
+          APPROVED_EXIT_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$APPROVED_EXIT_EXPECTED_SHA"
+          git rev-parse HEAD HEAD:src/app/api/separation/route.ts HEAD:scripts/qa/payroll-approved-exit-http.mjs
+      - name: Fetch exact PR base for fail-closed source guards
+        run: git fetch --no-tags --depth=1 origin "$FAIL_CLOSED_GUARD_BASE_REF"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Exact dependency install
+        run: npm ci
+      - name: Ephemeral fictional-test-only encryption keys (not provider keys)
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "::add-mask::$totp_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+          for key in WORKER_TOKEN READINESS_TOKEN SETUP_TOKEN MALWARE_SCAN_TOKEN; do
+            secret=$(openssl rand -hex 32)
+            echo "::add-mask::$secret"
+            echo "$key=$secret" >> "$GITHUB_ENV"
+          done
+      - name: Create only disposable PG schema (NO repository migration)
+        run: npm run db:push
+      - name: Apply existing CI-only PG16 audit guard to disposable PG
+        if: matrix.postgres == 16
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Apply the cutover baseline objects (0109 audit chain + reviewed supplement); request code only verifies schema
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Fixed 2026 source-oracle comparison, all four cutoffs and both months
+        run: npx tsx --test --test-concurrency=1 tests/payroll-e2e-fictional-2026-two-month.test.ts
