@@ -1,0 +1,65 @@
+{
+  "schema": "linaw-operations-copilot-zero-credit-supplement-v1",
+  "baselineManifestBlob": "c024f9699f3770693625fcaf9982e7ed39eed57f",
+  "status": "UNACCEPTED_LOCAL_ONLY",
+  "exactHeadRealHttpProof": "NOT_RUN",
+  "independentSecurityReview": "PENDING",
+  "independentPayrollPrivacyReview": "PENDING",
+  "productionCertified": false,
+  "productionEnabled": false,
+  "newApiMethodCredits": 0,
+  "newPageCredits": 0,
+  "apiRoutes": [
+    {
+      "path": "src/app/api/operations-copilot/route.ts",
+      "blob": "168ad664bd7685a3ceb9bef51fac504ffed66957",
+      "methods": [
+        {
+          "name": "GET",
+          "status": "GAP",
+          "testedBy": null,
+          "credits": 0,
+          "reason": "Default-off, non-production-only, tenant-scoped read endpoint. No exact-head two-employer real-HTTP own/victim evidence. No provisional method credit."
+        },
+        {
+          "name": "POST",
+          "status": "GAP",
+          "testedBy": null,
+          "credits": 0,
+          "reason": "Default-off, non-production-only, tenant-scoped optional aggregate-only model narration with same-origin/MFA/rate controls. No real-HTTP consent/tenant proof. No method credit."
+        }
+      ]
+    }
+  ],
+  "scopedPages": [
+    {
+      "path": "src/app/hcm/operations-copilot/page.tsx",
+      "blob": "8ca846c91d032291366ba0f4a2a69de9c0e47290",
+      "status": "GAP",
+      "testedBy": null,
+      "hasAction": false,
+      "credits": 0,
+      "reason": "Server-authorized, default-off, non-production-only HCM page. Own/victim SSR, revocation, multi-entity and browser acceptance are NOT_RUN."
+    }
+  ],
+  "supportingSourcePins": [
+    {
+      "path": "src/lib/operations-copilot.ts",
+      "blob": "b159e440fc4c21233715525e7c868cb62f9f327d"
+    },
+    {
+      "path": "src/lib/operations-copilot-ai.ts",
+      "blob": "f97c3c957d3c86801509e94e9b68b3e254fe9ab0"
+    },
+    {
+      "path": "src/components/operations-copilot-panel.tsx",
+      "blob": "7f2c288a0d36587e5e46c052b16b264258ec3f34"
+    }
+  ],
+  "reviewRequired": [
+    "Exact-PR-head disposable PostgreSQL 16 and 18: two independent authenticated tenants with nonempty own results, real victim denial and immutable victim rows.",
+    "Tenant, role, unit, legal-employer, revocation and forged/duplicate selector negative controls for both API methods and SSR page.",
+    "Optional external narration payload privacy, DPA, retention, notice, rate limiting, MFA and zero money/HR mutation proof.",
+    "Independent Payroll, HR, Privacy and Security acceptance before any production flag or coverage promotion."
+  ]
+}

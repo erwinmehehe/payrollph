@@ -1,6 +1,11 @@
 # Linaw Operations Copilot — read-only pilot
 
-Status: **DRAFT / NOT ACTIVATED / NOT PRODUCTION ACCEPTED**.
+Status: **DRAFT / LOCAL-ONLY / NOT PRODUCTION ACCEPTED**.
+
+The new Next.js API and HCM page are deliberately hard-disabled when
+NODE_ENV=production, even if pilot tenant environment variables have been set.
+This is a deliberate fail-closed restriction until method-specific and SSR
+tenant-isolation acceptance are independently verified.
 
 This adds a standalone, source-linked Payroll Exception Copilot and HR Operations Agent.
 It does **not** modify payroll calculations, bank transfers, approvals, wage orders,
@@ -90,6 +95,27 @@ a draft. Failed or disabled narration leaves the deterministic triage view intac
 Model POST requires same-origin browser security, current privileged MFA when
 required in production, and per-user/resource rate limiting. No prompt log,
 provider body or token is printed.
+
+## Tenant-isolation inventory review (zero credits)
+
+The original scripts/qa/tenant-isolation-coverage-manifest.json remains
+byte-for-byte unchanged because existing third-party and financial isolation
+proofs are cryptographically sealed to it. The two new copilot API methods
+(GET and POST) and one new HCM SSR page instead appear in the separate
+scripts/qa/operations-copilot-isolation-supplement.json.
+
+The supplement is source-pinned and verified by
+scripts/qa/operations-copilot-isolation-supplement-verify.mjs and the shared
+inventory test. Each new entry has status GAP, zero credits, no asserted
+own/victim HTTP evidence, no production acceptance and no implicit
+permission to publish. The full inventory is the union of historic sealed
+entries plus this exact review-only supplement; it must not silently exclude
+other new routes.
+
+Later promotion requires a new independent two-employer real-HTTP proof,
+actual own-data responses, genuine cross-tenant and revoked-session denial,
+unchanged victim database snapshots, and authorized privacy/security/payroll
+review. Re-running only unit tests or changing manifest counts is not proof.
 
 ## Pilot acceptance checklist (not yet completed)
 

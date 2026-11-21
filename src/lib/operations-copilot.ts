@@ -77,6 +77,11 @@ export function operationsCopilotEnabled(
   organizationId: number,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
+  // The new API and SSR surface has NO independently accepted two-tenant
+  // real-HTTP proof yet. Do not make it available in production even if a
+  // tenant allowlist is accidentally populated. Exact-head acceptance is
+  // required before this restriction can be reviewed for removal.
+  if (env.NODE_ENV === "production") return false;
   return tenantInPilotList(organizationId, env.OPERATIONS_COPILOT_PILOT_ORG_IDS);
 }
 

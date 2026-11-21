@@ -21,6 +21,10 @@ const consent = {
 test("new tenant pilot allowlists default off and reject malformed configurations", () => {
   assert.equal(operationsCopilotEnabled(17, {}), false);
   assert.equal(operationsCopilotEnabled(17, consent), true);
+  assert.equal(operationsCopilotEnabled(17, { ...consent, NODE_ENV: "production" }), false,
+    "Even an allowlisted tenant must be denied until independent HTTP acceptance");
+  assert.equal(operationsCopilotAiAllowed(17, { ...consent, NODE_ENV: "production" }), false,
+    "External model cannot bypass the unaccepted production boundary");
   assert.equal(operationsCopilotEnabled(29, consent), true);
   assert.equal(operationsCopilotEnabled(99, consent), false);
   for (const invalid of ["", "TRUE", "17,", ",17", "0,17", "17,17", "17,bad", "-1,17",
