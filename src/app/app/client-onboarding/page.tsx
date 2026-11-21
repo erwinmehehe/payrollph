@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, subscriptions, userOrganizations } from "@/db/schema";
+import { employees, legalEntities, organizations, subscriptions, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId } from "@/lib/access";
@@ -57,7 +57,7 @@ export default async function ClientOnboardingPage({
   const entityScope = await resolveMultiEntityContext({ userId: user.id, organizationId });
   if (!entityScope.ok || (entityScope.context.enabled && entityScope.context.legalEntityId !== null)) notFound();
 
-  const [orgs, workforce, team] = await Promise.all([
+  const [orgs, workforce, team, entityRegistrations] = await Promise.all([
     db.select({
       name: organizations.name,
       legalName: organizations.legalName,
@@ -74,12 +74,31 @@ export default async function ClientOnboardingPage({
         eq(userOrganizations.active, true),
         ne(userOrganizations.role, "employee"),
       )),
+    // Multi-entity metadata is available only after the release flag and
+    // company/group scope have been authorized. OFF avoids the table entirely.
+    entityScope.context.enabled
+      ? db.select({
+          id: legalEntities.id,
+          birTin: legalEntities.birTin,
+          sssEmployerNo: legalEntities.sssEmployerNo,
+          philHealthEmployerNo: legalEntities.philHealthEmployerNo,
+          pagIbigEmployerNo: legalEntities.pagIbigEmployerNo,
+        }).from(legalEntities).where(and(
+          eq(legalEntities.organizationId, organizationId),
+          eq(legalEntities.active, true),
+        ))
+      : Promise.resolve([]),
   ]);
   const org = orgs[0];
   if (!org) notFound();
   const configured = [
     org.birTin, org.sssEmployerNo, org.philHealthEmployerNo, org.pagIbigEmployerNo,
   ].filter((value) => Boolean(value?.trim())).length;
+  const authorizedEntityIds = new Set(entityScope.context.entities.map((entity) => entity.id));
+  const entitiesWithIdentifiers = entityRegistrations.filter((entity) =>
+    authorizedEntityIds.has(entity.id) && [
+      entity.birTin, entity.sssEmployerNo, entity.philHealthEmployerNo, entity.pagIbigEmployerNo,
+    ].every((value) => Boolean(value?.trim()))).length;
   const checklist = buildClientOnboardingChecklist(organizationId, {
     organizationName: org.name,
     legalName: org.legalName,
@@ -88,6 +107,8 @@ export default async function ClientOnboardingPage({
     employerRegistrationFields: configured,
     hasMultipleLegalEmployers: entityScope.context.enabled && entityScope.context.entities.length > 1,
     legalEmployerScopeEnabled: entityScope.context.enabled,
+    legalEmployerCount: entityScope.context.entities.length,
+    legalEmployerRegistrationsComplete: entitiesWithIdentifiers,
   });
   const percent = Math.round((checklist.recordedRequired / checklist.requiredTotal) * 100);
   const home = `/app?organizationId=${organizationId}`;
