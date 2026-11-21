@@ -7105,7 +7105,11 @@ test("page and server-action inventory cannot silently omit new or changed busin
   // The sealed 21-page ledger is historical evidence and may not be silently
   // repinned. The *one* new client-onboarding SSR must instead have an
   // exact-source, zero-credit, independently tested pending record.
-  const pendingScopedPages = liveManifest.pendingScopedPageCandidates ?? [];
+  const candidateLedger = JSON.parse(readFileSync(
+    "scripts/qa/tenant-client-onboarding-page-candidate.json", "utf8"));
+  assert.deepEqual(Object.keys(candidateLedger), ["pendingScopedPageCandidates"],
+    "Separate onboarding proof record cannot override the generated tenant ledger");
+  const pendingScopedPages = candidateLedger.pendingScopedPageCandidates ?? [];
   assert.deepEqual(pendingScopedPages.map((entry) => entry.path),
     ["src/app/app/client-onboarding/page.tsx"],
     "New scoped SSR pages require explicit recorded zero-credit evidence, not an inventory bypass");
@@ -7208,7 +7212,7 @@ test("page and server-action inventory cannot silently omit new or changed busin
           status: "GAP",
           reason: "New source-backed onboarding page. Exact-source fictional PG16 own/foreign/revoked/role read-only HTTP proof must pass and independent tenant/privacy review is still pending; no historical page ledger credits.",
           proofFile: "scripts/qa/tenant-client-onboarding-page-http.mjs",
-          proofBlob: "98e50a6c4a6d2682e1ae437cc3fb119e28a919c6",
+          proofBlob: "a1afad78d29cfd5722a5457d6c5addda01944523",
           workflowFile: ".github/workflows/client-onboarding-tenant-http.yml",
           workflowBlob: "a5874b94eb8a63631ff82149d0a6af1a516e7349",
           contractTestFile: "tests/client-onboarding-page-boundary.test.mjs",
