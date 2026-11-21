@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 export const OPERATIONS_COPILOT_SUPPLEMENT =
   "scripts/qa/operations-copilot-isolation-supplement.json";
 const ORIGINAL_LEDGER = "scripts/qa/tenant-isolation-coverage-manifest.json";
-const ORIGINAL_LEDGER_SHA = "c024f9699f3770693625fcaf9982e7ed39eed57f";
+const ORIGINAL_LEDGER_SHA = "df3e1301b67ec1b2c271f4393f91511b7e8035c5";
 const ROUTE = "src/app/api/operations-copilot/route.ts";
 const PAGE = "src/app/hcm/operations-copilot/page.tsx";
 const LIB = "src/lib/operations-copilot.ts";
