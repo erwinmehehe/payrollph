@@ -1,0 +1,127 @@
+name: Client Onboarding SSR Tenant Proof (Fictional PG16, No Money)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/app/app/client-onboarding/**"
+      - "src/components/client-setup-tour.tsx"
+      - "src/components/workspace/panels.tsx"
+      - "src/lib/client-onboarding-checklist.ts"
+      - "src/lib/access.ts"
+      - "src/lib/multi-entity-server.ts"
+      - "scripts/qa/tenant-client-onboarding-page-http.mjs"
+      - "tests/client-onboarding-*"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - ".github/workflows/client-onboarding-tenant-http.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/app/client-onboarding/**"
+      - "src/components/client-setup-tour.tsx"
+      - "src/components/workspace/panels.tsx"
+      - "src/lib/client-onboarding-checklist.ts"
+      - "src/lib/access.ts"
+      - "src/lib/multi-entity-server.ts"
+      - "scripts/qa/tenant-client-onboarding-page-http.mjs"
+      - "tests/client-onboarding-*"
+      - "scripts/qa/tenant-isolation-coverage-manifest.json"
+      - ".github/workflows/client-onboarding-tenant-http.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  client-onboarding-fictional-tenant-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      CLIENT_ONBOARDING_PROOF: synthetic-pg16-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "true"
+      WORKER_ENABLED: "false"
+      CENTRAL_SCHEDULER_ENABLED: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_BILLING_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact source commit
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Guard proof fail-closed before database access
+        run: |
+          node --check scripts/qa/tenant-client-onboarding-page-http.mjs
+          node --test tests/client-onboarding-page-boundary.test.mjs
+          npx tsx --test tests/client-onboarding-checklist.test.ts
+      - name: Ephemeral keys only for isolated fictional database
+        shell: bash
+        run: |
+          for key in BANK_DATA_ENCRYPTION_KEY PII_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Provision disposable PostgreSQL 16 schema
+        run: npm run db:push
+      - name: Apply reviewed isolated baseline (never production)
+        run: node scripts/qa/apply-isolated-baseline.mjs
+      - name: Build isolated app
+        run: npm run build
+      - name: Start localhost-only app
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm start -- -H 127.0.0.1 > /tmp/client-onboarding-proof.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Fictional onboarding proof app failed to start"
+          exit 1
+      - name: Prove own, foreign, role, malformed, revoked and victim-unchanged SSR
+        env:
+          NODE_ENV: production
+        run: node --import tsx scripts/qa/tenant-client-onboarding-page-http.mjs
+      - name: Show bounded redacted local error diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f /tmp/client-onboarding-proof.log ]; then
+            grep -Ei 'error|failed|digest|relation|column|TypeError:' /tmp/client-onboarding-proof.log |
+              sed -E 's#postgres(ql)?://[^[:space:]]+#postgresql://[redacted]#g; s/(password|token|secret|cookie)[=:][^[:space:]]+/[redacted]/Ig; s/[A-Za-z0-9_+-]{96,}/[redacted]/g' |
+              cut -c1-220 | tail -n 35 || true
+          fi
