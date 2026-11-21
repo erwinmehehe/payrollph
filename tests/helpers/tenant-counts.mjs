@@ -11,6 +11,7 @@ import {reviewedDocumentSourceWithdrawals} from "../../scripts/qa/document-sourc
  * A batch now only adds proof entries; it never edits shared numbers.
  */
 import { execFileSync } from "node:child_process";
+import { WAGE_RENEWAL_V2_KIND } from "../../scripts/qa/wage-registry-renewal-v2.mjs";
 import { reviewedTimesheetSourceHold } from "../../scripts/qa/timesheet-source-accounting.mjs";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -233,12 +234,30 @@ export function reviewedOidcSourceSupersession(beforeManifest, liveManifest) {
 }
 
 /** The manifest at the PR's base, or null when no base is available outside CI. */
+/** After a v2 re-seal the base (main) rows name main's old receipt, which no longer verifies against this tree.
+ * A base v2 credit is rebased onto the SAME method's live row only when that live row is itself a v2 credit; the
+ * live row is verified separately by the v2 verifier against the sealed receipt. Counts do not change, and a base
+ * credit whose live row is missing, held or edited keeps its old row so the verifiers fail closed. */
+function rebaseRenewedV2Credits(base, live) {
+  for (const [path, file] of Object.entries(base.allApiRouteFiles ?? {})) {
+    for (let i = 0; i < file.methods.length; i++) {
+      const row = file.methods[i];
+      if (row.testedBy?.kind !== WAGE_RENEWAL_V2_KIND) continue;
+      const now = live?.allApiRouteFiles?.[path]?.methods?.find((m) => m.name === row.name);
+      if (now?.testedBy?.kind === WAGE_RENEWAL_V2_KIND) file.methods[i] = structuredClone(now);
+    }
+  }
+  return base;
+}
+
 export function baseTenantManifest(env = process.env) {
   const refs = [env.FAIL_CLOSED_GUARD_BASE_REF, env.TENANT_COUNTS_BASE_REF, "origin/main"].filter(Boolean);
   for (const ref of refs) {
     try {
       const text = execFileSync("git", ["show", ref + ":" + MANIFEST], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
-      return { ref, manifest: JSON.parse(text) };
+      let live = null;
+      try { live = JSON.parse(readFileSync(MANIFEST, "utf8")); } catch { /* no live manifest to rebase onto */ }
+      return { ref, manifest: rebaseRenewedV2Credits(JSON.parse(text), live) };
     } catch { /* try the next ref */ }
   }
   return null;
