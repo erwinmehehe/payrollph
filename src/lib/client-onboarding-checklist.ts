@@ -35,7 +35,7 @@ export function buildClientOnboardingChecklist(
       id: "profile",
       title: "Review company details",
       detail: "Workspace and legal business names must be present. Saved fields still need a human review.",
-      action: "Open workspace settings",
+      action: "Open workspace",
       destination: home,
       instruction: "In Settings, open Organization.",
       recorded: Boolean(evidence.organizationName.trim() && evidence.legalName.trim()),
@@ -55,7 +55,7 @@ export function buildClientOnboardingChecklist(
       id: "team",
       title: "Invite your HR or finance team",
       detail: `${evidence.activeTeamMembers} active non-employee workspace member${evidence.activeTeamMembers === 1 ? "" : "s"} recorded. Separate roles are recommended for approvals.`,
-      action: "Manage workspace access",
+      action: "Open workspace",
       destination: home,
       instruction: "In Settings, open Team.",
       recorded: evidence.activeTeamMembers > 1,
@@ -67,7 +67,7 @@ export function buildClientOnboardingChecklist(
       detail: evidence.hasMultipleLegalEmployers
         ? "Multiple legal employers are configured. Organization-level identifiers do not establish coverage for each employer."
         : `${evidence.employerRegistrationFields} of 4 organization-level BIR, SSS, PhilHealth and Pag-IBIG fields have values. This does not verify accuracy.`,
-      action: "Review registrations",
+      action: "Open workspace",
       destination: home,
       instruction: evidence.hasMultipleLegalEmployers
         ? "Open Entities and review each legal employer separately."
