@@ -9,6 +9,7 @@ export type ClientOnboardingEvidence = {
   activeTeamMembers: number;
   employerRegistrationFields: number;
   hasMultipleLegalEmployers: boolean;
+  legalEmployerScopeEnabled?: boolean;
 };
 
 export type ClientOnboardingStep = {
@@ -64,15 +65,17 @@ export function buildClientOnboardingChecklist(
     {
       id: "registrations",
       title: "Review employer registrations",
-      detail: evidence.hasMultipleLegalEmployers
-        ? "Multiple legal employers are configured. Organization-level identifiers do not establish coverage for each employer."
+      detail: evidence.legalEmployerScopeEnabled
+        ? evidence.hasMultipleLegalEmployers
+          ? "Multiple legal employers are active. Organization-level identifiers do not establish coverage for each employer. Review each legal employer separately."
+          : "Legal-employer configuration is enabled. Organization-level identifiers cannot confirm that the active legal employer has its own registrations. Review its identifiers separately."
         : `${evidence.employerRegistrationFields} of 4 organization-level BIR, SSS, PhilHealth and Pag-IBIG fields have values. This does not verify accuracy.`,
       action: "Open workspace",
       destination: home,
-      instruction: evidence.hasMultipleLegalEmployers
-        ? "Open Entities and review each legal employer separately."
+      instruction: evidence.legalEmployerScopeEnabled || evidence.hasMultipleLegalEmployers
+        ? "Open Entities in the workspace and review legal-employer registrations."
         : "In Settings, open Organization and verify the employer identifiers.",
-      recorded: !evidence.hasMultipleLegalEmployers && evidence.employerRegistrationFields === 4,
+      recorded: !evidence.legalEmployerScopeEnabled && !evidence.hasMultipleLegalEmployers && evidence.employerRegistrationFields === 4,
       optional: false,
     },
   ];
