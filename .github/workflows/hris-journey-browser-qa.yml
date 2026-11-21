@@ -99,7 +99,10 @@ concurrency:
 jobs:
   synthetic-journey:
     name: isolated-hris-journey
-    runs-on: ubuntu-latest
+    # Playwright 1.55.0's chromium-headless-shell does not support the
+    # ubuntu26.04-x64 image currently selected by ubuntu-latest.
+    # Pin a supported hosted runner for this fictional-only HRIS browser proof.
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       CI: "true"
