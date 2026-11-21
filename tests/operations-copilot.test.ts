@@ -165,7 +165,7 @@ test("API and page independently enforce authorization, source scope and zero si
   const page = readFileSync("src/app/hcm/operations-copilot/page.tsx", "utf8");
   const model = readFileSync("src/lib/operations-copilot-ai.ts", "utf8");
   for (const guard of [
-    "operationsCopilotEnabled()", "getSessionUser()", "assertOrganizationRole",
+    "operationsCopilotEnabled(organizationId)", "getSessionUser()", "assertOrganizationRole",
     "assertOrganizationUnitAccess", "findPayrollRunForMember",
     "requireRunEmployer", "access?.companyWide", "WHERE organization_id = $1",
     "enforceSameOriginMutation", "requireSensitiveActionMfa", "enforceSensitiveActionRateLimit",
@@ -173,7 +173,7 @@ test("API and page independently enforce authorization, source scope and zero si
   assert.ok(route.includes('status IN (\'open\', \'acknowledged\')'));
   assert.ok(route.includes("source.run.legalEntityId !== run.legalEntityId"));
   assert.ok(page.includes("assertOrganizationRole") && page.includes("assertOrganizationUnitAccess"));
-  assert.ok(page.includes("operationsCopilotEnabled()"));
+  assert.ok(page.includes("operationsCopilotEnabled(organizationId)"));
   assert.ok(model.includes("modelSafeOperationsSnapshot(brief)"));
   assert.ok(model.includes("operationsCopilotAiAllowed(brief.organizationId)"));
   assert.ok(!route.includes("drainPayrollQueue") && !route.includes("db.update(") && !route.includes("db.insert("));
