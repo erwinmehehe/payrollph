@@ -1210,6 +1210,21 @@ export function SettingsPage({ data, setNotice, initialTab = "organization" }: {
   return (
     <>
       <PageHeading eyebrow="SETTINGS" title="Settings" copy="Manage company details, payroll policies and access for your role." />
+      {data.access?.companyWide === true &&
+        ["owner", "admin"].includes(data.access.role) &&
+        (!data.multiEntity?.enabled || data.multiEntity.legalEntityId === null) &&
+        data.selectedOrganization.accountType !== "freelancer" && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div>
+            <p className="font-semibold text-emerald-950">New to Linaw?</p>
+            <p className="mt-1 text-sm text-emerald-900">Follow the company setup checklist and guided walkthrough.</p>
+          </div>
+          <a href={`/app/client-onboarding?organizationId=${data.selectedOrganization.id}`}
+            className="inline-flex min-h-11 items-center rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-white">
+            Open company setup guide
+          </a>
+        </div>
+      )}
       <section className="settings-layout">
         <article className="card settings-nav">
           {tabs.map((item) => {
